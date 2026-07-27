@@ -1,9 +1,9 @@
-module specialfuncs
+module special_functions
    use angular_functions
    use bessel_functions
    use coefficient_indexing
-   use quadrature_functions
+   use quadrature
    use wave_functions
    implicit none
    public
-end module specialfuncs
+end module special_functions

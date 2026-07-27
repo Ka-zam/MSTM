@@ -1,8 +1,8 @@
-module spheredata
-   use specialfuncs
+module sphere_data
+   use special_functions
    use numerical_tables
-   use surface_subroutines
-   use periodic_lattice_subroutines
+   use surface
+   use periodic_lattice_operations
    type linked_sphere_list
       integer :: sphere
       type(linked_sphere_list), pointer :: next
@@ -187,4 +187,4 @@ contains
 
    end subroutine find_host_spheres
 
-end module spheredata
+end module sphere_data

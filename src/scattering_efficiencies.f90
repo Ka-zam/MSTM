@@ -2,12 +2,12 @@ module scattering_efficiencies
    use constants
    use fft_translation
    use mie
-   use mpidefs
+   use parallel_runtime
    use numerical_tables
-   use periodic_lattice_subroutines
-   use specialfuncs
-   use spheredata
-   use surface_subroutines
+   use periodic_lattice_operations
+   use special_functions
+   use sphere_data
+   use surface
    use scattering_amplitudes, only: common_origin_amplitude_matrix, multiple_origin_amplitude_matrix, &
                                     numerical_scattering_matrix_azimuthal_average_multiple_origin, &
                                     numerical_scattering_matrix_azimuthal_average_single_origin

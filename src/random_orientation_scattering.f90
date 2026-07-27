@@ -2,13 +2,13 @@ module random_orientation_scattering
    use constants
    use fft_translation
    use mie
-   use mpidefs
+   use parallel_runtime
    use numerical_tables
-   use periodic_lattice_subroutines
+   use periodic_lattice_operations
    use runtime_support, only: write_elapsed_time
-   use specialfuncs
-   use spheredata
-   use surface_subroutines
+   use special_functions
+   use sphere_data
+   use surface
    implicit none
    private
    public :: evaluate_random_orientation_scattering_matrix, random_orientation_scattering_matrix

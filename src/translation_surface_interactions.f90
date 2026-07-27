@@ -2,12 +2,12 @@ module translation_surface_interactions
    use angular_functions, only: axial_translation_offset, axial_translation_size
    use coefficient_indexing, only: polarized_mode_index
    use iso_fortran_env, only: real64
-   use mpidefs, only: mpi_comm_world, mstm_mpi, mstm_mpi_wtime
-   use periodic_lattice_subroutines, only: periodic_lattice, plane_boundary_lattice_interaction
-   use spheredata, only: host_sphere, number_spheres, one_side_only, recalculate_surface_matrix, &
-                         run_print_unit, sphere_block, sphere_layer, sphere_offset, sphere_order, sphere_position, &
-                         store_surface_matrix, store_translation_matrix
-   use surface_subroutines, only: layer_ref_index, plane_boundary_interaction, plane_surface_present
+   use parallel_runtime, only: mpi_comm_world, mstm_mpi, mstm_mpi_wtime
+   use periodic_lattice_operations, only: periodic_lattice, plane_boundary_lattice_interaction
+   use sphere_data, only: host_sphere, number_spheres, one_side_only, recalculate_surface_matrix, &
+                          run_print_unit, sphere_block, sphere_layer, sphere_offset, sphere_order, sphere_position, &
+                          store_surface_matrix, store_translation_matrix
+   use surface, only: layer_ref_index, plane_boundary_interaction, plane_surface_present
    use wave_functions, only: reverse_azimuthal_modes
 
    implicit none(type, external)

@@ -1,5 +1,5 @@
-module inputinterface
+module input
    use input_execution
    implicit none
    public
-end module inputinterface
+end module input

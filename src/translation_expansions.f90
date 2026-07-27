@@ -2,13 +2,13 @@ module translation_expansions
    use angular_functions, only: generate_translation_matrix
    use iso_fortran_env, only: real64
    use mie, only: apply_mie_coefficients, exterior_refractive_index
-   use mpidefs, only: mpi_comm_world, mstm_global_rank, mstm_mpi, mstm_mpi_sum
+   use parallel_runtime, only: mpi_comm_world, mstm_global_rank, mstm_mpi, mstm_mpi_sum
    use numerical_tables, only: light_up
-   use periodic_lattice_subroutines, only: periodic_lattice, plane_boundary_lattice_interaction
-   use spheredata, only: host_sphere, number_eqns, number_spheres, sphere_block, sphere_layer, sphere_offset, &
-                         sphere_order, sphere_position, sphere_ref_index, store_translation_matrix, &
-                         translation_switch_order
-   use surface_subroutines, only: find_layer_index, plane_boundary_interaction, plane_surface_present
+   use periodic_lattice_operations, only: periodic_lattice, plane_boundary_lattice_interaction
+   use sphere_data, only: host_sphere, number_eqns, number_spheres, sphere_block, sphere_layer, sphere_offset, &
+                          sphere_order, sphere_position, sphere_ref_index, store_translation_matrix, &
+                          translation_switch_order
+   use surface, only: find_layer_index, plane_boundary_interaction, plane_surface_present
    use translation_operator, only: translation_operator_state
 
    implicit none(type, external)

@@ -1,9 +1,9 @@
 program mstm
-   use inputinterface
+   use input
    use solver
-   use mpidefs
-   use specialfuncs
-   use spheredata
+   use parallel_runtime
+   use special_functions
+   use sphere_data
    implicit none
    integer :: looplevel, rank, numprocs, &
               readstat(1), i, numargs, istat, numberinputlines, n

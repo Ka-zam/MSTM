@@ -7,13 +7,13 @@
 !                february 2013
 !
 module solver
-   use mpidefs
+   use parallel_runtime
    use numerical_tables
-   use specialfuncs
-   use spheredata
+   use special_functions
+   use sphere_data
    use mie
    use translation, only: general_interaction_matrix
-   use scatprops
+   use scattering
    implicit none
 
 contains

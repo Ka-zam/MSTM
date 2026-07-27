@@ -2,12 +2,12 @@ module scattering_amplitudes
    use constants
    use fft_translation
    use mie
-   use mpidefs
+   use parallel_runtime
    use numerical_tables
-   use periodic_lattice_subroutines
-   use specialfuncs
-   use spheredata
-   use surface_subroutines
+   use periodic_lattice_operations
+   use special_functions
+   use sphere_data
+   use surface
    implicit none
    private
    public :: amplitude_to_scattering_matrix, common_origin_amplitude_matrix, &

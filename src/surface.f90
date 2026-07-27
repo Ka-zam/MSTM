@@ -1,7 +1,7 @@
-module surface_subroutines
+module surface
    use constants
    use numerical_tables
-   use specialfuncs
+   use special_functions
    implicit none
    logical :: source_sum, include_direct_source, &
               pole_integration, plane_surface_present
@@ -1266,4 +1266,4 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       pmnp = pmnp * phasefaclat / 4.d0 / sourceri / sourceri / skz
    end subroutine layer_vector_spherical_harmonics
 
-end module surface_subroutines
+end module surface

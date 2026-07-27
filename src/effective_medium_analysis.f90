@@ -68,7 +68,7 @@ contains
 
    subroutine effective_refractive_index(ndat, edat, d, rieff, &
                                          e0)
-      use mpidefs
+      use parallel_runtime
       implicit none
       integer :: ndat, i, rank
       real(8) :: d, xdat(ndat), phase(ndat), amplitude(ndat), &

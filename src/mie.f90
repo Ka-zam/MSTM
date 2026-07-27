@@ -11,8 +11,8 @@ contains
 !  february 2013: tmatrix file option.
 !
    subroutine calculate_mie_coefficients(qeps)
-      use mpidefs
-      use spheredata
+      use parallel_runtime
+      use sphere_data
       implicit none
       integer :: i, nodrn, nsphere, ntermstot, nblktot, nterms, &
                  n1, n2, j, n
@@ -122,8 +122,8 @@ contains
    end subroutine calculate_mie_coefficients
 
    subroutine exterior_refractive_index(i, rihost)
-      use spheredata
-      use surface_subroutines
+      use sphere_data
+      use surface
       implicit none
       integer :: i
       complex(8) :: rihost(2)
@@ -152,7 +152,7 @@ contains
 !
    subroutine optically_active_mie_coefficients(x, ri, nodr0, qeps, qext, qsca, qabs, anp_mie, dnp_mie, &
                                                 unp_mie, vnp_mie, cnp_mie, ri_medium, anp_inv_mie, dnp_eff_mie, anp_eff_mie)
-      use specialfuncs
+      use special_functions
       implicit none
       integer :: nstop, n, i, p, q, nodr0, s, t, ss, st
       real(8) :: x, qeps, qext, qsca, fn1, err, qextt, qabs
@@ -298,7 +298,7 @@ contains
 !  april 2012
 !
    subroutine apply_single_sphere_mie_coefficients(i, nodr, cx, cy, mie_coefficient)
-      use spheredata
+      use sphere_data
       implicit none
       integer :: i, n, p, nodr, n1, n2, nterms
       complex(8) :: cx(0:nodr + 1, nodr, 2), cy(0:nodr + 1, nodr, 2)
@@ -346,7 +346,7 @@ contains
 ! february 2013: tmatrix file option
 !
    subroutine apply_mie_coefficients(neqns, nrhs, idir, ain, aout, rhs_list)
-      use spheredata
+      use sphere_data
       implicit none
       integer :: neqns, i, n, p, q, nodri, nblki, n1, n2, b11, b12, b21, b22, idir, &
                  nterms, j, nrhs

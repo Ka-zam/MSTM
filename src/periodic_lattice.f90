@@ -1,9 +1,9 @@
-module periodic_lattice_subroutines
+module periodic_lattice_operations
    use constants
    use numerical_tables
-   use specialfuncs
-   use surface_subroutines
-   use mpidefs
+   use special_functions
+   use surface
+   use parallel_runtime
    implicit none
    logical, target :: periodic_lattice, time_it, phase_shift_form, finite_lattice
    integer :: pl_max_subdivs, pl_rs_nmax, pl_error_codes(6), pl_fs_method, pl_rs_imax, &
@@ -1081,4 +1081,4 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       if (time_it) time_count(3) = mstm_mpi_wtime() - time_0 + time_count(3)
    end subroutine plane_boundary_lattice_kernel
 
-end module periodic_lattice_subroutines
+end module periodic_lattice_operations

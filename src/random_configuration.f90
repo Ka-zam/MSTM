@@ -1,11 +1,11 @@
 module random_sphere_configuration
    use constants
-   use mpidefs
+   use parallel_runtime
    use random_configuration_dynamics
    use random_configuration_geometry
    use random_configuration_sorting
    use random_configuration_state
-   use specialfuncs
+   use special_functions
    implicit none
    private
    public :: add_sphere_to_cluster, calculate_target_distribution_statistics, calculate_target_volume, &

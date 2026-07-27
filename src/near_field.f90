@@ -1,12 +1,12 @@
-module nearfield
-   use mpidefs
-   use specialfuncs
-   use spheredata
+module near_field
+   use parallel_runtime
+   use special_functions
+   use sphere_data
    use mie
    use numerical_tables
-   use surface_subroutines
-   use periodic_lattice_subroutines
-   use scatprops
+   use surface
+   use periodic_lattice_operations
+   use scattering
    use translation, only: translation_operator_state
    implicit none
    type grid_info
@@ -898,4 +898,4 @@ contains
       write (outputunit, '(3i5)') griddim(:)
    end subroutine write_near_field_output_header
 
-end module nearfield
+end module near_field

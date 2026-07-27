@@ -5,7 +5,7 @@
 !  last revised: 15 January 2011
 !
 module numerical_tables
-   use mpidefs
+   use parallel_runtime
    implicit none
    logical, target :: light_up
    integer :: print_intermediate_results, global_rank

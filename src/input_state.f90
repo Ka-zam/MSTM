@@ -2,17 +2,17 @@
 !27 july: core volume fraction added to output
 
 module input_state
-   use specialfuncs
-   use mpidefs
+   use special_functions
+   use parallel_runtime
    use solver
-   use spheredata
+   use sphere_data
    use translation, only: interaction_radius
    use mie
-   use nearfield
-   use scatprops
+   use near_field
+   use scattering
    use fft_translation
-   use surface_subroutines
-   use periodic_lattice_subroutines
+   use surface
+   use periodic_lattice_operations
    use random_sphere_configuration
    implicit none
    logical :: loop_job, repeat_run, first_run, data_scaled, temporary_pos_file, &

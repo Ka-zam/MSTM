@@ -1,4 +1,4 @@
-module mpidefs
+module parallel_runtime
    use mpi
    implicit none
 
@@ -445,4 +445,4 @@ contains
       end if
 
    end subroutine mstm_mpi
-end module mpidefs
+end module parallel_runtime

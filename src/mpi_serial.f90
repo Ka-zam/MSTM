@@ -4,7 +4,7 @@
 !
 !  last revised: 15 January 2011
 !
-module mpidefs
+module parallel_runtime
    implicit none
    integer :: mpi_comm_world, mstm_mpi_comm_world, mstm_mpi_sum, mstm_mpi_max, mstm_mpi_min, &
               mpi_comm_null, mstm_global_rank
@@ -143,4 +143,4 @@ contains
       end if
 
    end subroutine mstm_mpi
-end module mpidefs
+end module parallel_runtime

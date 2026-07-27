@@ -2,10 +2,10 @@ module fft_translation
    use constants
    use gpfa_controller, only: cgpfa
    use gpfa_setup, only: setgpfa
-   use mpidefs
+   use parallel_runtime
    use numerical_tables
-   use specialfuncs
-   use spheredata
+   use special_functions
+   use sphere_data
    use translation, only: clear_stored_translation_matrices, transform_mode_coefficients, &
                           translation_operator_state
    use mie

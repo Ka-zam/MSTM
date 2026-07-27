@@ -1,6 +1,6 @@
 module random_configuration_dynamics
    use constants
-   use mpidefs, only: mstm_mpi_wtime
+   use parallel_runtime, only: mstm_mpi_wtime
    use random_configuration_geometry, only: check_position_in_target, modify_cells, position_to_cell_index
    use random_configuration_state
    implicit none

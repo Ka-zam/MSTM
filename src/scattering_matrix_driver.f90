@@ -1,9 +1,9 @@
 module scattering_matrix_driver
    use input_state
-   use scatprops, only: common_origin_scattering_matrix, evaluate_fixed_orientation_scattering_matrix, &
-                        multiple_origin_scattering_matrix, &
-                        numerical_scattering_matrix_azimuthal_average_multiple_origin, &
-                        numerical_scattering_matrix_azimuthal_average_single_origin, periodic_lattice_scattering
+   use scattering, only: common_origin_scattering_matrix, evaluate_fixed_orientation_scattering_matrix, &
+                         multiple_origin_scattering_matrix, &
+                         numerical_scattering_matrix_azimuthal_average_multiple_origin, &
+                         numerical_scattering_matrix_azimuthal_average_single_origin, periodic_lattice_scattering
    implicit none
    private
    public :: compute_scattering_matrix

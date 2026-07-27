@@ -1,4 +1,4 @@
-module quadrature_functions
+module quadrature
    use constants
    implicit none
 contains
@@ -276,4 +276,4 @@ contains
       end do
    end subroutine sort_unique_real_values
 
-end module quadrature_functions
+end module quadrature

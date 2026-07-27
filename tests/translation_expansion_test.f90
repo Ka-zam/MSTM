@@ -1,6 +1,6 @@
 program translation_expansion_test
    use iso_fortran_env, only: real64
-   use mpidefs, only: mstm_mpi
+   use parallel_runtime, only: mstm_mpi
    use numerical_tables, only: initialize_numerical_tables
    use translation, only: external_to_internal_expansion, nested_sphere_geometry_view
 

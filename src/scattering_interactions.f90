@@ -2,12 +2,12 @@ module scattering_interactions
    use constants
    use fft_translation
    use mie
-   use mpidefs
+   use parallel_runtime
    use numerical_tables
-   use periodic_lattice_subroutines
-   use specialfuncs
-   use spheredata
-   use surface_subroutines
+   use periodic_lattice_operations
+   use special_functions
+   use sphere_data
+   use surface
    use translation, only: external_to_external_expansion, external_to_internal_expansion, &
                           periodic_lattice_sphere_interaction, sphere_surface_interaction, translation_operator_state
    implicit none
