@@ -58,8 +58,8 @@ set(mstm_core_sources
   src/random_configuration_sorting.f90
   src/random_configuration_geometry.f90
   src/random_configuration_dynamics.f90
-  src/random_configuration.f90
-  src/lmfit.f90
+  src/random_sphere_configuration.f90
+  src/levenberg_marquardt.f90
   src/input_value_parsing.f90
   src/input_state.f90
   src/input_parser.f90
