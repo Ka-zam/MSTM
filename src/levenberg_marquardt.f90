@@ -1,4 +1,14 @@
 module levenberg_marquardt
+   use, intrinsic :: iso_fortran_env, only: real64
+   implicit none
+
+   abstract interface
+      subroutine minpack_residual(function_count, variable_count, variables, residuals, status)
+         import :: real64
+         integer :: function_count, variable_count, status
+         real(real64) :: variables(variable_count), residuals(function_count)
+      end subroutine minpack_residual
+   end interface
 contains
 
    subroutine lmdif1(fcn, m, n, x, fvec, tol, info)
@@ -93,7 +103,7 @@ contains
       real(kind=rk) diag(n)
       real(kind=rk) epsfcn
       real(kind=rk) factor
-      external fcn
+      procedure(minpack_residual) :: fcn
       real(kind=rk) fjac(m, n)
       real(kind=rk) ftol
       real(kind=rk) fvec(m)
@@ -225,7 +235,7 @@ contains
       real(kind=rk) eps
       real(kind=rk) epsfcn
       real(kind=rk) epsmch
-      external fcn
+      procedure(minpack_residual) :: fcn
       real(kind=rk) fjac(ldfjac, n)
       real(kind=rk) fvec(m)
       real(kind=rk) h
@@ -428,7 +438,7 @@ contains
       real(kind=rk) epsfcn
       real(kind=rk) epsmch
       real(kind=rk) factor
-      external fcn
+      procedure(minpack_residual) :: fcn
       real(kind=rk) fjac(ldfjac, n)
       real(kind=rk) fnorm
       real(kind=rk) fnorm1

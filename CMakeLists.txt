@@ -31,6 +31,7 @@ if(MSTM_ENABLE_WARNINGS)
     -Wextra
     -Wcharacter-truncation
     -Wimplicit-interface
+    -Werror=implicit-interface
     -Wno-compare-reals
     -Wno-conversion
     -Wno-do-subscript

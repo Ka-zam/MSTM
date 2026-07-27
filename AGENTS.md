@@ -16,7 +16,7 @@ ctest --test-dir build/serial --output-on-failure
 
 Build MPI mode with `-DMSTM_ENABLE_MPI=ON -DCMAKE_Fortran_COMPILER=mpifort`. Run a case as `build/serial/mstm examples/mstm-2022b-fig1.inp`; paths written by the solver are relative to the working directory.
 
-For a diagnostic build, add `-DMSTM_ENABLE_RUNTIME_CHECKS=ON`. Warnings are enabled by default; use `-DMSTM_WARNINGS_AS_ERRORS=ON` when preparing a warning-clean change.
+For a diagnostic build, add `-DMSTM_ENABLE_RUNTIME_CHECKS=ON`. Warnings are enabled by default; CI also sets `-DMSTM_WARNINGS_AS_ERRORS=ON`.
 
 ## Coding Style & Naming Conventions
 

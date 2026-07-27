@@ -28,6 +28,7 @@ jobs:
           cmake -S . -B build/serial-${{ matrix.name }} -G Ninja
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
           -DMSTM_ENABLE_RUNTIME_CHECKS=${{ matrix.runtime_checks }}
+          -DMSTM_WARNINGS_AS_ERRORS=ON
       - name: Build
         run: cmake --build build/serial-${{ matrix.name }}
       - name: Test
@@ -46,6 +47,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -DCMAKE_Fortran_COMPILER=mpifort
           -DMSTM_ENABLE_MPI=ON
+          -DMSTM_WARNINGS_AS_ERRORS=ON
       - name: Build
         run: cmake --build build/mpi
       - name: Test

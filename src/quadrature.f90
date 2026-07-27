@@ -1,6 +1,14 @@
 module quadrature
    use constants
    implicit none
+
+   abstract interface
+      subroutine complex_integrand(number_values, argument, values)
+         integer :: number_values
+         real(8) :: argument
+         complex(8) :: values(number_values)
+      end subroutine complex_integrand
+   end interface
 contains
 
    subroutine integrate_gauss_kronrod_nonadaptive(n, a, b, epsabs, epsrel, f, resultf, abserr, neval, ier)
@@ -10,7 +18,7 @@ contains
          w43a(10), w43b(12), w87a(21), w87b(23), x1(5), x2(5), x3(11), x4(22)
       complex(8) :: fcentr(n), fval(n), fval1(n), fval2(n), fv1(5, n), fv2(5, n), fv3(5, n), fv4(5, n), &
                     resultf(n), res10(n), res21(n), res43(n), res87(n), savfun(21, n)
-      external :: f
+      procedure(complex_integrand) :: f
       data x1(1), x1(2), x1(3), x1(4), x1(5)/ &
          9.739065285171717E-01, 8.650633666889845E-01, &
          6.794095682990244E-01, 4.333953941292472E-01, &
@@ -191,7 +199,7 @@ contains
       real(8) :: t00, tmid, t11, errstep, inteps, mindiv
       complex(8), intent(out) :: qint(ntot)
       complex(8) :: qint1(ntot), qint2(ntot)
-      external :: qsub
+      procedure(complex_integrand) :: qsub
 
       errorcodes = 0
       call integrate_gauss_kronrod_nonadaptive(ntot, t0, t1, inteps, inteps, qsub, qint, errstep, nsteps, ier)
