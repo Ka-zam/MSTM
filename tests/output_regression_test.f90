@@ -20,6 +20,10 @@ program output_regression_test
       call check_two_sphere_broadside(trim(work_directory), failures)
    case ('rigid_transform_invariants')
       call check_rigid_transform_invariants(trim(work_directory), failures)
+   case ('solver_validation')
+      call check_solver_validation(trim(work_directory), failures)
+   case ('solver_reciprocity')
+      call check_solver_reciprocity(trim(work_directory), failures)
    case default
       write (error_unit, '(a)') 'Unknown regression case: '//trim(case_name)
       error stop 2
@@ -72,11 +76,11 @@ contains
       read (unit, *) fit, fit_status
       close (unit)
 
-      call assert_close('Effective-medium total extinction', efficiency(1), 6.0097e-3_real64, failure_count)
-      call assert_close('Effective-medium total absorption', efficiency(2), 5.1521e-3_real64, failure_count)
+      call assert_close('Effective-medium total extinction', efficiency(1), 6.0387e-3_real64, failure_count)
+      call assert_close('Effective-medium total absorption', efficiency(2), 5.1562e-3_real64, failure_count)
       call assert_close('Effective-medium refractive-index real part', fit(1), 1.0680_real64, failure_count)
-      call assert_close('Effective-medium refractive-index imaginary part', fit(2), -1.4983e-2_real64, failure_count)
-      call assert_close('Effective-medium fitted radius', fit(3), 4.6115e-1_real64, failure_count)
+      call assert_close('Effective-medium refractive-index imaginary part', fit(2), -1.4990e-2_real64, failure_count)
+      call assert_close('Effective-medium fitted radius', fit(3), 4.6107e-1_real64, failure_count)
       if (fit_status /= 1) then
          write (error_unit, '(a,i0,a)') 'Effective-medium fit status was ', fit_status, ', expected 1'
          failure_count = failure_count + 1
@@ -91,9 +95,9 @@ contains
          failure_count = failure_count + 1
       end if
       call assert_close('Effective-medium first coefficient real part', coefficient_real, &
-                        6.76879e-4_real64, failure_count)
+                        6.76874e-4_real64, failure_count)
       call assert_close('Effective-medium first coefficient imaginary part', coefficient_imaginary, &
-                        2.92016e-3_real64, failure_count)
+                        2.92138e-3_real64, failure_count)
    end subroutine check_effective_medium
 
    subroutine check_two_sphere_broadside(directory, failure_count)
@@ -141,6 +145,78 @@ contains
       end do
    end subroutine check_rigid_transform_invariants
 
+   subroutine check_solver_validation(directory, failure_count)
+      character(len=*), intent(in) :: directory
+      integer, intent(inout) :: failure_count
+      real(real64) :: efficiency(9, 3), residual(3), elapsed, reciprocal_condition
+      integer :: iterations(3), run, unit
+
+      call open_regression_file(directory//'/solver-validation.dat', unit)
+      do run = 1, 3
+         call find_line(unit, 'number iterations, error, solution time', .true.)
+         read (unit, *) iterations(run), residual(run), elapsed
+         if (run == 3) then
+            call find_line(unit, 'direct reciprocal condition estimate', .true.)
+            read (unit, *) reciprocal_condition
+         end if
+         call find_line(unit, 'total extinction, absorption, scattering efficiencies', .true.)
+         read (unit, *) efficiency(:, run)
+      end do
+      close (unit)
+
+      if (residual(1) > 1.0e-4_real64) then
+         write (error_unit, '(a,es14.6)') 'Loose iterative residual exceeded tolerance: ', residual(1)
+         failure_count = failure_count + 1
+      end if
+      if (residual(2) > 1.0e-10_real64) then
+         write (error_unit, '(a,es14.6)') 'Tight iterative residual exceeded tolerance: ', residual(2)
+         failure_count = failure_count + 1
+      end if
+      if (residual(3) > 1.0e-10_real64) then
+         write (error_unit, '(a,es14.6)') 'Direct residual exceeded tolerance: ', residual(3)
+         failure_count = failure_count + 1
+      end if
+      if (.not. ieee_is_finite(reciprocal_condition) .or. reciprocal_condition <= 0.0_real64 .or. &
+          reciprocal_condition > 1.0_real64) then
+         write (error_unit, '(a,es14.6)') 'Invalid direct reciprocal condition estimate: ', reciprocal_condition
+         failure_count = failure_count + 1
+      end if
+      if (iterations(2) < iterations(1) .or. residual(2) > residual(1)) then
+         write (error_unit, '(a)') 'Tighter tolerance did not improve iterative convergence'
+         failure_count = failure_count + 1
+      end if
+      do run = 1, 9
+         call assert_close('Direct/iterative efficiency', efficiency(run, 3), efficiency(run, 2), failure_count)
+      end do
+      do run = 1, 3
+         call assert_close('Lossless unpolarized energy balance', efficiency(3, run), &
+                           efficiency(1, run), failure_count)
+         call assert_close('Lossless parallel energy balance', efficiency(6, run), &
+                           efficiency(4, run), failure_count)
+         call assert_close('Lossless perpendicular energy balance', efficiency(9, run), &
+                           efficiency(7, run), failure_count)
+      end do
+   end subroutine check_solver_validation
+
+   subroutine check_solver_reciprocity(directory, failure_count)
+      character(len=*), intent(in) :: directory
+      integer, intent(inout) :: failure_count
+      real(real64) :: direct_matrix(16), reciprocal_matrix_left(16), reciprocal_matrix_right(16)
+      integer :: unit
+
+      call open_regression_file(directory//'/solver-reciprocity.dat', unit)
+      call find_line(unit, 'scattering matrix in incident plane', .true.)
+      call find_scattering_row(unit, 60.0_real64, direct_matrix)
+      call find_line(unit, 'scattering matrix in incident plane', .true.)
+      call find_scattering_row(unit, -180.0_real64, reciprocal_matrix_left)
+      call find_scattering_row(unit, 180.0_real64, reciprocal_matrix_right)
+      close (unit)
+
+      call assert_close('Reciprocal unpolarized differential scattering', &
+                        0.5_real64 * (reciprocal_matrix_left(1) + reciprocal_matrix_right(1)), &
+                        direct_matrix(1), failure_count)
+   end subroutine check_solver_reciprocity
+
    subroutine open_regression_file(path, unit)
       character(len=*), intent(in) :: path
       integer, intent(out) :: unit
@@ -171,6 +247,26 @@ contains
          error stop 2
       end if
    end subroutine find_line
+
+   subroutine find_scattering_row(unit, requested_angle, matrix)
+      integer, intent(in) :: unit
+      real(real64), intent(in) :: requested_angle
+      real(real64), intent(out) :: matrix(16)
+      character(len=2048) :: line
+      integer :: io_status
+      real(real64) :: angle
+
+      do
+         read (unit, '(a)', iostat=io_status) line
+         if (io_status /= 0) exit
+         read (line, *, iostat=io_status) angle, matrix
+         if (io_status == 0) then
+            if (abs(angle - requested_angle) < 1.0e-6_real64) return
+         end if
+      end do
+      write (error_unit, '(a,f8.2)') 'Could not find scattering angle ', requested_angle
+      error stop 2
+   end subroutine find_scattering_row
 
    subroutine assert_close(label, actual, expected, failure_count)
       character(len=*), intent(in) :: label

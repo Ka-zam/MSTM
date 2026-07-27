@@ -1,0 +1,23 @@
+output_file
+solver-nonconvergence.dat
+number_spheres
+2
+sphere_data
+0.d0,0.d0,-0.55d0,0.5d0,(1.5d0,0.d0)
+0.d0,0.d0, 0.55d0,0.5d0,(1.5d0,0.d0)
+end_of_sphere_data
+incident_beta_deg
+90.d0
+solution_epsilon
+1.d-14
+max_iterations
+1
+solution_method
+iteration
+calculate_scattering_matrix
+f
+print_sphere_data
+f
+print_timings
+f
+end_of_options

@@ -37,6 +37,7 @@ The incident propagation direction uses polar angle $\beta$ and azimuth $\alpha$
 
 - CMake 3.24 or newer
 - GNU Fortran 15.2 or newer
+- BLAS and LAPACK libraries (OpenBLAS is supported)
 - an MPI implementation with a GNU Fortran wrapper for parallel builds
 
 The build enforces the published Fortran 2023 dialect (`-std=f2023`).
@@ -261,9 +262,9 @@ Defaults are shown in parentheses where established by the current source.
 | Option | Meaning |
 |---|---|
 | `mie_epsilon` | VSWF truncation tolerance (`1e-6`). A negative integer `-L` forces order `L`. |
-| `solution_epsilon` | Iterative-solver error tolerance (`1e-6`). |
+| `solution_epsilon` | Relative residual tolerance, $\lVert b-Ax\rVert_2/\lVert b\rVert_2$ (`1e-6`). |
 | `max_iterations` | Maximum solver iterations (`10000` in the current implementation). |
-| `solution_method` | Solution algorithm (`iteration`). |
+| `solution_method` | `iteration` for matrix-free BiCG or `direct` for dense LAPACK LU (`iteration`). |
 | `translation_epsilon` | Common-origin and T-matrix truncation tolerance (`1e-5`). |
 | `max_t_matrix_order` | Safety limit on T-matrix/common-origin order (`120`). |
 | `t_matrix_convergence_epsilon` | Relative extinction-change threshold for T-matrix convergence (`1e-6`). |
@@ -272,6 +273,7 @@ Defaults are shown in parentheses where established by the current source.
 | `store_surface_matrix` | Cache plane-boundary surface matrices. |
 
 Always repeat sensitive calculations with tighter tolerances. High expansion orders may encounter floating-point range limits.
+The executable returns an error instead of writing derived results when the solver reaches its iteration limit, breaks down, encounters a singular direct matrix, or produces a non-finite value. Direct runs also report LAPACK's reciprocal condition estimate; values near zero indicate an ill-conditioned interaction matrix.
 
 ### 6.3 FFT acceleration
 

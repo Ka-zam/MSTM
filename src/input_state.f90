@@ -46,7 +46,8 @@ module input_state
                    coherent_scattering_ratio, hemispherical_sca(2, 2), evan_sca(2), prop_sca(2), &
                    input_layer_thickness(max_number_plane_boundaries), &
                    pl_sca(2, 2), scat_mat_amin, scat_mat_amax, pl_sca_ave(2, 2), solution_time, solution_time_ave, &
-                   incident_beta, solution_error, surface_absorptance(2), surface_absorptance_ave(2), &
+                   incident_beta, solution_error, solution_reciprocal_condition, &
+                   surface_absorptance(2), surface_absorptance_ave(2), &
                    position_shift(3), tot_csca_ave(1), dif_csca_ratio(1), fit_radius, tot_csca, dif_csca
    real(real64), allocatable :: q_eff(:, :, :), q_vabs(:, :), q_eff_tot(:, :), scat_mat(:, :), &
                                 dif_scat_mat(:, :), sm_coef(:, :, :), sm_cf_coef(:, :, :), boundary_sca(:, :), boundary_ext(:, :), &
@@ -91,6 +92,7 @@ module input_state
    data incident_alpha_deg/0.d0/
    data incident_sin_beta, incident_direction, incident_frame/0.d0, 1, .false./
    data solution_epsilon/1.d-6/
+   data solution_reciprocal_condition/1.d0/
    data mie_epsilon/1.d-6/
    data translation_epsilon/1.d-5/
    data t_matrix_convergence_epsilon/1.d-6/

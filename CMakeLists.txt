@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.24)
 
 project(MSTM VERSION 4.0.0 LANGUAGES Fortran)
 
+find_package(LAPACK REQUIRED)
+
 set(mstm_generated_directory "${CMAKE_CURRENT_BINARY_DIR}/generated")
 file(MAKE_DIRECTORY "${mstm_generated_directory}")
 configure_file(
@@ -151,7 +153,7 @@ set_target_properties(mstm_core PROPERTIES
 )
 target_include_directories(mstm_core PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/modules")
 mstm_apply_fortran_options(mstm_core)
-target_link_libraries(mstm_core PUBLIC mstm_bessel mstm_gpfa)
+target_link_libraries(mstm_core PUBLIC mstm_bessel mstm_gpfa LAPACK::LAPACK)
 
 if(MSTM_ENABLE_MPI)
   target_link_libraries(mstm_core PUBLIC MPI::MPI_Fortran)
@@ -275,6 +277,11 @@ if(BUILD_TESTING)
 
   add_mstm_failure_test(invalid_input_error invalid-option.inp "Unknown input parameter")
   add_mstm_failure_test(missing_sphere_file_error missing-sphere-file.inp "Cannot open input file 'does-not-exist.pos'")
+  add_mstm_failure_test(
+    solver_nonconvergence_error
+    solver-nonconvergence.inp
+    "Fixed-orientation solver failed: iteration limit reached"
+  )
 
   function(add_mstm_regression_test test_name input_path expected_outputs regression_case)
     set(test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/${test_name}")
@@ -325,6 +332,18 @@ if(BUILD_TESTING)
     rigid-transform-invariants.dat
     rigid_transform_invariants
   )
+  add_mstm_regression_test(
+    solver_validation
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/solver-validation.inp"
+    solver-validation.dat
+    solver_validation
+  )
+  add_mstm_regression_test(
+    solver_reciprocity
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/solver-reciprocity.inp"
+    solver-reciprocity.dat
+    solver_reciprocity
+  )
 
   if(MSTM_ENABLE_MPI)
     set(mpi_test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/mpi_two_rank_effective_medium")
@@ -338,6 +357,23 @@ if(BUILD_TESTING)
         "-DMSTM_EXPECTED_OUTPUTS=effective-medium-smoke.dat,anpeff.dat"
         "-DMSTM_REGRESSION_EXECUTABLE=$<TARGET_FILE:output_regression_test>"
         "-DMSTM_REGRESSION_CASE=effective_medium"
+        "-DMSTM_MPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMSTM_MPI_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMSTM_MPI_RANKS=2"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunSmokeTest.cmake"
+    )
+
+    set(mpi_solver_test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/mpi_two_rank_solver_validation")
+    file(MAKE_DIRECTORY "${mpi_solver_test_work_dir}")
+    add_test(
+      NAME mpi_two_rank_solver_validation
+      COMMAND "${CMAKE_COMMAND}"
+        "-DMSTM_EXECUTABLE=$<TARGET_FILE:mstm>"
+        "-DMSTM_INPUT=${CMAKE_CURRENT_SOURCE_DIR}/tests/solver-validation.inp"
+        "-DMSTM_WORK_DIR=${mpi_solver_test_work_dir}"
+        "-DMSTM_EXPECTED_OUTPUTS=solver-validation.dat"
+        "-DMSTM_REGRESSION_EXECUTABLE=$<TARGET_FILE:output_regression_test>"
+        "-DMSTM_REGRESSION_CASE=solver_validation"
         "-DMSTM_MPIEXEC=${MPIEXEC_EXECUTABLE}"
         "-DMSTM_MPI_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
         "-DMSTM_MPI_RANKS=2"

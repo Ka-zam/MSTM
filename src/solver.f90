@@ -8,6 +8,7 @@
 !
 module solver
    use, intrinsic :: iso_fortran_env, only: real64
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use parallel_runtime, only: mpi_comm_null, mpi_comm_world, mstm_global_rank, parallel_allreduce_sum, &
                                parallel_barrier, parallel_broadcast, parallel_communicator_create, parallel_group, &
                                parallel_group_include, parallel_rank, parallel_reduce_sum, parallel_size, &
@@ -24,7 +25,91 @@ module solver
                                       phase_shift, sphere_interaction, sphere_plane_wave_coefficients
    implicit none
 
+   integer, parameter :: solver_converged = 0
+   integer, parameter :: solver_iteration_limit = 1
+   integer, parameter :: solver_breakdown = 2
+   integer, parameter :: solver_singular = 3
+   integer, parameter :: solver_non_finite = 4
+
+   interface
+      subroutine zgetrf(m, n, a, lda, ipiv, info)
+         import real64
+         integer, intent(in) :: m, n, lda
+         complex(real64), intent(inout) :: a(lda, *)
+         integer, intent(out) :: ipiv(*), info
+      end subroutine zgetrf
+
+      subroutine zgetrs(trans, n, nrhs, a, lda, ipiv, b, ldb, info)
+         import real64
+         character(len=1), intent(in) :: trans
+         integer, intent(in) :: n, nrhs, lda, ldb, ipiv(*)
+         complex(real64), intent(in) :: a(lda, *)
+         complex(real64), intent(inout) :: b(ldb, *)
+         integer, intent(out) :: info
+      end subroutine zgetrs
+
+      function zlange(norm, m, n, a, lda, work) result(matrix_norm)
+         import real64
+         character(len=1), intent(in) :: norm
+         integer, intent(in) :: m, n, lda
+         complex(real64), intent(in) :: a(lda, *)
+         real(real64), intent(out) :: work(*)
+         real(real64) :: matrix_norm
+      end function zlange
+
+      subroutine zgecon(norm, n, a, lda, matrix_norm, reciprocal_condition, work, real_work, info)
+         import real64
+         character(len=1), intent(in) :: norm
+         integer, intent(in) :: n, lda
+         complex(real64), intent(in) :: a(lda, *)
+         real(real64), intent(in) :: matrix_norm
+         real(real64), intent(out) :: reciprocal_condition
+         complex(real64), intent(out) :: work(*)
+         real(real64), intent(out) :: real_work(*)
+         integer, intent(out) :: info
+      end subroutine zgecon
+   end interface
+
 contains
+
+   pure function solver_status_message(status) result(message)
+      integer, intent(in) :: status
+      character(len=48) :: message
+
+      select case (status)
+      case (solver_converged)
+         message = 'converged'
+      case (solver_iteration_limit)
+         message = 'iteration limit reached'
+      case (solver_breakdown)
+         message = 'iterative solver breakdown'
+      case (solver_singular)
+         message = 'singular interaction matrix'
+      case (solver_non_finite)
+         message = 'non-finite solver value'
+      case default
+         write (message, '(a,i0)') 'unknown solver status ', status
+      end select
+   end function solver_status_message
+
+   pure real(real64) function relative_residual_norm(residual, right_hand_side)
+      complex(real64), intent(in) :: residual(:), right_hand_side(:)
+      real(real64) :: denominator
+
+      denominator = norm2(abs(right_hand_side))
+      if (denominator <= tiny(1.0_real64)) then
+         relative_residual_norm = norm2(abs(residual))
+      else
+         relative_residual_norm = norm2(abs(residual)) / denominator
+      end if
+   end function relative_residual_norm
+
+   pure logical function complex_vector_is_finite(values)
+      complex(real64), intent(in) :: values(:)
+
+      complex_vector_is_finite = all(ieee_is_finite(real(values, kind=real64))) .and. &
+         all(ieee_is_finite(aimag(values)))
+   end function complex_vector_is_finite
 
    subroutine solve_t_matrix(solution_method, solution_eps, convergence_eps, &
                              max_iterations, t_matrix_file, procs_per_soln, mpi_comm, &
@@ -204,21 +289,28 @@ contains
                      if (itersoln) then
                         call solve_complex_biconjugate_gradient(niter, solneps, pmnpan, amnpkq, 0, &
                                                                 iter, solnerr, initialize_solver=initialize, &
-                                                                mpi_comm=pcomm)
+                                                                mpi_comm=pcomm, solution_status=ierr)
                         maxiter = max(iter, maxiter)
                         maxerr = max(solnerr, maxerr)
-                        if (iter .gt. niter .or. solnerr .gt. solneps) istat = 1
-                     else
-                        call solve_direct_system(pmnpan, amnpkq, &
-                                                 initialize_solver=initialize, solution_status=ierr, mpi_comm=pcomm)
-                        if (ierr /= 0) then
-                           istat = 2
+                        if (ierr /= solver_converged) then
+                           istat = ierr
                            deallocate (pmnp0, amnp0)
                            if (present(solution_status)) solution_status = istat
                            return
                         end if
-                        maxerr = 0.d0
-                        maxiter = 0
+                     else
+                        call solve_direct_system(pmnpan, amnpkq, &
+                                                 initialize_solver=initialize, solution_error=solnerr, &
+                                                 number_iterations=iter, solution_eps=solneps, &
+                                                 solution_status=ierr, mpi_comm=pcomm)
+                        maxiter = max(iter, maxiter)
+                        maxerr = max(solnerr, maxerr)
+                        if (ierr /= solver_converged) then
+                           istat = ierr
+                           deallocate (pmnp0, amnp0)
+                           if (present(solution_status)) solution_status = istat
+                           return
+                        end if
                      end if
                   end if
                   initialize = .false.
@@ -380,7 +472,8 @@ contains
 !
    subroutine solve_fixed_orientation(alpha, sinc, dir, eps, niter, amnp, qeff, &
                                       qeffdim, maxerr, maxiter, iterwrite, istat, &
-                                      mpi_comm, excited_spheres, solution_method, initialize_solver)
+                                      mpi_comm, excited_spheres, solution_method, initialize_solver, &
+                                      reciprocal_condition)
       implicit none
       logical :: firstrun, exsphere(number_spheres), dirsoln, initialize
       logical, save :: inp1, inp2
@@ -391,7 +484,8 @@ contains
       integer, save :: pcomm, synccomm1, synccomm2, p1, p2
       integer, allocatable :: grouplist(:)
       integer, optional :: mpi_comm
-      real(real64) :: alpha, sinc, eps, serr, qeff(3, qeffdim, number_spheres), maxerr
+      real(real64) :: alpha, sinc, eps, serr, qeff(3, qeffdim, number_spheres), maxerr, direct_condition
+      real(real64), optional, intent(out) :: reciprocal_condition
       complex(real64) :: amnp(number_eqns, 2)
       complex(real64), allocatable :: pmnpan(:), pmnp0(:, :)
       character(len=1), optional :: solution_method
@@ -496,6 +590,7 @@ contains
 !call parallel_barrier()
 
       allocate (pmnpan(number_eqns), pmnp0(number_eqns, 2))
+      if (present(reciprocal_condition)) reciprocal_condition = 1.0_real64
       call sphere_plane_wave_coefficients(alpha, sinc, dir, pmnp0, &
                                           excited_spheres=exsphere, mpi_comm=mpicomm)
 !if(phase_shift_form) call phase_shift(pmnp0,1)
@@ -522,23 +617,25 @@ contains
             end if
             if (dirsoln) then
                call solve_direct_system(pmnpan, amnp(:, p), initialize_solver=initialize, &
-                                        number_iterations=0, solution_error=serr, solution_status=ierr, mpi_comm=mpicomm)
-               if (ierr /= 0) then
-                  istat = 2
+                                        number_iterations=iter, solution_error=serr, solution_eps=eps, &
+                                        solution_status=ierr, mpi_comm=mpicomm, &
+                                        reciprocal_condition=direct_condition)
+               if (present(reciprocal_condition)) &
+                  reciprocal_condition = min(reciprocal_condition, direct_condition)
+               if (ierr /= solver_converged) then
+                  istat = ierr
                   deallocate (pmnp0, pmnpan)
                   return
                end if
-               if (numprocs .gt. 1) then
-                  call parallel_broadcast( &
-                     send_buffer=amnp(1:nsend, p), &
-                     mpi_number=number_eqns, &
-                     mpi_rank=0, &
-                     mpi_comm=mpicomm)
-               end if
-               iter = 0
             else
                call solve_complex_biconjugate_gradient(niter, eps, pmnpan, amnp(:, p), iterwrite, &
-                                                       iter, serr, mpi_comm=pcomm, initialize_solver=initialize)
+                                                       iter, serr, mpi_comm=pcomm, initialize_solver=initialize, &
+                                                       solution_status=ierr)
+               if (ierr /= solver_converged) then
+                  istat = ierr
+                  deallocate (pmnp0, pmnpan)
+                  return
+               end if
             end if
          else
             iter = 0
@@ -558,7 +655,6 @@ contains
          initialize = .false.
          maxiter = max(iter, maxiter)
          maxerr = max(serr, maxerr)
-         if (iter .gt. niter .or. serr .gt. eps) istat = 1
       end do
 
 !         call parallel_barrier()
@@ -606,84 +702,128 @@ contains
    end subroutine solve_fixed_orientation
 
    subroutine solve_direct_system(pnp, anp, initialize_solver, solution_error, &
-                                  number_iterations, solution_eps, solution_status, mpi_comm)
+                                  number_iterations, solution_eps, solution_status, mpi_comm, &
+                                  max_refinements, reciprocal_condition)
       implicit none
       logical :: initialize
-      logical, save :: firstrun
-      logical, optional :: initialize_solver
-      integer :: ierr, ierr_buffer(1), rank, niter, iter, mpicomm
-      integer, allocatable, save :: indx(:)
-      integer, optional :: number_iterations, solution_status, mpi_comm
-      real(real64) :: dsign, serr, seps
-      real(real64), optional :: solution_error, solution_eps
-      complex(real64) :: pnp(number_eqns), anp(number_eqns), rnp(number_eqns)
-      complex(real64), allocatable, save :: amat(:, :), lumat(:, :)
-      data firstrun/.true./
-      if (present(mpi_comm)) then
-         mpicomm = mpi_comm
-      else
-         mpicomm = mpi_comm_world
-      end if
-      if (present(initialize_solver)) then
-         initialize = initialize_solver
-      else
-         initialize = firstrun
-      end if
-      if (present(number_iterations)) then
-         niter = number_iterations
-      else
-         niter = 3
-      end if
-      if (present(solution_eps)) then
-         seps = solution_eps
-      else
-         seps = 1.d-12
-      end if
+      logical, save :: firstrun = .true.
+      logical, optional, intent(in) :: initialize_solver
+      integer :: ierr, rank, refinement, refinement_limit, mpicomm, status
+      integer :: integer_buffer(2)
+      integer, allocatable, save :: pivot(:)
+      integer, optional, intent(out) :: number_iterations, solution_status
+      integer, optional, intent(in) :: mpi_comm, max_refinements
+      real(real64) :: matrix_norm, residual, seps
+      real(real64) :: real_buffer(2)
+      real(real64), save :: direct_reciprocal_condition = 0.0_real64
+      real(real64), optional, intent(out) :: solution_error, reciprocal_condition
+      real(real64), optional, intent(in) :: solution_eps
+      real(real64), allocatable :: norm_work(:), condition_real_work(:)
+      complex(real64), intent(in) :: pnp(number_eqns)
+      complex(real64), intent(out) :: anp(number_eqns)
+      complex(real64) :: correction(number_eqns), residual_vector(number_eqns)
+      complex(real64), allocatable :: condition_work(:)
+      complex(real64), allocatable, save :: interaction_matrix(:, :), factored_matrix(:, :)
+
+      mpicomm = mpi_comm_world
+      if (present(mpi_comm)) mpicomm = mpi_comm
+      initialize = firstrun
+      if (present(initialize_solver)) initialize = initialize_solver
+      seps = 1.0e-12_real64
+      if (present(solution_eps)) seps = max(solution_eps, 0.0_real64)
+      refinement_limit = 3
+      if (present(max_refinements)) refinement_limit = max(0, max_refinements)
       call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
-      if (present(solution_status)) solution_status = 0
+
+      status = solver_converged
+      refinement = 0
+      residual = huge(1.0_real64)
+      anp = 0.0_real64
 
       if (initialize) then
-         if (allocated(amat)) deallocate (amat, lumat, indx)
-         allocate (amat(number_eqns, number_eqns), lumat(number_eqns, number_eqns), indx(number_eqns))
+         if (allocated(interaction_matrix)) deallocate (interaction_matrix, factored_matrix, pivot)
+         allocate (interaction_matrix(number_eqns, number_eqns))
+         allocate (factored_matrix(number_eqns, number_eqns), pivot(number_eqns))
          pl_error_codes = 0
-         call general_interaction_matrix(amat, mie_mult=.true., mpi_comm=mpicomm)
+         call general_interaction_matrix(interaction_matrix, mie_mult=.true., mpi_comm=mpicomm)
          call parallel_reduce_sum(mpi_rank=0, &
                                   receive_buffer=pl_error_codes, mpi_number=6, mpi_comm=mpicomm)
          ierr = 0
          if (rank .eq. 0) then
             if (any(pl_error_codes .ne. 0)) then
-               write (run_print_unit, '('' LU decomposion pl error codes:'',10i4)') pl_error_codes, pl_rs_imax
+               write (run_print_unit, '('' direct interaction-matrix error codes:'',10i4)') &
+                  pl_error_codes, pl_rs_imax
             end if
-            lumat = amat
-            call lu_decomposition(lumat, number_eqns, indx, dsign, ierr)
-            if (ierr .ne. 0) then
-               write (run_print_unit, '('' LU decomposition failed'')')
+            allocate (norm_work(number_eqns), condition_work(2 * number_eqns), &
+                      condition_real_work(2 * number_eqns))
+            matrix_norm = zlange('1', number_eqns, number_eqns, interaction_matrix, number_eqns, norm_work)
+            factored_matrix = interaction_matrix
+            call zgetrf(number_eqns, number_eqns, factored_matrix, number_eqns, pivot, ierr)
+            if (ierr > 0) then
+               status = solver_singular
+            elseif (ierr < 0) then
+               status = solver_breakdown
+            else
+               call zgecon('1', number_eqns, factored_matrix, number_eqns, matrix_norm, &
+                           direct_reciprocal_condition, condition_work, condition_real_work, ierr)
+               if (ierr /= 0) then
+                  status = solver_breakdown
+               elseif (.not. ieee_is_finite(direct_reciprocal_condition) .or. &
+                       direct_reciprocal_condition <= tiny(1.0_real64)) then
+                  status = solver_singular
+               end if
             end if
+            deallocate (norm_work, condition_work, condition_real_work)
          end if
-         ierr_buffer(1) = ierr
-         call parallel_broadcast(send_buffer=ierr_buffer, mpi_number=1, &
-                                 mpi_rank=0, mpi_comm=mpicomm)
-         ierr = ierr_buffer(1)
-         if (ierr /= 0) then
-            call set_runtime_error('Direct solver LU decomposition failed', ierr)
-            if (present(solution_status)) solution_status = ierr
-            return
-         end if
+         integer_buffer(1) = status
+         call parallel_broadcast(send_buffer=integer_buffer(1:1), mpi_number=1, mpi_rank=0, mpi_comm=mpicomm)
+         status = integer_buffer(1)
          firstrun = .false.
       end if
-      if (rank .eq. 0) then
+
+      if (status == solver_converged .and. rank .eq. 0) then
          anp = pnp
-         call lu_backsubstitution(lumat, number_eqns, indx, anp)
-         do iter = 1, niter
-            rnp = matmul(amat, anp) - pnp
-            serr = sqrt(sum(abs(rnp * conjg(rnp)))) / dble(number_eqns)
-            call lu_backsubstitution(lumat, number_eqns, indx, rnp)
-            anp = anp - rnp
+         call zgetrs('N', number_eqns, 1, factored_matrix, number_eqns, pivot, anp, number_eqns, ierr)
+         if (ierr /= 0) status = solver_breakdown
+         if (status == solver_converged) then
+            residual_vector = pnp - matmul(interaction_matrix, anp)
+            residual = relative_residual_norm(residual_vector, pnp)
+         end if
+         do while (status == solver_converged .and. residual > seps .and. refinement < refinement_limit)
+            correction = residual_vector
+            call zgetrs('N', number_eqns, 1, factored_matrix, number_eqns, pivot, correction, number_eqns, ierr)
+            if (ierr /= 0) then
+               status = solver_breakdown
+               exit
+            end if
+            anp = anp + correction
+            refinement = refinement + 1
+            residual_vector = pnp - matmul(interaction_matrix, anp)
+            residual = relative_residual_norm(residual_vector, pnp)
          end do
-         if (present(solution_error)) then
-            solution_error = serr
+         if (status == solver_converged) then
+            if (.not. ieee_is_finite(residual) .or. .not. complex_vector_is_finite(anp)) then
+               status = solver_non_finite
+            elseif (residual > seps) then
+               status = solver_iteration_limit
+            end if
          end if
       end if
+
+      integer_buffer = [status, refinement]
+      real_buffer = [residual, direct_reciprocal_condition]
+      call parallel_broadcast(send_buffer=integer_buffer, mpi_number=2, mpi_rank=0, mpi_comm=mpicomm)
+      call parallel_broadcast(send_buffer=real_buffer, mpi_number=2, mpi_rank=0, mpi_comm=mpicomm)
+      call parallel_broadcast(send_buffer=anp, mpi_number=number_eqns, mpi_rank=0, mpi_comm=mpicomm)
+      status = integer_buffer(1)
+      refinement = integer_buffer(2)
+      residual = real_buffer(1)
+      direct_reciprocal_condition = real_buffer(2)
+
+      if (present(solution_status)) solution_status = status
+      if (present(solution_error)) solution_error = residual
+      if (present(number_iterations)) number_iterations = refinement
+      if (present(reciprocal_condition)) reciprocal_condition = direct_reciprocal_condition
    end subroutine solve_direct_system
 !
 ! iteration solver
@@ -697,18 +837,20 @@ contains
 !  february 2013: number rhs option added, completely rewritten.
 !
    subroutine solve_complex_biconjugate_gradient(niter, eps, pnp, anp, iterwrite, iter, errmax, &
-                                                 initialize_solver, mpi_comm)
+                                                 initialize_solver, mpi_comm, solution_status)
       implicit none
       logical :: firstrun, initialize, contran2(2)
       logical, save :: inp1, inp2
-      logical, optional :: initialize_solver
+      logical, optional, intent(in) :: initialize_solver
       integer :: neqns, niter, iter, writetime, &
                  rank, iunit, iterwrite, numprocs, i, oddnumproc, &
-                 mpicomm, prank, mpigroup, syncgroup, groupsize, rank0
+                 mpicomm, prank, mpigroup, syncgroup, groupsize, rank0, status
       integer, save :: pgroup, pcomm, synccomm1, synccomm2
       integer, allocatable :: grouplist(:)
-      integer, optional :: mpi_comm
-      real(real64) :: eps, time1, time2, eerr, enorm, errmax, errmin, time0
+      integer, optional, intent(in) :: mpi_comm
+      integer, optional, intent(out) :: solution_status
+      real(real64) :: eps, time1, time2, eerr, enorm, errmax, errmin, time0, &
+                      breakdown_scale, residual_squared
       complex(real64) :: pnp(number_eqns), anp(number_eqns), cak, csk, cbk, csk2
       complex(real64), allocatable :: cr(:), cp(:), cw(:), cq(:), cap(:), caw(:), &
                                       capt(:), cawt(:), ctin(:, :), ctout(:, :)
@@ -727,6 +869,9 @@ contains
       end if
       iunit = run_print_unit
       neqns = number_eqns
+      iter = 0
+      errmax = 0.0_real64
+      status = solver_converged
       call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
       call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
 !         call parallel_rank(mpi_rank=rank0)
@@ -736,7 +881,16 @@ contains
          write (*, '('' s8.2.3.1 '',i3)') mstm_global_rank
          flush (6)
       end if
-      if (dot_product(pnp, pnp) .eq. 0.d0) return
+      residual_squared = real(dot_product(pnp, pnp), kind=real64)
+      if (.not. ieee_is_finite(residual_squared) .or. .not. complex_vector_is_finite(pnp)) then
+         status = solver_non_finite
+         if (present(solution_status)) solution_status = status
+         return
+      end if
+      if (residual_squared <= tiny(1.0_real64)) then
+         if (present(solution_status)) solution_status = status
+         return
+      end if
       allocate (cr(neqns), cp(neqns), cw(neqns), cq(neqns), &
                 cap(neqns), caw(neqns), capt(neqns), &
                 cawt(neqns))
@@ -803,10 +957,8 @@ contains
          end if
       end if
 
-      iter = 0
-      errmax = 0.
       if (normalize_solution_error) then
-         enorm = dot_product(pnp, pnp)
+         enorm = sqrt(residual_squared)
       else
          enorm = 1.d0
       end if
@@ -824,6 +976,7 @@ contains
                                  skip_external_translation=.true., &
                                  mpi_comm=mpicomm)
          deallocate (cr, cp, cw, cq, cap, caw, capt, cawt)
+         if (present(solution_status)) solution_status = status
          return
       end if
 !
@@ -845,10 +998,13 @@ contains
             end if
             anp = anp + cr
             cp = cr
-            eerr = dot_product(cr, cr)
-            eerr = eerr / enorm
+            eerr = norm2(abs(cr)) / enorm
+            errmax = eerr
+            if (.not. ieee_is_finite(eerr)) then
+               status = solver_non_finite
+               exit
+            end if
             if (eerr .lt. eps) then
-               errmax = eerr
                exit
             end if
             if (rank0 .eq. 0) time2 = parallel_wall_time()
@@ -863,6 +1019,7 @@ contains
          end do
          call parallel_barrier(mpi_comm=mpicomm)
          deallocate (cr, cp, cw, cq, cap, caw, capt, cawt)
+         if (present(solution_status)) solution_status = status
          return
       end if
 !
@@ -876,9 +1033,25 @@ contains
       cq = conjg(cr)
       cw = cq
       cp = cr
-      csk = dot_product(conjg(cr), cr)
-      if (abs(csk) .eq. 0.d0) then
+      eerr = norm2(abs(cr)) / enorm
+      errmax = eerr
+      if (.not. ieee_is_finite(eerr) .or. .not. complex_vector_is_finite(cr)) then
+         status = solver_non_finite
          deallocate (cr, cp, cw, cq, cap, caw, capt, cawt)
+         if (present(solution_status)) solution_status = status
+         return
+      elseif (eerr <= eps) then
+         deallocate (cr, cp, cw, cq, cap, caw, capt, cawt)
+         if (present(solution_status)) solution_status = status
+         return
+      end if
+      csk = dot_product(conjg(cr), cr)
+      breakdown_scale = sqrt(real(dot_product(cq, cq), kind=real64) * &
+                             real(dot_product(cr, cr), kind=real64))
+      if (abs(csk) <= max(tiny(1.0_real64), 100.0_real64 * epsilon(1.0_real64) * breakdown_scale)) then
+         status = solver_breakdown
+         deallocate (cr, cp, cw, cq, cap, caw, capt, cawt)
+         if (present(solution_status)) solution_status = status
          return
       end if
 !
@@ -889,6 +1062,7 @@ contains
          write (*, '('' s8.2.3.2 '',i3)') mstm_global_rank
          flush (6)
       end if
+      status = solver_iteration_limit
       do iter = 1, niter
          call parallel_barrier(mpi_comm=mpicomm)
          if (rank0 .eq. 0) time0 = parallel_wall_time()
@@ -947,13 +1121,14 @@ contains
          cap = cp - cap
          caw = cw - caw
          cak = dot_product(cw, cap)
-
-         if (abs(cak) .ne. 0.d0) then
-            cak = csk / cak
-         else
-            deallocate (cr, cp, cw, cq, cap, caw, capt, cawt)
-            return
+         breakdown_scale = sqrt(real(dot_product(cw, cw), kind=real64) * &
+                                real(dot_product(cap, cap), kind=real64))
+         if (.not. ieee_is_finite(abs(cak)) .or. &
+             abs(cak) <= max(tiny(1.0_real64), 100.0_real64 * epsilon(1.0_real64) * breakdown_scale)) then
+            status = solver_breakdown
+            exit
          end if
+         cak = csk / cak
 
          anp = anp + cak * cp
 !if(rank0.eq.0) then
@@ -962,17 +1137,27 @@ contains
          cr = cr - cak * cap
          cq = cq - conjg(cak) * caw
          csk2 = dot_product(cq, cr)
-         eerr = dot_product(cr, cr) / enorm
+         eerr = norm2(abs(cr)) / enorm
          errmax = eerr
          errmin = min(errmin, errmax)
 
-         if (eerr .lt. eps .or. abs(csk) .eq. 0.d0) then
-            deallocate (cr, cp, cw, cq, cap, caw, capt, cawt)
-            return
-         else
-            cbk = csk2 / csk
-            csk = csk2
+         if (.not. ieee_is_finite(eerr) .or. .not. complex_vector_is_finite(anp) .or. &
+             .not. complex_vector_is_finite(cr)) then
+            status = solver_non_finite
+            exit
+         elseif (eerr <= eps) then
+            status = solver_converged
+            exit
          end if
+
+         breakdown_scale = sqrt(real(dot_product(cq, cq), kind=real64) * &
+                                real(dot_product(cr, cr), kind=real64))
+         if (abs(csk2) <= max(tiny(1.0_real64), 100.0_real64 * epsilon(1.0_real64) * breakdown_scale)) then
+            status = solver_breakdown
+            exit
+         end if
+         cbk = csk2 / csk
+         csk = csk2
 
          cp = cr + cbk * cp
          cw = cq + conjg(cbk) * cw
@@ -989,110 +1174,9 @@ contains
             time1 = time2
          end if
       end do
+      if (status == solver_iteration_limit) iter = niter
       deallocate (cr, cp, cw, cq, cap, caw, capt, cawt)
+      if (present(solution_status)) solution_status = status
    end subroutine solve_complex_biconjugate_gradient
-
-   subroutine lu_decomposition(a, n, indx, d, ierr)
-      implicit none
-      integer :: n, indx(n), i, j, k, imax, ierr
-      real(real64) :: tiny, aamax, d, vv(n), dum, time1, time2
-      complex(real64) :: a(n, n), sum, cdum
-      data tiny/1.d-20/
-      ierr = 0
-      d = 1.d0
-      time1 = parallel_wall_time()
-      do i = 1, n
-         aamax = 0.d0
-         do j = 1, n
-            if (abs(a(i, j)) .gt. aamax) aamax = abs(a(i, j))
-         end do
-         if (aamax .eq. 0.d0) then
-            ierr = 1
-            return
-         end if
-         vv(i) = 1.d0 / aamax
-      end do
-      do j = 1, n
-         time2 = parallel_wall_time()
-         if (mstm_global_rank .eq. 0 .and. time2 - time1 .gt. 15.d0) then
-            write (run_print_unit, '('' lu decomposition, step '', i5,''/'',i5)') j, n
-            flush (run_print_unit)
-            time1 = time2
-         end if
-         if (j .gt. 1) then
-            do i = 1, j - 1
-               sum = a(i, j)
-               if (i .gt. 1) then
-                  do k = 1, i - 1
-                     sum = sum - a(i, k) * a(k, j)
-                  end do
-                  a(i, j) = sum
-               end if
-            end do
-         end if
-         aamax = 0.d0
-         do i = j, n
-            sum = a(i, j)
-            if (j .gt. 1) then
-               do k = 1, j - 1
-                  sum = sum - a(i, k) * a(k, j)
-               end do
-               a(i, j) = sum
-            end if
-            dum = vv(i) * abs(sum)
-            if (dum .ge. aamax) then
-               imax = i
-               aamax = dum
-            end if
-         end do
-         if (j .ne. imax) then
-            do k = 1, n
-               cdum = a(imax, k)
-               a(imax, k) = a(j, k)
-               a(j, k) = cdum
-            end do
-            d = -d
-            vv(imax) = vv(j)
-         end if
-         indx(j) = imax
-         if (j .ne. n) then
-            if (abs(a(j, j)) .eq. 0.d0) a(j, j) = tiny
-            cdum = 1.d0 / a(j, j)
-            do i = j + 1, n
-               a(i, j) = a(i, j) * cdum
-            end do
-         end if
-      end do
-      if (abs(a(n, n)) .eq. 0.d0) a(n, n) = tiny
-   end subroutine lu_decomposition
-
-   subroutine lu_backsubstitution(a, n, indx, b)
-      implicit none
-      integer :: n, indx(n), i, ii, j, ll
-      complex(real64) :: a(n, n), b(n), sum
-      ii = 0
-      do i = 1, n
-         ll = indx(i)
-         sum = b(ll)
-         b(ll) = b(i)
-         if (ii .ne. 0) then
-            do j = ii, i - 1
-               sum = sum - a(i, j) * b(j)
-            end do
-         elseif (abs(sum) .ne. 0.d0) then
-            ii = i
-         end if
-         b(i) = sum
-      end do
-      do i = n, 1, -1
-         sum = b(i)
-         if (i .lt. n) then
-            do j = i + 1, n
-               sum = sum - a(i, j) * b(j)
-            end do
-         end if
-         b(i) = sum / a(i, i)
-      end do
-   end subroutine lu_backsubstitution
 
 end module solver

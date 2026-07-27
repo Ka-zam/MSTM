@@ -279,6 +279,10 @@ contains
 
       write (outunit, '('' number iterations, error, solution time '')')
       write (outunit, '(i6,3es12.4)') solution_iterations, solution_error, solution_time
+      if (solution_method(1:1) /= 'i') then
+         write (outunit, '('' direct reciprocal condition estimate'')')
+         write (outunit, '(es12.4)') solution_reciprocal_condition
+      end if
       call print_error_codes(outunit)
       if (number_plane_boundaries .gt. 0) then
          call boundary_energy_transfer(incident_sin_beta, incident_direction, r, t, a)

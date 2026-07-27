@@ -2,7 +2,7 @@
 
 MSTM is a Fortran multiple-sphere T-matrix solver for monochromatic electromagnetic scattering. It supports fixed and random orientations, nested spheres, plane boundaries, periodic lattices, near-field maps, effective-medium calculations, and serial or MPI execution.
 
-The canonical implementation is in `src/`. It incorporates the features from the December 2023 split release and targets the Fortran 2023 dialect supported by GNU Fortran 15.2.
+The canonical implementation is in `src/`. It incorporates the features from the December 2023 split release and targets the Fortran 2023 dialect supported by GNU Fortran 15.2. A BLAS/LAPACK implementation is required for the dense direct solver.
 
 ## Build
 

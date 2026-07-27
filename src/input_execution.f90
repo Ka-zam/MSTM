@@ -9,12 +9,13 @@ module input_execution
    use input_reporting
    use parallel_runtime, only: mpi_comm_world, mstm_global_rank, parallel_barrier, parallel_broadcast, &
                                parallel_rank, parallel_reduce_sum, parallel_size, parallel_split, parallel_wall_time
-   use runtime_support, only: open_output_file, runtime_failed
+   use runtime_support, only: open_output_file, runtime_failed, set_runtime_error
    use random_orientation_scattering, only: evaluate_random_orientation_scattering_matrix
    use scattering_amplitudes, only: fixed_orientation_scattering_matrix_expansion, periodic_lattice_scattering
    use scattering_efficiencies, only: boundary_extinction, common_origin_hemispherical_scattering, &
                                       hemispherical_scattering, total_efficiency_factors
    use scattering_matrix_driver
+   use solver, only: solver_converged, solver_status_message
    use wave_functions, only: compose_group_filename
    implicit none
 contains
@@ -60,6 +61,14 @@ contains
       first_run = .false.
       call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
       call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
+      if (solution_method(1:1) /= 'i' .and. solution_method(1:1) /= 'd') then
+         call set_runtime_error("Unknown solution method '"//trim(solution_method)//"'; use iteration or direct")
+         return
+      end if
+      if (max_iterations > 0 .and. solution_epsilon <= 0.0_real64) then
+         call set_runtime_error('solution_epsilon must be positive')
+         return
+      end if
 !         if(rank.ne.0) light_up=.false.
       local_rank = rank
       global_rank = rank
@@ -514,6 +523,10 @@ contains
                              mpi_comm=mpicomm, &
                              sphere_excitation_list=sphere_excitation_switch)
          if (runtime_failed()) return
+         if (istat /= solver_converged) then
+            call set_runtime_error('T-matrix solver failed: '//trim(solver_status_message(istat)), istat)
+            return
+         end if
          if (fft_translation_option) call clear_fft_matrix(clear_h=.true.)
          if (calculate_scattering_matrix) then
             if (allocated(scat_mat_exp_coef)) deallocate (scat_mat_exp_coef)
@@ -562,8 +575,13 @@ contains
                                       mpi_comm=mpicomm, &
                                       excited_spheres=sphere_excitation_switch, &
                                       solution_method=solution_method(1:1), &
-                                      initialize_solver=.true.)
+                                      initialize_solver=.true., &
+                                      reciprocal_condition=solution_reciprocal_condition)
          if (runtime_failed()) return
+         if (istat /= solver_converged) then
+            call set_runtime_error('Fixed-orientation solver failed: '//trim(solver_status_message(istat)), istat)
+            return
+         end if
          if (print_timings .and. mstm_global_rank .eq. 0) then
             write (run_print_unit, '('' completed, time:'',es12.5,'' s'')') parallel_wall_time() - timet
          end if
