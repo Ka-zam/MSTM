@@ -176,8 +176,11 @@ if(BUILD_TESTING)
   target_link_libraries(concurrent_kernels_test PRIVATE mstm_core)
   add_test(NAME concurrent_kernels_unit COMMAND concurrent_kernels_test)
 
-  add_test(NAME cli_help COMMAND $<TARGET_FILE:mstm> help)
+  add_test(NAME cli_help COMMAND $<TARGET_FILE:mstm>)
   set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "Usage:")
+
+  add_test(NAME cli_help_alias COMMAND $<TARGET_FILE:mstm> help)
+  set_tests_properties(cli_help_alias PROPERTIES PASS_REGULAR_EXPRESSION "Usage:")
 
   add_test(NAME cli_version COMMAND $<TARGET_FILE:mstm> --version)
   set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "MSTM ${PROJECT_VERSION}")

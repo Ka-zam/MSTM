@@ -23,7 +23,7 @@ cmake --build build/mpi -j
 
 ## Run and test
 
-Pass an input file on the command line. With no argument, MSTM reads `mstm.inp` from the working directory.
+Pass an input file on the command line. With no argument, MSTM prints command-line help.
 
 ```sh
 build/serial/mstm examples/mstm-2022b-fig1.inp

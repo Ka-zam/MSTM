@@ -67,7 +67,7 @@ build/serial/mstm --help
 build/serial/mstm --version
 ```
 
-`help`, `--help`, and `-h` print command-line usage. `version`, `--version`, and `-V` print the version generated from the CMake project metadata. With no argument, MSTM reads `mstm.inp` from the working directory. Input paths may be absolute or relative to that directory. Output paths in the input file are also resolved from the working directory. Multiples of four MPI ranks are often most efficient for configuration averaging.
+With no argument, MSTM prints command-line usage. The aliases `help`, `--help`, and `-h` do the same. `version`, `--version`, and `-V` print the version generated from the CMake project metadata. Input paths may be absolute or relative to the working directory. Output paths in the input file are also resolved from that directory. Multiples of four MPI ranks are often most efficient for configuration averaging.
 
 ## 4. Input format
 

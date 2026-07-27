@@ -124,8 +124,9 @@ contains
 
       number_arguments = command_argument_count()
       if (number_arguments .eq. 0) then
-         input_file_name = 'mstm.inp'
-         return
+         if (rank .eq. 0) call print_help()
+         call mstm_mpi(mpi_command='finalize')
+         stop 0, quiet = .true.
       end if
 
       call get_command_argument(1, argument)
@@ -174,7 +175,7 @@ contains
       write (output_unit, '(a)') '  mstm version | --version | -V'
       write (output_unit, '(a)') ''
       write (output_unit, '(a)') 'Arguments:'
-      write (output_unit, '(a)') '  INPUT_FILE    Simulation input file; defaults to mstm.inp.'
+      write (output_unit, '(a)') '  INPUT_FILE    Simulation input file.'
       write (output_unit, '(a)') ''
       write (output_unit, '(a)') 'Options:'
       write (output_unit, '(a)') '  -h, --help    Show this help and exit.'
