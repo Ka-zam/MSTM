@@ -1,0 +1,2 @@
+# clang-format parses unknown extensions as C++; never run it on Fortran.
+src/*.f90

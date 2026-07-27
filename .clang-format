@@ -1,0 +1,9 @@
+# clang-format does not support Fortran. The Fortran sources are excluded in
+# .clang-format-ignore and are formatted with fprettify instead. Keep this
+# style for any clang-format-compatible support code added later.
+BasedOnStyle: LLVM
+IndentWidth: 2
+ContinuationIndentWidth: 4
+ColumnLimit: 100
+UseTab: Never
+InsertNewlineAtEOF: true

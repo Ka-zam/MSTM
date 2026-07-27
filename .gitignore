@@ -1,0 +1,8 @@
+/build/
+*.mod
+*.obj
+*.o
+*.exe
+*.dat
+temp_pos.dat
+random_configuration.pos
