@@ -491,16 +491,16 @@ contains
          if (allocated(mean_t)) deallocate (mean_t)
          allocate (mean_t(2, t_matrix_order))
          mean_t = 0.d0
-         call tmatrix_solution(solution_method=solution_method(1:1), &
-                               solution_eps=solution_epsilon, &
-                               convergence_eps=t_matrix_convergence_epsilon, &
-                               max_iterations=niter, &
-                               t_matrix_file=t_matrix_output_file, &
-                               procs_per_soln=t_matrix_procs_per_solution, &
-                               sphere_qeff=q_eff, &
-                               solution_status=istat, &
-                               mpi_comm=mpicomm, &
-                               sphere_excitation_list=sphere_excitation_switch)
+         call solve_t_matrix(solution_method=solution_method(1:1), &
+                             solution_eps=solution_epsilon, &
+                             convergence_eps=t_matrix_convergence_epsilon, &
+                             max_iterations=niter, &
+                             t_matrix_file=t_matrix_output_file, &
+                             procs_per_soln=t_matrix_procs_per_solution, &
+                             sphere_qeff=q_eff, &
+                             solution_status=istat, &
+                             mpi_comm=mpicomm, &
+                             sphere_excitation_list=sphere_excitation_switch)
          if (fft_translation_option) call clear_fft_matrix(clear_h=.true.)
          if (calculate_scattering_matrix) then
             if (allocated(scat_mat_exp_coef)) deallocate (scat_mat_exp_coef)
@@ -543,12 +543,13 @@ contains
             write (run_print_unit, '('' generating solution:'')', advance='no')
             timet = mstm_mpi_wtime()
          end if
-         call fixedorsoln(alpha, incident_sin_beta, incident_direction, solution_epsilon, niter, amnp_s, q_eff, &
-                          qeff_dim, solution_error, solution_iterations, 1, istat, &
-                          mpi_comm=mpicomm, &
-                          excited_spheres=sphere_excitation_switch, &
-                          solution_method=solution_method(1:1), &
-                          initialize_solver=.true.)
+         call solve_fixed_orientation(alpha, incident_sin_beta, incident_direction, solution_epsilon, niter, &
+                                      amnp_s, q_eff, &
+                                      qeff_dim, solution_error, solution_iterations, 1, istat, &
+                                      mpi_comm=mpicomm, &
+                                      excited_spheres=sphere_excitation_switch, &
+                                      solution_method=solution_method(1:1), &
+                                      initialize_solver=.true.)
          if (print_timings .and. mstm_global_rank .eq. 0) then
             write (run_print_unit, '('' completed, time:'',es12.5,'' s'')') mstm_mpi_wtime() - timet
          end if

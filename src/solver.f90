@@ -18,9 +18,9 @@ module solver
 
 contains
 
-   subroutine tmatrix_solution(solution_method, solution_eps, convergence_eps, &
-                               max_iterations, t_matrix_file, procs_per_soln, mpi_comm, &
-                               sphere_qeff, solution_status, sphere_excitation_list)
+   subroutine solve_t_matrix(solution_method, solution_eps, convergence_eps, &
+                             max_iterations, t_matrix_file, procs_per_soln, mpi_comm, &
+                             sphere_qeff, solution_status, sphere_excitation_list)
       implicit none
       logical :: firstrun, initialize, itersoln, continueloop, exlist(number_spheres)
       logical, optional :: sphere_excitation_list(number_spheres)
@@ -186,15 +186,15 @@ contains
                   amnpkq = pmnpan
                   if (niter .ne. 0) then
                      if (itersoln) then
-                        call cbicg(niter, solneps, pmnpan, amnpkq, 0, &
-                                   iter, solnerr, initialize_solver=initialize, &
-                                   mpi_comm=pcomm)
+                        call solve_complex_biconjugate_gradient(niter, solneps, pmnpan, amnpkq, 0, &
+                                                                iter, solnerr, initialize_solver=initialize, &
+                                                                mpi_comm=pcomm)
                         maxiter = max(iter, maxiter)
                         maxerr = max(solnerr, maxerr)
                         if (iter .gt. niter .or. solnerr .gt. solneps) istat = 1
                      else
-                        call direct_solver(pmnpan, amnpkq, &
-                                           initialize_solver=initialize)
+                        call solve_direct_system(pmnpan, amnpkq, &
+                                                 initialize_solver=initialize)
                         maxerr = 0.d0
                         maxiter = 0
                      end if
@@ -327,7 +327,7 @@ contains
       if (present(sphere_qeff)) sphere_qeff = qeffi
       if (present(solution_status)) solution_status = istat
 
-   end subroutine tmatrix_solution
+   end subroutine solve_t_matrix
 
 !
 !  solution of interaction equations for a fixed orientation
@@ -345,9 +345,9 @@ contains
 ! february 2013: number rhs and mpi comm options added, completely rewritten.
 !
 !
-   subroutine fixedorsoln(alpha, sinc, dir, eps, niter, amnp, qeff, &
-                          qeffdim, maxerr, maxiter, iterwrite, istat, &
-                          mpi_comm, excited_spheres, solution_method, initialize_solver)
+   subroutine solve_fixed_orientation(alpha, sinc, dir, eps, niter, amnp, qeff, &
+                                      qeffdim, maxerr, maxiter, iterwrite, istat, &
+                                      mpi_comm, excited_spheres, solution_method, initialize_solver)
       implicit none
       logical :: firstrun, exsphere(number_spheres), dirsoln, initialize
       logical, save :: inp1, inp2
@@ -488,8 +488,8 @@ contains
                flush (6)
             end if
             if (dirsoln) then
-               call direct_solver(pmnpan, amnp(:, p), initialize_solver=initialize, &
-                                  number_iterations=0, solution_error=serr, mpi_comm=mpicomm)
+               call solve_direct_system(pmnpan, amnp(:, p), initialize_solver=initialize, &
+                                        number_iterations=0, solution_error=serr, mpi_comm=mpicomm)
                if (numprocs .gt. 1) then
                   call mstm_mpi(mpi_command='bcast', &
                                 mpi_send_buf_dc=amnp(1:nsend, p), &
@@ -499,8 +499,8 @@ contains
                end if
                iter = 0
             else
-               call cbicg(niter, eps, pmnpan, amnp(:, p), iterwrite, &
-                          iter, serr, mpi_comm=pcomm, initialize_solver=initialize)
+               call solve_complex_biconjugate_gradient(niter, eps, pmnpan, amnp(:, p), iterwrite, &
+                                                       iter, serr, mpi_comm=pcomm, initialize_solver=initialize)
             end if
          else
             iter = 0
@@ -565,10 +565,10 @@ contains
 !if(phase_shift_form) call phase_shift(amnp,-1)
 
       deallocate (pmnp0, pmnpan)
-   end subroutine fixedorsoln
+   end subroutine solve_fixed_orientation
 
-   subroutine direct_solver(pnp, anp, initialize_solver, solution_error, &
-                            number_iterations, solution_eps, mpi_comm)
+   subroutine solve_direct_system(pnp, anp, initialize_solver, solution_error, &
+                                  number_iterations, solution_eps, mpi_comm)
       implicit none
       logical :: initialize
       logical, save :: firstrun
@@ -638,7 +638,7 @@ contains
             solution_error = serr
          end if
       end if
-   end subroutine direct_solver
+   end subroutine solve_direct_system
 !
 ! iteration solver
 ! generalized complex biconjugate gradient method
@@ -650,8 +650,8 @@ contains
 !  october 2011: translation calls modified
 !  february 2013: number rhs option added, completely rewritten.
 !
-   subroutine cbicg(niter, eps, pnp, anp, iterwrite, iter, errmax, &
-                    initialize_solver, mpi_comm)
+   subroutine solve_complex_biconjugate_gradient(niter, eps, pnp, anp, iterwrite, iter, errmax, &
+                                                 initialize_solver, mpi_comm)
       implicit none
       logical :: firstrun, initialize, contran2(2)
       logical, save :: inp1, inp2
@@ -944,7 +944,7 @@ contains
          end if
       end do
       deallocate (cr, cp, cw, cq, cap, caw, capt, cawt)
-   end subroutine cbicg
+   end subroutine solve_complex_biconjugate_gradient
 
    subroutine lu_decomposition(a, n, indx, d, ierr)
       implicit none
