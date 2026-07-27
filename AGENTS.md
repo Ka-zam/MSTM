@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-MSTM is a Fortran 2023 multiple-sphere T-matrix solver. `src/` is the only implementation. Files are organized by module: `input_state.f90`, `input_parser.f90`, `input_execution.f90`, and `input_reporting.f90` form the input pipeline; focused numerical modules contain Bessel, angular, translation, scattering, near-field, and GPFA code. `input.f90` and `special_functions.f90` are compatibility façades. `tests/` contains focused numerical tests, while `examples/` contains smoke-test inputs, position data, and plotting assets. The maintained manual is `docs/manual.md`; archived material is in `docs/reference/`.
+MSTM is a Fortran 2023 multiple-sphere T-matrix solver. `src/` is the only implementation. `input_state.f90`, `input_parser.f90`, and `input_reporting.f90` form the input pipeline; `simulation_execution.f90` runs one case and `simulation_averaging.f90` coordinates averaged cases. `input_execution.f90`, `input.f90`, and `special_functions.f90` are compatibility façades. Focused numerical modules contain Bessel, angular, translation, scattering, near-field, and GPFA code. `tests/` contains focused numerical tests, while `examples/` contains smoke-test inputs, position data, and plotting assets. The maintained manual is `docs/manual.md`; archived material is in `docs/reference/`.
 
 ## Build, Test, and Development Commands
 
