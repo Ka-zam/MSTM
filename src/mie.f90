@@ -20,103 +20,103 @@ contains
       complex(real64) :: rihost(2)
       complex(real64), allocatable :: anp(:, :, :), cnp(:, :, :), unp(:, :, :), &
                                       vnp(:, :, :), dnp(:, :, :), anpinv(:, :, :)
-      nsphere = number_spheres
-      if (allocated(sphere_order)) deallocate (sphere_order, mie_offset, sphere_block, &
-                                               qext_mie, qabs_mie, optically_active, sphere_offset)
-      allocate (sphere_order(nsphere), mie_offset(nsphere + 1), sphere_block(nsphere), &
-                qext_mie(nsphere), qabs_mie(nsphere), optically_active(nsphere), &
-                sphere_offset(nsphere + 1))
+      nsphere = sphere_cluster%number_spheres
+      if (allocated(sphere_cluster%sphere_order)) deallocate (sphere_cluster%sphere_order, sphere_cluster%mie_offset, sphere_cluster%sphere_block, &
+                    sphere_cluster%qext_mie, sphere_cluster%qabs_mie, sphere_cluster%optically_active, sphere_cluster%sphere_offset)
+     allocate (sphere_cluster%sphere_order(nsphere), sphere_cluster%mie_offset(nsphere + 1), sphere_cluster%sphere_block(nsphere), &
+                sphere_cluster%qext_mie(nsphere), sphere_cluster%qabs_mie(nsphere), sphere_cluster%optically_active(nsphere), &
+                sphere_cluster%sphere_offset(nsphere + 1))
       ntermstot = 0
       nblktot = 0
-      max_mie_order = 0
-      mean_qext_mie = 0.d0
-      mean_qabs_mie = 0.d0
-      area_mean_radius = 0.d0
+      sphere_cluster%max_mie_order = 0
+      sphere_cluster%mean_qext_mie = 0.d0
+      sphere_cluster%mean_qabs_mie = 0.d0
+      sphere_cluster%area_mean_radius = 0.d0
 !
 !
 ! march 2013: calculates orders, and
 !             forces host to have at least same order as constituents.
 !
-      do i = 1, number_spheres
+      do i = 1, sphere_cluster%number_spheres
          call exterior_refractive_index(i, rihost)
-         call optically_active_mie_coefficients(sphere_radius(i), sphere_ref_index(:, i), &
+         call optically_active_mie_coefficients(sphere_cluster%sphere_radius(i), sphere_cluster%sphere_ref_index(:, i), &
                                                 nodrn, qeps, qext, qsca, qabs, &
                                                 ri_medium=rihost)
-         sphere_order(i) = nodrn
+         sphere_cluster%sphere_order(i) = nodrn
       end do
-      do i = 1, number_spheres
-         j = host_sphere(i)
+      do i = 1, sphere_cluster%number_spheres
+         j = sphere_cluster%host_sphere(i)
          do while (j .ne. 0)
-            sphere_order(j) = max(sphere_order(j), sphere_order(i))
-            j = host_sphere(j)
+            sphere_cluster%sphere_order(j) = max(sphere_cluster%sphere_order(j), sphere_cluster%sphere_order(i))
+            j = sphere_cluster%host_sphere(j)
          end do
       end do
 !
 !  calculate the order limits and efficiencies
 !
       n = 0
-      any_optically_active = .false.
-      do i = 1, number_spheres
+      sphere_cluster%any_optically_active = .false.
+      do i = 1, sphere_cluster%number_spheres
          call exterior_refractive_index(i, rihost)
-         if (sphere_ref_index(1, i) .eq. sphere_ref_index(2, i)) then
-            optically_active(i) = .false.
+         if (sphere_cluster%sphere_ref_index(1, i) .eq. sphere_cluster%sphere_ref_index(2, i)) then
+            sphere_cluster%optically_active(i) = .false.
          else
-            optically_active(i) = .true.
-            any_optically_active = .true.
+            sphere_cluster%optically_active(i) = .true.
+            sphere_cluster%any_optically_active = .true.
          end if
-         nodrn = sphere_order(i)
-         sphere_block(i) = 2 * nodrn * (nodrn + 2)
-         call optically_active_mie_coefficients(sphere_radius(i), sphere_ref_index(:, i), &
+         nodrn = sphere_cluster%sphere_order(i)
+         sphere_cluster%sphere_block(i) = 2 * nodrn * (nodrn + 2)
+         call optically_active_mie_coefficients(sphere_cluster%sphere_radius(i), sphere_cluster%sphere_ref_index(:, i), &
                                                 nodrn, 0.d0, qext, qsca, qabs, &
                                                 ri_medium=rihost)
          nterms = 4 * nodrn
-         mie_offset(i) = ntermstot
+         sphere_cluster%mie_offset(i) = ntermstot
          ntermstot = ntermstot + nterms
-         qext_mie(i) = qext
-         qabs_mie(i) = qabs
-         if (host_sphere(i) .eq. 0) then
-            mean_qext_mie = mean_qext_mie + qext * sphere_radius(i)**2
-            mean_qabs_mie = mean_qabs_mie + qabs * sphere_radius(i)**2
-            area_mean_radius = area_mean_radius + sphere_radius(i)**2
+         sphere_cluster%qext_mie(i) = qext
+         sphere_cluster%qabs_mie(i) = qabs
+         if (sphere_cluster%host_sphere(i) .eq. 0) then
+            sphere_cluster%mean_qext_mie = sphere_cluster%mean_qext_mie + qext * sphere_cluster%sphere_radius(i)**2
+            sphere_cluster%mean_qabs_mie = sphere_cluster%mean_qabs_mie + qabs * sphere_cluster%sphere_radius(i)**2
+            sphere_cluster%area_mean_radius = sphere_cluster%area_mean_radius + sphere_cluster%sphere_radius(i)**2
             n = n + 1
          end if
-         sphere_offset(i) = nblktot
-         nblktot = nblktot + sphere_block(i) * number_field_expansions(i)
-         max_mie_order = max(max_mie_order, sphere_order(i))
+         sphere_cluster%sphere_offset(i) = nblktot
+         nblktot = nblktot + sphere_cluster%sphere_block(i) * sphere_cluster%number_field_expansions(i)
+         sphere_cluster%max_mie_order = max(sphere_cluster%max_mie_order, sphere_cluster%sphere_order(i))
       end do
       n = max(n, 1)
-      mie_offset(nsphere + 1) = ntermstot
-      sphere_offset(nsphere + 1) = nblktot
-      number_eqns = nblktot
-      area_mean_radius = sqrt(area_mean_radius / dble(n))
-      mean_qext_mie = mean_qext_mie / area_mean_radius**2 / dble(n)
-      mean_qabs_mie = mean_qabs_mie / area_mean_radius**2 / dble(n)
+      sphere_cluster%mie_offset(nsphere + 1) = ntermstot
+      sphere_cluster%sphere_offset(nsphere + 1) = nblktot
+      sphere_cluster%number_eqns = nblktot
+      sphere_cluster%area_mean_radius = sqrt(sphere_cluster%area_mean_radius / dble(n))
+      sphere_cluster%mean_qext_mie = sphere_cluster%mean_qext_mie / sphere_cluster%area_mean_radius**2 / dble(n)
+      sphere_cluster%mean_qabs_mie = sphere_cluster%mean_qabs_mie / sphere_cluster%area_mean_radius**2 / dble(n)
 !
 ! calculate the mie coefficients, and store in memory
 !
-      if (allocated(an_mie)) deallocate (an_mie, cn_mie, un_mie, vn_mie, dn_mie, &
-                                         an_inv_mie)
-      allocate (an_mie(ntermstot), cn_mie(ntermstot), un_mie(ntermstot), &
-                vn_mie(ntermstot), dn_mie(ntermstot), an_inv_mie(ntermstot))
-      do i = 1, number_spheres
-         nodrn = sphere_order(i)
+      if (allocated(sphere_cluster%an_mie)) deallocate (sphere_cluster%an_mie, sphere_cluster%cn_mie, sphere_cluster%un_mie, sphere_cluster%vn_mie, sphere_cluster%dn_mie, &
+                                                        sphere_cluster%an_inv_mie)
+      allocate (sphere_cluster%an_mie(ntermstot), sphere_cluster%cn_mie(ntermstot), sphere_cluster%un_mie(ntermstot), &
+                sphere_cluster%vn_mie(ntermstot), sphere_cluster%dn_mie(ntermstot), sphere_cluster%an_inv_mie(ntermstot))
+      do i = 1, sphere_cluster%number_spheres
+         nodrn = sphere_cluster%sphere_order(i)
          call exterior_refractive_index(i, rihost)
          allocate (anp(2, 2, nodrn), cnp(2, 2, nodrn), unp(2, 2, nodrn), &
                    vnp(2, 2, nodrn), dnp(2, 2, nodrn), anpinv(2, 2, nodrn))
-         call optically_active_mie_coefficients(sphere_radius(i), sphere_ref_index(:, i), &
+         call optically_active_mie_coefficients(sphere_cluster%sphere_radius(i), sphere_cluster%sphere_ref_index(:, i), &
                                                 nodrn, 0.d0, qext, qsca, qabs, &
                                                 anp_mie=anp, cnp_mie=cnp, dnp_mie=dnp, &
                                                 unp_mie=unp, vnp_mie=vnp, anp_inv_mie=anpinv, &
                                                 ri_medium=rihost)
          nterms = 4 * nodrn
-         n1 = mie_offset(i) + 1
-         n2 = mie_offset(i) + nterms
-         an_mie(n1:n2) = reshape(anp(1:2, 1:2, 1:nodrn), (/nterms/))
-         cn_mie(n1:n2) = reshape(cnp(1:2, 1:2, 1:nodrn), (/nterms/))
-         dn_mie(n1:n2) = reshape(dnp(1:2, 1:2, 1:nodrn), (/nterms/))
-         un_mie(n1:n2) = reshape(unp(1:2, 1:2, 1:nodrn), (/nterms/))
-         vn_mie(n1:n2) = reshape(vnp(1:2, 1:2, 1:nodrn), (/nterms/))
-         an_inv_mie(n1:n2) = reshape(anpinv(1:2, 1:2, 1:nodrn), (/nterms/))
+         n1 = sphere_cluster%mie_offset(i) + 1
+         n2 = sphere_cluster%mie_offset(i) + nterms
+         sphere_cluster%an_mie(n1:n2) = reshape(anp(1:2, 1:2, 1:nodrn), (/nterms/))
+         sphere_cluster%cn_mie(n1:n2) = reshape(cnp(1:2, 1:2, 1:nodrn), (/nterms/))
+         sphere_cluster%dn_mie(n1:n2) = reshape(dnp(1:2, 1:2, 1:nodrn), (/nterms/))
+         sphere_cluster%un_mie(n1:n2) = reshape(unp(1:2, 1:2, 1:nodrn), (/nterms/))
+         sphere_cluster%vn_mie(n1:n2) = reshape(vnp(1:2, 1:2, 1:nodrn), (/nterms/))
+         sphere_cluster%an_inv_mie(n1:n2) = reshape(anpinv(1:2, 1:2, 1:nodrn), (/nterms/))
          deallocate (anp, cnp, unp, vnp, dnp, anpinv)
       end do
    end subroutine calculate_mie_coefficients
@@ -127,10 +127,10 @@ contains
       implicit none
       integer :: i
       complex(real64) :: rihost(2)
-      if (plane_surface_present .and. (host_sphere(i) .eq. 0)) then
-         rihost = layer_ref_index(sphere_layer(i))
+      if (plane_surface_present .and. (sphere_cluster%host_sphere(i) .eq. 0)) then
+         rihost = layer_ref_index(sphere_cluster%sphere_layer(i))
       else
-         rihost = sphere_ref_index(:, host_sphere(i))
+         rihost = sphere_cluster%sphere_ref_index(:, sphere_cluster%host_sphere(i))
       end if
    end subroutine exterior_refractive_index
 !
@@ -313,21 +313,21 @@ contains
          miecoefficient = 'a'
       end if
       nterms = 4 * nodr
-      n1 = mie_offset(i) + 1
-      n2 = mie_offset(i) + nterms
+      n1 = sphere_cluster%mie_offset(i) + 1
+      n2 = sphere_cluster%mie_offset(i) + nterms
       allocate (an1(2, 2, nodr))
       if (miecoefficient .eq. 'a') then
-         an1 = reshape(an_mie(n1:n2), (/2, 2, nodr/))
+         an1 = reshape(sphere_cluster%an_mie(n1:n2), (/2, 2, nodr/))
       elseif (miecoefficient .eq. 'c') then
-         an1 = reshape(cn_mie(n1:n2), (/2, 2, nodr/))
+         an1 = reshape(sphere_cluster%cn_mie(n1:n2), (/2, 2, nodr/))
       elseif (miecoefficient .eq. 'd') then
-         an1 = reshape(dn_mie(n1:n2), (/2, 2, nodr/))
+         an1 = reshape(sphere_cluster%dn_mie(n1:n2), (/2, 2, nodr/))
       elseif (miecoefficient .eq. 'u') then
-         an1 = reshape(un_mie(n1:n2), (/2, 2, nodr/))
+         an1 = reshape(sphere_cluster%un_mie(n1:n2), (/2, 2, nodr/))
       elseif (miecoefficient .eq. 'v') then
-         an1 = reshape(vn_mie(n1:n2), (/2, 2, nodr/))
+         an1 = reshape(sphere_cluster%vn_mie(n1:n2), (/2, 2, nodr/))
       elseif (miecoefficient .eq. 'i') then
-         an1 = reshape(an_inv_mie(n1:n2), (/2, 2, nodr/))
+         an1 = reshape(sphere_cluster%an_inv_mie(n1:n2), (/2, 2, nodr/))
       end if
       do n = 1, nodr
          do p = 1, 2
@@ -364,19 +364,19 @@ contains
       end if
 
       do j = 1, nrhs
-         do i = 1, number_spheres
-            nodri = sphere_order(i)
+         do i = 1, sphere_cluster%number_spheres
+            nodri = sphere_cluster%sphere_order(i)
             nblki = 2 * nodri * (nodri + 2)
             allocate (gin_t(0:nodri + 1, nodri, 2), aout_t(0:nodri + 1, nodri, 2), &
                       an1(2, 2, nodri))
-            b11 = sphere_offset(i) + 1
-            b12 = sphere_offset(i) + nblki
+            b11 = sphere_cluster%sphere_offset(i) + 1
+            b12 = sphere_cluster%sphere_offset(i) + nblki
             gin_t = reshape(ain(b11:b12, j), (/nodri + 2, nodri, 2/))
             nterms = 4 * nodri
-            n1 = mie_offset(i) + 1
-            n2 = mie_offset(i) + nterms
-            an1 = reshape(an_mie(n1:n2), (/2, 2, nodri/))
-            if (number_field_expansions(i) .eq. 1) then
+            n1 = sphere_cluster%mie_offset(i) + 1
+            n2 = sphere_cluster%mie_offset(i) + nterms
+            an1 = reshape(sphere_cluster%an_mie(n1:n2), (/2, 2, nodri/))
+            if (sphere_cluster%number_field_expansions(i) .eq. 1) then
                aout_t = 0.d0
                if (rhslist(j) .and. idir .eq. 1) then
                   do n = 1, nodri
@@ -407,12 +407,12 @@ contains
                allocate (bin_t(0:nodri + 1, nodri, 2), &
                          fout_t(0:nodri + 1, nodri, 2), &
                          dn1(2, 2, nodri), un1(2, 2, nodri), vn1(2, 2, nodri))
-               b21 = sphere_offset(i) + nblki + 1
-               b22 = sphere_offset(i) + 2 * nblki
+               b21 = sphere_cluster%sphere_offset(i) + nblki + 1
+               b22 = sphere_cluster%sphere_offset(i) + 2 * nblki
                bin_t = reshape(ain(b21:b22, j), (/nodri + 2, nodri, 2/))
-               dn1 = reshape(dn_mie(n1:n2), (/2, 2, nodri/))
-               un1 = reshape(un_mie(n1:n2), (/2, 2, nodri/))
-               vn1 = reshape(vn_mie(n1:n2), (/2, 2, nodri/))
+               dn1 = reshape(sphere_cluster%dn_mie(n1:n2), (/2, 2, nodri/))
+               un1 = reshape(sphere_cluster%un_mie(n1:n2), (/2, 2, nodri/))
+               vn1 = reshape(sphere_cluster%vn_mie(n1:n2), (/2, 2, nodri/))
                aout_t = 0.d0
                fout_t = 0.d0
                if (rhslist(j) .and. idir .eq. 1) then

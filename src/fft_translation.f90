@@ -319,13 +319,13 @@ contains
                               size(self%anode, 2) /= self%cell_dim(2) .or. &
                               size(self%anode, 3) /= self%cell_dim(3) .or. &
                               size(self%anode, 4) /= self%node_order * (self%node_order + 2) * 2 .or. &
-                              size(self%anode, 5) /= nrhs .or. size(self%gout_local, 1) /= number_eqns
+                              size(self%anode, 5) /= nrhs .or. size(self%gout_local, 1) /= sphere_cluster%number_eqns
       end if
       if (resize_work_arrays) then
          if (allocated(self%anode)) deallocate (self%anode, self%gnode, self%gout_local, self%input_work, self%output_work)
     allocate (self%anode(self%cell_dim(1), self%cell_dim(2), self%cell_dim(3), self%node_order * (self%node_order + 2) * 2, nrhs), &
               self%gnode(self%cell_dim(1), self%cell_dim(2), self%cell_dim(3), self%node_order * (self%node_order + 2) * 2, nrhs), &
-                   self%gout_local(number_eqns, nrhs), self%input_work(neqns, nrhs), self%output_work(neqns, nrhs))
+                   self%gout_local(sphere_cluster%number_eqns, nrhs), self%input_work(neqns, nrhs), self%output_work(neqns, nrhs))
       end if
 
       if (light_up) then
@@ -335,18 +335,18 @@ contains
 
       do rhs = 1, nrhs
          noff = 0
-         do i = 1, number_spheres
-            if (host_sphere(i) .ne. self%fft_local_host) cycle
+         do i = 1, sphere_cluster%number_spheres
+            if (sphere_cluster%host_sphere(i) .ne. self%fft_local_host) cycle
             if (contran(rhs)) then
-               call transform_mode_coefficients(sphere_order(i), 2, -1, -1, &
-                                                ain(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs), &
-                                                self%input_work(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs))
+               call transform_mode_coefficients(sphere_cluster%sphere_order(i), 2, -1, -1, &
+                              ain(noff + 1:noff + 2 * sphere_cluster%sphere_order(i) * (sphere_cluster%sphere_order(i) + 2), rhs), &
+                    self%input_work(noff + 1:noff + 2 * sphere_cluster%sphere_order(i) * (sphere_cluster%sphere_order(i) + 2), rhs))
             else
-               call transform_mode_coefficients(sphere_order(i), 2, 1, 1, &
-                                                ain(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs), &
-                                                self%input_work(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs))
+               call transform_mode_coefficients(sphere_cluster%sphere_order(i), 2, 1, 1, &
+                              ain(noff + 1:noff + 2 * sphere_cluster%sphere_order(i) * (sphere_cluster%sphere_order(i) + 2), rhs), &
+                    self%input_work(noff + 1:noff + 2 * sphere_cluster%sphere_order(i) * (sphere_cluster%sphere_order(i) + 2), rhs))
             end if
-            noff = noff + 2 * sphere_order(i) * (sphere_order(i) + 2) * number_field_expansions(i)
+ noff = noff + 2 * sphere_cluster%sphere_order(i) * (sphere_cluster%sphere_order(i) + 2) * sphere_cluster%number_field_expansions(i)
          end do
       end do
 
@@ -437,18 +437,18 @@ contains
 
       do rhs = 1, nrhs
          noff = 0
-         do i = 1, number_spheres
-            if (host_sphere(i) .ne. self%fft_local_host) cycle
+         do i = 1, sphere_cluster%number_spheres
+            if (sphere_cluster%host_sphere(i) .ne. self%fft_local_host) cycle
             if (contran(rhs)) then
-               call transform_mode_coefficients(sphere_order(i), 2, -1, -1, &
-                                               self%output_work(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs), &
-                                                gout(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs))
+               call transform_mode_coefficients(sphere_cluster%sphere_order(i), 2, -1, -1, &
+                 self%output_work(noff + 1:noff + 2 * sphere_cluster%sphere_order(i) * (sphere_cluster%sphere_order(i) + 2), rhs), &
+                               gout(noff + 1:noff + 2 * sphere_cluster%sphere_order(i) * (sphere_cluster%sphere_order(i) + 2), rhs))
             else
-               call transform_mode_coefficients(sphere_order(i), 2, 1, 1, &
-                                               self%output_work(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs), &
-                                                gout(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs))
+               call transform_mode_coefficients(sphere_cluster%sphere_order(i), 2, 1, 1, &
+                 self%output_work(noff + 1:noff + 2 * sphere_cluster%sphere_order(i) * (sphere_cluster%sphere_order(i) + 2), rhs), &
+                               gout(noff + 1:noff + 2 * sphere_cluster%sphere_order(i) * (sphere_cluster%sphere_order(i) + 2), rhs))
             end if
-            noff = noff + 2 * sphere_order(i) * (sphere_order(i) + 2) * number_field_expansions(i)
+ noff = noff + 2 * sphere_cluster%sphere_order(i) * (sphere_cluster%sphere_order(i) + 2) * sphere_cluster%number_field_expansions(i)
          end do
       end do
 
@@ -475,7 +475,7 @@ contains
       logical, optional :: store_matrix_option, initial_run, &
                            rhs_list(nrhs), con_tran(nrhs), merge_procs
       integer, optional :: mpi_comm, local_host
-      complex(real64) :: ain(number_eqns, nrhs), gout(number_eqns, nrhs), rimedium(2)
+      complex(real64) :: ain(sphere_cluster%number_eqns, nrhs), gout(sphere_cluster%number_eqns, nrhs), rimedium(2)
       type(translation_operator_state), pointer :: loc_tranmat
       type(translation_operator_state), target :: tranmat
       type(linked_ilist), pointer :: llist
@@ -519,11 +519,11 @@ contains
 !  compute offsets for scattering coefficients
 !
       if (self%first_local_interaction) then
-         if (smopt .and. store_translation_matrix) then
+         if (smopt .and. sphere_cluster%store_translation_matrix) then
             task = 0
             ndim = 0
-            do i = 1, number_spheres - 1
-               if (host_sphere(i) .ne. localhost) cycle
+            do i = 1, sphere_cluster%number_spheres - 1
+               if (sphere_cluster%host_sphere(i) .ne. localhost) cycle
                task = task + 1
                proc = mod(task, numprocs)
                if (proc .eq. rank) then
@@ -536,13 +536,13 @@ contains
          self%calculate_local_matrix = .true.
          self%first_local_interaction = .false.
       else
-         self%calculate_local_matrix = (.not. (smopt .and. store_translation_matrix))
+         self%calculate_local_matrix = (.not. (smopt .and. sphere_cluster%store_translation_matrix))
       end if
 
       idim = 0
       task = 0
-      do i = 1, number_spheres - 1
-         if (host_sphere(i) .ne. localhost) cycle
+      do i = 1, sphere_cluster%number_spheres - 1
+         if (sphere_cluster%host_sphere(i) .ne. localhost) cycle
          task = task + 1
          proc = mod(task, numprocs)
          if (proc .eq. rank) then
@@ -553,20 +553,20 @@ contains
                idim = idim + 1
                j = llist%index
                if (n .lt. npairs) llist => llist%next
-               noi = sphere_order(i)
-               npi1 = sphere_offset(i) + 1
-               npi2 = sphere_offset(i) + sphere_block(i)
-               noj = sphere_order(j)
-               npj1 = sphere_offset(j) + 1
-               npj2 = sphere_offset(j) + sphere_block(j)
+               noi = sphere_cluster%sphere_order(i)
+               npi1 = sphere_cluster%sphere_offset(i) + 1
+               npi2 = sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i)
+               noj = sphere_cluster%sphere_order(j)
+               npj1 = sphere_cluster%sphere_offset(j) + 1
+               npj2 = sphere_cluster%sphere_offset(j) + sphere_cluster%sphere_block(j)
                if (self%calculate_local_matrix) then
-                  if (smopt .and. store_translation_matrix) then
-                     call self%stored_local_h_mat(idim)%configure(3, sphere_position(:, i) - sphere_position(:, j), &
-                                                                  rimedium, min(noi, noj) .ge. translation_switch_order)
+                  if (smopt .and. sphere_cluster%store_translation_matrix) then
+      call self%stored_local_h_mat(idim)%configure(3, sphere_cluster%sphere_position(:, i) - sphere_cluster%sphere_position(:, j), &
+                                                               rimedium, min(noi, noj) .ge. sphere_cluster%translation_switch_order)
                      loc_tranmat => self%stored_local_h_mat(idim)
                   else
-                     call tranmat%configure(3, sphere_position(:, i) - sphere_position(:, j), rimedium, &
-                                            min(noi, noj) .ge. translation_switch_order)
+                  call tranmat%configure(3, sphere_cluster%sphere_position(:, i) - sphere_cluster%sphere_position(:, j), rimedium, &
+                                            min(noi, noj) .ge. sphere_cluster%translation_switch_order)
                      loc_tranmat => tranmat
                   end if
                else
@@ -580,7 +580,7 @@ contains
                                             shift_op=.true., tran_op=contran(rhs))
                   end if
                end do
-               if (self%calculate_local_matrix .and. (.not. (smopt .and. store_translation_matrix))) then
+               if (self%calculate_local_matrix .and. (.not. (smopt .and. sphere_cluster%store_translation_matrix))) then
                   call tranmat%clear()
                end if
             end do
@@ -588,7 +588,7 @@ contains
       end do
 
       if (numprocs .gt. 1 .and. mergeprocs) then
-         nsend = number_eqns * nrhs
+         nsend = sphere_cluster%number_eqns * nrhs
          call parallel_allreduce_sum(receive_buffer=gout, &
                                      mpi_number=nsend, mpi_comm=mpicomm)
       end if
@@ -607,7 +607,7 @@ contains
                            rhs_list(nrhs), con_tran(nrhs), sphere_to_node
       integer, optional :: mpi_comm, local_host
       real(real64) :: rtran(3)
-  complex(real64) :: asphere(number_eqns, nrhs), anode(self%cell_dim(1), self%cell_dim(2), self%cell_dim(3), self%node_order * (self%node_order + 2) * 2, nrhs), &
+  complex(real64) :: asphere(sphere_cluster%number_eqns, nrhs), anode(self%cell_dim(1), self%cell_dim(2), self%cell_dim(3), self%node_order * (self%node_order + 2) * 2, nrhs), &
                          rimedium(2), anodet(self%node_order * (self%node_order + 2) * 2)
       type(translation_operator_state), pointer :: loc_tranmat
       type(translation_operator_state), target :: tranmat
@@ -651,17 +651,17 @@ contains
       end if
       call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
       call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
-      nsphere = number_spheres
-      neqns = number_eqns
+      nsphere = sphere_cluster%number_spheres
+      neqns = sphere_cluster%number_eqns
 !
 !  compute offsets for scattering coefficients
 !
       if (self%first_node_translation) then
-         if (smopt .and. store_translation_matrix) then
+         if (smopt .and. sphere_cluster%store_translation_matrix) then
             task = 0
             ndim = 0
             do i = 1, nsphere
-               if (host_sphere(i) .eq. localhost) then
+               if (sphere_cluster%host_sphere(i) .eq. localhost) then
                   task = task + 1
                   proc = mod(task, numprocs)
                   if (proc .eq. rank) ndim = ndim + 1
@@ -673,7 +673,7 @@ contains
          self%calculate_node_matrix = .true.
          self%first_node_translation = .false.
       else
-         self%calculate_node_matrix = (.not. (smopt .and. store_translation_matrix))
+         self%calculate_node_matrix = (.not. (smopt .and. sphere_cluster%store_translation_matrix))
       end if
 
       if (spheretonode) then
@@ -685,25 +685,25 @@ contains
       idim = 0
       task = 0
       do i = 1, nsphere
-         if (host_sphere(i) .eq. localhost) then
+         if (sphere_cluster%host_sphere(i) .eq. localhost) then
             task = task + 1
             proc = mod(task, numprocs)
             if (proc .eq. rank) then
                idim = idim + 1
                call exterior_refractive_index(i, rimedium)
                nodei(:) = self%sphere_node(:, i)
-               noi = sphere_order(i)
-               npi1 = sphere_offset(i) + 1
-               npi2 = sphere_offset(i) + sphere_block(i)
-               rtran = self%d_cell * (dble(nodei) - .5d0) - sphere_position(:, i) + self%cell_boundary(:)
+               noi = sphere_cluster%sphere_order(i)
+               npi1 = sphere_cluster%sphere_offset(i) + 1
+               npi2 = sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i)
+               rtran = self%d_cell * (dble(nodei) - .5d0) - sphere_cluster%sphere_position(:, i) + self%cell_boundary(:)
                if (self%calculate_node_matrix) then
-                  if (smopt .and. store_translation_matrix) then
+                  if (smopt .and. sphere_cluster%store_translation_matrix) then
                      call self%stored_local_j_mat(idim)%configure(1, rtran, rimedium, &
-                                                                  min(noi, self%node_order) .ge. translation_switch_order)
+                                                             min(noi, self%node_order) .ge. sphere_cluster%translation_switch_order)
                      loc_tranmat => self%stored_local_j_mat(idim)
                   else
                      call tranmat%configure(1, rtran, rimedium, &
-                                            min(noi, self%node_order) .ge. translation_switch_order)
+                                            min(noi, self%node_order) .ge. sphere_cluster%translation_switch_order)
                      loc_tranmat => tranmat
                   end if
                else
@@ -729,7 +729,7 @@ contains
                   end do
                end if
 
-               if (self%calculate_node_matrix .and. (.not. (smopt .and. store_translation_matrix))) then
+               if (self%calculate_node_matrix .and. (.not. (smopt .and. sphere_cluster%store_translation_matrix))) then
                   call tranmat%clear()
                end if
             end if
@@ -742,7 +742,7 @@ contains
             call parallel_allreduce_sum(receive_buffer=anode, &
                                         mpi_number=nsend, mpi_comm=mpicomm)
          else
-            nsend = number_eqns * nrhs
+            nsend = sphere_cluster%number_eqns * nrhs
             call parallel_allreduce_sum(receive_buffer=asphere, &
                                         mpi_number=nsend, mpi_comm=mpicomm)
          end if
@@ -776,12 +776,12 @@ contains
       if (present(target_min)) then
          targetmin = target_min
       else
-         targetmin(:) = sphere_min_position
+         targetmin(:) = sphere_cluster%sphere_min_position
       end if
       if (present(target_max)) then
          targetmax = target_max
       else
-         targetmax(:) = sphere_max_position
+         targetmax(:) = sphere_cluster%sphere_max_position
       end if
       if (present(d_specified)) then
          dspec = d_specified
@@ -800,16 +800,16 @@ contains
       if (self%fft_local_host .eq. 0) then
          self%host_ref_index = layer_ref_index(0)
       else
-         self%host_ref_index = sphere_ref_index(:, self%fft_local_host)
+         self%host_ref_index = sphere_cluster%sphere_ref_index(:, self%fft_local_host)
       end if
 
       amean = 0.
       nsphere = 0
       svol = 0.
-      do i = 1, number_spheres
-         if (host_sphere(i) .eq. self%fft_local_host) then
-            amean = amean + sphere_radius(i)
-            svol = svol + sphere_radius(i)**3
+      do i = 1, sphere_cluster%number_spheres
+         if (sphere_cluster%host_sphere(i) .eq. self%fft_local_host) then
+            amean = amean + sphere_cluster%sphere_radius(i)
+            svol = svol + sphere_cluster%sphere_radius(i)**3
             nsphere = nsphere + 1
          end if
       end do
@@ -863,7 +863,7 @@ contains
 !flush(6)
       call clear_fft_geometry(self)
       allocate (self%cell_list(self%cell_dim(1), self%cell_dim(2), self%cell_dim(3)), &
-                self%sphere_node(3, number_spheres))
+                self%sphere_node(3, sphere_cluster%number_spheres))
       self%cell_list(:, :, :)%number_elements = 0
       do iz = 1, self%cell_dim(3)
          do iy = 1, self%cell_dim(2)
@@ -877,10 +877,10 @@ contains
 !flush(6)
 
       self%cell_origin(:) = self%d_cell * dble(self%cell_dim(:)) / 2.d0
-      do i = 1, number_spheres
-         if (host_sphere(i) .ne. self%fft_local_host) cycle
+      do i = 1, sphere_cluster%number_spheres
+         if (sphere_cluster%host_sphere(i) .ne. self%fft_local_host) cycle
          do m = 1, 3
-            r = sphere_position(m, i) - targetmin(m)
+            r = sphere_cluster%sphere_position(m, i) - targetmin(m)
             node = floor(r / self%d_cell) + 1
             spherenode(m) = node
             spherenode(m) = min(spherenode(m), self%cell_dim(m))
@@ -923,11 +923,11 @@ contains
 !flush(6)
 
       if (allocated(self%sphere_local_interaction_list)) deallocate (self%sphere_local_interaction_list)
-      allocate (self%sphere_local_interaction_list(number_spheres))
+      allocate (self%sphere_local_interaction_list(sphere_cluster%number_spheres))
       self%sphere_local_interaction_list(:)%number_elements = 0
 
-      do i = 1, number_spheres
-         if (host_sphere(i) .ne. self%fft_local_host) cycle
+      do i = 1, sphere_cluster%number_spheres
+         if (sphere_cluster%host_sphere(i) .ne. self%fft_local_host) cycle
          allocate (self%sphere_local_interaction_list(i)%members)
          ilist2 => self%sphere_local_interaction_list(i)%members
          n = 0

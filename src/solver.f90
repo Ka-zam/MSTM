@@ -58,21 +58,21 @@ contains
                              max_iterations, t_matrix_file, procs_per_soln, mpi_comm, &
                              sphere_qeff, solution_status, sphere_excitation_list)
       implicit none
-      logical :: firstrun, initialize, itersoln, continueloop, exlist(number_spheres)
-      logical, optional :: sphere_excitation_list(number_spheres)
+      logical :: firstrun, initialize, itersoln, continueloop, exlist(sphere_cluster%number_spheres)
+      logical, optional :: sphere_excitation_list(sphere_cluster%number_spheres)
       integer :: file_unit, ierr, io_status, iter, niter, istat, rank, maxiter, rank0, &
                  numprocs, mpicomm, i, nblkt, l, k, q, ka, la, nsolns, &
                  n, m, p, nssoln, kq, ns
       integer, save :: pcomm, prank, pgroup, ppsoln, pcomm0
       integer, optional :: mpi_comm, procs_per_soln, max_iterations, solution_status
-      real(real64) :: r0(3), maxerr, qeffi(3, number_spheres), &
-                      dqeffi(3, number_spheres), qeff(3), qeffold(3), time0, time1, timepersoln, timeleft, &
+      real(real64) :: r0(3), maxerr, qeffi(3, sphere_cluster%number_spheres), &
+                      dqeffi(3, sphere_cluster%number_spheres), qeff(3), qeffold(3), time0, time1, timepersoln, timeleft, &
                       solneps, conveps, solnerr, converr(1), qteff(3), &
                       ttime(0:6), dqteff(3), converri, qeffiold(3)
       real(real64), allocatable :: sexp(:, :), scexp(:, :)
-      real(real64), optional :: sphere_qeff(3, number_spheres), &
+      real(real64), optional :: sphere_qeff(3, sphere_cluster%number_spheres), &
                                 solution_eps, convergence_eps
-      complex(real64) :: amnpkq(number_eqns), pmnpkq(number_eqns), pmnpan(number_eqns)
+      complex(real64) :: amnpkq(sphere_cluster%number_eqns), pmnpkq(sphere_cluster%number_eqns), pmnpan(sphere_cluster%number_eqns)
       complex(real64), allocatable :: pmnp0(:, :, :), amnp0(:)
       type(direct_lu_solver_t) :: direct_solver
       character(len=4) :: timeunit
@@ -150,8 +150,8 @@ contains
          end if
       end if
 
-      nblkt = 2 * t_matrix_order * (t_matrix_order + 2)
-      r0 = cluster_origin(:)
+      nblkt = 2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_order + 2)
+      r0 = sphere_cluster%cluster_origin(:)
       qeffi = 0.d0
       qeffold = 0.d0
       qteff = 0.d0
@@ -161,7 +161,7 @@ contains
       if (rank .eq. 0) then
          call open_output_file(tmatrixfile, file_unit)
          if (.not. runtime_failed()) then
-            write (file_unit, '(2i4)') t_matrix_order, t_matrix_order
+            write (file_unit, '(2i4)') sphere_cluster%t_matrix_order, sphere_cluster%t_matrix_order
             time0 = parallel_wall_time()
             close (file_unit)
          end if
@@ -176,12 +176,12 @@ contains
       maxerr = 0.d0
 
       if (rank0 .eq. 0) then
-         write (run_print_unit, '(''  n   # its  qext         qabs'',&
+         write (sphere_cluster%run_print_unit, '(''  n   # its  qext         qabs'',&
                    &''           error     sec/soln est. time rem.'')')
-         flush (run_print_unit)
+         flush (sphere_cluster%run_print_unit)
       end if
 
-      do l = 1, t_matrix_order
+      do l = 1, sphere_cluster%t_matrix_order
          if (rank .eq. 0) then
             ttime(0) = parallel_wall_time()
          end if
@@ -227,7 +227,7 @@ contains
                                                      mpi_comm=pcomm)
 !                        sphere_translation_list=exlist)
 
-                  call apply_mie_coefficients(number_eqns, 1, 1, pmnpkq, pmnpan)
+                  call apply_mie_coefficients(sphere_cluster%number_eqns, 1, 1, pmnpkq, pmnpan)
                   amnpkq = pmnpan
                   if (niter .ne. 0) then
                      if (itersoln) then
@@ -258,7 +258,7 @@ contains
                      end if
                   end if
                   initialize = .false.
-                  call configuration_efficiency_factors(number_spheres, 1, amnpkq, &
+                  call configuration_efficiency_factors(sphere_cluster%number_spheres, 1, amnpkq, &
                                                         pmnpkq, dqeffi, mpi_comm=pcomm)
 !                     dqeffi(3,:)=dqeffi(1,:)-dqeffi(2,:)
 ! patch 10-22.  used new formula for qeff(3) in qefficiencyfactor SR.  Assumes ri_medium is real
@@ -271,8 +271,8 @@ contains
                                               mpi_comm=pcomm, &
                                               sphere_translation_list=exlist)
                   ka = polarized_mode_index(k, l, q, l, 2)
-                  dqteff(1) = -2.d0 / vol_radius**2 * dble(amnp0(ka))
-                  dqteff(3) = 2.d0 / vol_radius**2 &
+                  dqteff(1) = -2.d0 / sphere_cluster%vol_radius**2 * dble(amnp0(ka))
+                  dqteff(3) = 2.d0 / sphere_cluster%vol_radius**2 &
                               * dble(sum(amnp0(:) * conjg(amnp0(:))))
                   dqteff(2) = dqteff(1) - dqteff(3)
 
@@ -291,7 +291,7 @@ contains
                call parallel_allreduce_sum(receive_buffer=dqteff, &
                                            mpi_number=3, mpi_comm=pcomm0)
                call parallel_allreduce_sum(receive_buffer=dqeffi, &
-                                           mpi_number=3 * number_spheres, mpi_comm=pcomm0)
+                                           mpi_number=3 * sphere_cluster%number_spheres, mpi_comm=pcomm0)
 
                qeffi = qeffi + dqeffi
                qteff = qteff + dqteff
@@ -323,9 +323,9 @@ contains
 
          if (rank .eq. 0) then
             qeff = 0.d0
-            do i = 1, number_spheres
+            do i = 1, sphere_cluster%number_spheres
                if (.not. exlist(i)) cycle
-               qeff(:) = qeff(:) + qeffi(:, i) * sphere_radius(i)**2 / vol_radius**2
+               qeff(:) = qeff(:) + qeffi(:, i) * sphere_cluster%sphere_radius(i)**2 / sphere_cluster%vol_radius**2
             end do
 
             converr = qeff(1) - qeffold(1)
@@ -344,9 +344,9 @@ contains
                else
                   timeunit = ' sec'
                end if
-               write (run_print_unit, '(i4,i5,4e13.5,2f8.2,a4)') l, maxiter, qeff(1:2), &
+               write (sphere_cluster%run_print_unit, '(i4,i5,4e13.5,2f8.2,a4)') l, maxiter, qeff(1:2), &
                   converr, dqeffi(1, 1), timepersoln, timeleft, timeunit
-               flush (run_print_unit)
+               flush (sphere_cluster%run_print_unit)
             end if
          end if
          deallocate (amnp0, pmnp0)
@@ -375,8 +375,8 @@ contains
          if (conveps .gt. 0.d0 .and. converr(1) .lt. conveps) exit
       end do
 
-      if (l .lt. t_matrix_order) then
-         t_matrix_order = l
+      if (l .lt. sphere_cluster%t_matrix_order) then
+         sphere_cluster%t_matrix_order = l
          if (rank .eq. 0) then
             open (newunit=file_unit, file=tmatrixfile, status='old', action='write', &
                   form='formatted', access='direct', recl=8, iostat=io_status, iomsg=io_message)
@@ -419,18 +419,18 @@ contains
                                       mpi_comm, excited_spheres, solution_method, initialize_solver, &
                                       reciprocal_condition)
       implicit none
-      logical :: firstrun, exsphere(number_spheres), dirsoln, initialize
+      logical :: firstrun, exsphere(sphere_cluster%number_spheres), dirsoln, initialize
       logical, save :: inp1, inp2
-      logical, optional :: excited_spheres(number_spheres), initialize_solver
+      logical, optional :: excited_spheres(sphere_cluster%number_spheres), initialize_solver
       integer :: ierr, iter, niter, istat, rank, maxiter, iterwrite, nsend, &
                  numprocs, mpicomm, prank, oddnumproc, &
                  groupsize, pgroup, mpigroup, syncgroup, i, p, dir, qeffdim
       integer, save :: pcomm, synccomm1, synccomm2, p1, p2
       integer, allocatable :: grouplist(:)
       integer, optional :: mpi_comm
-      real(real64) :: alpha, sinc, eps, serr, qeff(3, qeffdim, number_spheres), maxerr, direct_condition
+      real(real64) :: alpha, sinc, eps, serr, qeff(3, qeffdim, sphere_cluster%number_spheres), maxerr, direct_condition
       real(real64), optional, intent(out) :: reciprocal_condition
-      complex(real64) :: amnp(number_eqns, 2)
+      complex(real64) :: amnp(sphere_cluster%number_eqns, 2)
       complex(real64), allocatable :: pmnpan(:), pmnp0(:, :)
       type(direct_lu_solver_t) :: direct_solver
       character(len=1), optional :: solution_method
@@ -534,7 +534,7 @@ contains
       end if
 !call parallel_barrier()
 
-      allocate (pmnpan(number_eqns), pmnp0(number_eqns, 2))
+      allocate (pmnpan(sphere_cluster%number_eqns), pmnp0(sphere_cluster%number_eqns, 2))
       if (present(reciprocal_condition)) reciprocal_condition = 1.0_real64
       call sphere_plane_wave_coefficients(alpha, sinc, dir, pmnp0, &
                                           excited_spheres=exsphere, mpi_comm=mpicomm)
@@ -551,7 +551,7 @@ contains
             write (*, '('' s8.2.2 '',i3)') mstm_global_rank
             flush (6)
          end if
-         call apply_mie_coefficients(number_eqns, 1, 1, pmnp0(:, p), pmnpan)
+         call apply_mie_coefficients(sphere_cluster%number_eqns, 1, 1, pmnp0(:, p), pmnpan)
          amnp(:, p) = pmnpan
          if (niter .ne. 0) then
 !write(*,*) 'step 2, p:',p
@@ -585,13 +585,13 @@ contains
          else
             iter = 0
             serr = 0.d0
-            if (number_host_spheres .gt. 0) then
+            if (sphere_cluster%number_host_spheres .gt. 0) then
                pmnpan = 0.d0
-               call sphere_interaction(number_eqns, 1, amnp(:, p), pmnpan, &
+               call sphere_interaction(sphere_cluster%number_eqns, 1, amnp(:, p), pmnpan, &
                                        initial_run=initialize, &
                                        skip_external_translation=.true., &
                                        mpi_comm=pcomm)
-               call sphere_interaction(number_eqns, 1, pmnpan, pmnpan, &
+               call sphere_interaction(sphere_cluster%number_eqns, 1, pmnpan, pmnpan, &
                                        skip_external_translation=.true., &
                                        mpi_comm=pcomm)
                amnp(:, p) = amnp(:, p) + pmnpan
@@ -605,7 +605,7 @@ contains
 !         call parallel_barrier()
 
       if (numprocs .gt. 1 .and. (.not. dirsoln)) then
-         nsend = number_eqns
+         nsend = sphere_cluster%number_eqns
          if (inp1) then
             call parallel_broadcast( &
                send_buffer=amnp(1:nsend, 1), &
@@ -638,7 +638,7 @@ contains
       else
          i = 2
       end if
-      call configuration_efficiency_factors(number_spheres, i, amnp, pmnp0, qeff, &
+      call configuration_efficiency_factors(sphere_cluster%number_spheres, i, amnp, pmnp0, qeff, &
                                             mpi_comm=mpicomm)
 
 !if(phase_shift_form) call phase_shift(amnp,-1)
@@ -661,8 +661,8 @@ contains
       real(real64) :: real_buffer(2)
       real(real64), optional, intent(out) :: solution_error, reciprocal_condition
       real(real64), optional, intent(in) :: solution_eps
-      complex(real64), intent(in) :: pnp(number_eqns)
-      complex(real64), intent(out) :: anp(number_eqns)
+      complex(real64), intent(in) :: pnp(sphere_cluster%number_eqns)
+      complex(real64), intent(out) :: anp(sphere_cluster%number_eqns)
       complex(real64), allocatable :: interaction_matrix(:, :)
 
       mpicomm = mpi_comm_world
@@ -685,7 +685,7 @@ contains
          direct_factorization_time = 0.0_real64
          direct_condition_estimation_time = 0.0_real64
          direct_backsolve_time = 0.0_real64
-         allocate (interaction_matrix(number_eqns, number_eqns))
+         allocate (interaction_matrix(sphere_cluster%number_eqns, sphere_cluster%number_eqns))
          pl_error_codes = 0
          phase_start = parallel_wall_time()
          call general_interaction_matrix(interaction_matrix, mie_mult=.true., mpi_comm=mpicomm)
@@ -694,7 +694,7 @@ contains
                                   receive_buffer=pl_error_codes, mpi_number=6, mpi_comm=mpicomm)
          if (rank == 0) then
             if (any(pl_error_codes /= 0)) then
-               write (run_print_unit, '('' direct interaction-matrix error codes:'',10i4)') &
+               write (sphere_cluster%run_print_unit, '('' direct interaction-matrix error codes:'',10i4)') &
                   pl_error_codes, pl_rs_imax
             end if
             call direct_solver%factor(interaction_matrix, status)
@@ -716,7 +716,7 @@ contains
       real_buffer = [residual, direct_solver%condition_estimate()]
       call parallel_broadcast(send_buffer=integer_buffer, mpi_number=2, mpi_rank=0, mpi_comm=mpicomm)
       call parallel_broadcast(send_buffer=real_buffer, mpi_number=2, mpi_rank=0, mpi_comm=mpicomm)
-      call parallel_broadcast(send_buffer=anp, mpi_number=number_eqns, mpi_rank=0, mpi_comm=mpicomm)
+      call parallel_broadcast(send_buffer=anp, mpi_number=sphere_cluster%number_eqns, mpi_rank=0, mpi_comm=mpicomm)
       status = integer_buffer(1)
       refinement = integer_buffer(2)
       residual = real_buffer(1)
@@ -752,7 +752,7 @@ contains
       integer, optional, intent(out) :: solution_status
       real(real64) :: eps, time1, time2, eerr, enorm, errmax, errmin, time0, &
                       breakdown_scale, residual_squared
-      complex(real64) :: pnp(number_eqns), anp(number_eqns), cak, csk, cbk, csk2
+      complex(real64) :: pnp(sphere_cluster%number_eqns), anp(sphere_cluster%number_eqns), cak, csk, cbk, csk2
       complex(real64), allocatable :: cr(:), cp(:), cw(:), cq(:), cap(:), caw(:), &
                                       capt(:), cawt(:), ctin(:, :), ctout(:, :)
       data firstrun/.true./
@@ -768,8 +768,8 @@ contains
       else
          initialize = .true.
       end if
-      iunit = run_print_unit
-      neqns = number_eqns
+      iunit = sphere_cluster%run_print_unit
+      neqns = sphere_cluster%number_eqns
       iter = 0
       errmax = 0.0_real64
       status = solver_converged
@@ -858,7 +858,7 @@ contains
          end if
       end if
 
-      if (normalize_solution_error) then
+      if (sphere_cluster%normalize_solution_error) then
          enorm = sqrt(residual_squared)
       else
          enorm = 1.d0
@@ -915,7 +915,7 @@ contains
                time1 = time2
             end if
 !if(rank0.eq.0) then
-!write(*,'(i5,6es20.12)') iter,sum(abs(anp)),anp(number_eqns)
+!write(*,'(i5,6es20.12)') iter,sum(abs(anp)),anp(sphere_cluster%number_eqns)
 !endif
          end do
          call parallel_barrier(mpi_comm=mpicomm)
@@ -1033,7 +1033,7 @@ contains
 
          anp = anp + cak * cp
 !if(rank0.eq.0) then
-!write(*,'(i5,6es20.12)') iter,sum(abs(anp)),anp(number_eqns),cak
+!write(*,'(i5,6es20.12)') iter,sum(abs(anp)),anp(sphere_cluster%number_eqns),cak
 !endif
          cr = cr - cak * cap
          cq = cq - conjg(cak) * caw
@@ -1069,7 +1069,7 @@ contains
          end if
          if (rank0 .eq. 0) time2 = parallel_wall_time()
          if (rank0 .eq. 0 .and. iterwrite .eq. 1 .and. time2 - time1 .gt. 5.d0) then
-            write (run_print_unit, '('' iter,err,min err, tpi:'',i5,2e12.4,e12.4)') &
+            write (sphere_cluster%run_print_unit, '('' iter,err,min err, tpi:'',i5,2e12.4,e12.4)') &
                iter, errmax, errmin, time2 - time0
             flush (iunit)
             time1 = time2

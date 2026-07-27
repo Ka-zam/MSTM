@@ -87,7 +87,7 @@ contains
       call parallel_communicator_create(mpi_group=new_group, &
                                         mpi_new_comm=new_comm, mpi_comm=mpicomm)
 
-      xv = cross_section_radius
+      xv = sphere_cluster%cross_section_radius
       if (rank .le. numprocscalc - 1) then
 
          call parallel_rank(mpi_comm=new_comm, &
@@ -186,8 +186,8 @@ contains
                         end do
                      end do
                   end do
-                  qextt = qextt * 2./cross_section_radius**2
-                  qscatt = qscatt * 2./cross_section_radius**2
+                  qextt = qextt * 2./sphere_cluster%cross_section_radius**2
+                  qscatt = qscatt * 2./sphere_cluster%cross_section_radius**2
                   close (file_unit)
                end if
             end if
@@ -196,7 +196,7 @@ contains
             if (runtime_failed()) return
          end do
          if (rank0 .eq. 0 .and. nkq) then
-            write (run_print_unit, '('' t matrix ext, sca:'',2e13.5)') qextt, qscatt
+            write (sphere_cluster%run_print_unit, '('' t matrix ext, sca:'',2e13.5)') qextt, qscatt
          end if
 !!
 !!  send to the other processors
@@ -215,7 +215,7 @@ contains
          allocate (dm(-nodr - 1:nodr + 1, 3, nodr, 2, nodr, 2), dmcf(-nodr - 1:nodr + 1, 3, nodr, 2, nodr, 2))
          if (rank0 .eq. 0 .and. nkq) then
             time2 = parallel_wall_time() - time1
-            call write_elapsed_time(run_print_unit, ' t matrix read time:', time2)
+            call write_elapsed_time(sphere_cluster%run_print_unit, ' t matrix read time:', time2)
             time1 = parallel_wall_time()
          end if
          dm = (0.d0, 0.d0)
@@ -275,9 +275,9 @@ contains
          end do
          wvnum(numprocscalc - 1) = nblkw - wvindex(numprocscalc - 1)
          if (rank0 .eq. 0 .and. nkq) then
-            write (run_print_unit, '('' d matrix calculation, order+degree per proc.:'',f9.2)') &
+            write (sphere_cluster%run_print_unit, '('' d matrix calculation, order+degree per proc.:'',f9.2)') &
                wvperproc
-            flush (run_print_unit)
+            flush (sphere_cluster%run_print_unit)
          end if
 !
 !  the big loop
@@ -400,7 +400,7 @@ contains
                                      mpi_number=sizedm, mpi_comm=new_comm)
          if (rank0 .eq. 0 .and. nkq) then
             time2 = parallel_wall_time() - time1
-            call write_elapsed_time(run_print_unit, ' d matrix time:', time2)
+            call write_elapsed_time(sphere_cluster%run_print_unit, ' d matrix time:', time2)
             time1 = parallel_wall_time()
          end if
 !
@@ -590,7 +590,7 @@ contains
 !            enddo
          if (rank0 .eq. 0 .and. nkq) then
             time2 = parallel_wall_time() - time1
-            call write_elapsed_time(run_print_unit, ' scat matrix coef time:', time2)
+            call write_elapsed_time(sphere_cluster%run_print_unit, ' scat matrix coef time:', time2)
          end if
          deallocate (windex, vindex, wvindex, wvnum, dm)
          deallocate (vc)

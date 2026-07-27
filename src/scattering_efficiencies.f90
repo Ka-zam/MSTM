@@ -147,7 +147,7 @@ contains
       integer, optional :: mpi_comm
       real(real64) :: qeff(3, 2 * npol - 1, nsphere), qe(2 * npol - 1), qa(2 * npol - 1), qs(2 * npol - 1)
       real(real64), allocatable :: qeffi(:, :)
-      complex(real64) :: amnp(number_eqns, npol), gmnp0(number_eqns, npol), ri0(2)
+      complex(real64) :: amnp(sphere_cluster%number_eqns, npol), gmnp0(sphere_cluster%number_eqns, npol), ri0(2)
       complex(real64), allocatable :: amnpi(:, :, :, :), gmnpi(:, :, :, :), fmnpi(:, :, :, :), &
                                       gmnp(:, :)
       if (present(mpi_comm)) then
@@ -157,7 +157,7 @@ contains
       end if
       call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
       call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
-      neqns = number_eqns
+      neqns = sphere_cluster%number_eqns
       allocate (gmnp(neqns, npol), qeffi(3, 2 * npol - 1))
       gmnp = 0.d0
       if (light_up) then
@@ -165,15 +165,15 @@ contains
          flush (6)
       end if
       do p = 1, npol
-         if (number_host_spheres .eq. 0) then
+         if (sphere_cluster%number_host_spheres .eq. 0) then
             noff = 0
-            do i = 1, number_spheres
-               nodr = sphere_order(i)
+            do i = 1, sphere_cluster%number_spheres
+               nodr = sphere_cluster%sphere_order(i)
                nblk = 2 * nodr * (nodr + 2)
                b11 = noff + 1
                b12 = b11 + nblk - 1
                call apply_single_sphere_mie_coefficients(i, nodr, amnp(b11:b12, p), gmnp(b11:b12, p), 'i')
-               noff = noff + nblk * number_field_expansions(i)
+               noff = noff + nblk * sphere_cluster%number_field_expansions(i)
             end do
          else
             call sphere_interaction(neqns, 1, amnp(:, p), gmnp(:, p), &
@@ -188,14 +188,14 @@ contains
       end if
       qeff(1:3, 1:2 * npol - 1, 1:nsphere) = 0.d0
       noff = 0
-      do i = 1, number_spheres
-         nodr = sphere_order(i)
+      do i = 1, sphere_cluster%number_spheres
+         nodr = sphere_cluster%sphere_order(i)
          nblk = 2 * nodr * (nodr + 2)
          allocate (amnpi(0:nodr + 1, nodr, 2, npol), &
                    gmnpi(0:nodr + 1, nodr, 2, npol), &
                    fmnpi(0:nodr + 1, nodr, 2, npol))
          call exterior_refractive_index(i, ri0)
-!            ri0=sphere_ref_index(:,host_sphere(i))
+!            ri0=sphere_cluster%sphere_ref_index(:,sphere_cluster%host_sphere(i))
          b11 = noff + 1
          b12 = b11 + nblk - 1
          do p = 1, npol
@@ -206,12 +206,12 @@ contains
             gmnpi(0:nodr + 1, 1:nodr, 1:2, p) = reshape(gmnp(b11:b12, p), &
                                                         (/nodr + 2, nodr, 2/))
          end do
-         call sphere_efficiency_factors(ri0, nodr, npol, sphere_radius(i), amnpi, fmnpi, gmnpi, &
+         call sphere_efficiency_factors(ri0, nodr, npol, sphere_cluster%sphere_radius(i), amnpi, fmnpi, gmnpi, &
                                         qe, qs, qa)
          qeffi(1, :) = qe(:)
          qeffi(3, :) = qs(:)
          qeffi(2, :) = qa(:)
-         noff = noff + nblk * number_field_expansions(i)
+         noff = noff + nblk * sphere_cluster%number_field_expansions(i)
          deallocate (gmnpi, amnpi, fmnpi)
          if (npol .eq. 1) then
             qeff(:, 1, i) = qeffi(:, 1)
@@ -235,16 +235,16 @@ contains
       do i = 1, nsphere
          qabsvol(:, i) = qeffp(2, :, i)
          do j = 1, nsphere
-            if (host_sphere(j) .eq. i) then
+            if (sphere_cluster%host_sphere(j) .eq. i) then
                qabsvol(:, i) = qabsvol(:, i) - qeffp(2, :, j) &
-                               * sphere_radius(j)**2 &
-                               / sphere_radius(i)**2
+                               * sphere_cluster%sphere_radius(j)**2 &
+                               / sphere_cluster%sphere_radius(i)**2
             end if
          end do
       end do
 !         do i=1,nsphere
-!            if(aimag(sphere_ref_index(1,i)).eq.0.d0 &
-!             .and.aimag(sphere_ref_index(2,i)).eq.0.d0) then
+!            if(aimag(sphere_cluster%sphere_ref_index(1,i)).eq.0.d0 &
+!             .and.aimag(sphere_cluster%sphere_ref_index(2,i)).eq.0.d0) then
 !               qabsvol(:,i)=0.d0
 !            endif
 !         enddo
@@ -252,17 +252,17 @@ contains
       do i = 1, nsphere
          qeffp(2, :, i) = qabsvol(:, i)
          do j = 1, nsphere
-            if (host_sphere(j) .eq. i) then
+            if (sphere_cluster%host_sphere(j) .eq. i) then
                qeffp(2, :, i) = qeffp(2, :, i) + qabsvol(:, j) &
-                                * sphere_radius(j)**2 &
-                                / sphere_radius(i)**2
+                                * sphere_cluster%sphere_radius(j)**2 &
+                                / sphere_cluster%sphere_radius(i)**2
             end if
          end do
       end do
       qefftot = 0.
       do i = 1, nsphere
-         if (host_sphere(i) .eq. 0) then
-            qefftot(:, :) = qefftot(:, :) + qeffp(:, :, i) * sphere_radius(i)**2 / xgeff**2
+         if (sphere_cluster%host_sphere(i) .eq. 0) then
+            qefftot(:, :) = qefftot(:, :) + qeffp(:, :, i) * sphere_cluster%sphere_radius(i)**2 / xgeff**2
          end if
       end do
 ! 10--22 : qsca=qext + qinc-qabs
@@ -275,40 +275,40 @@ contains
       integer :: i, p, pole, mpicomm
       integer, optional :: mpi_comm
       real(real64) :: qsevan(2)
-      complex(real64) :: amnp(number_eqns, 2)
+      complex(real64) :: amnp(sphere_cluster%number_eqns, 2)
       complex(real64), allocatable :: amn(:), gmn(:)
       if (present(mpi_comm)) then
          mpicomm = mpi_comm
       else
          mpicomm = mpi_comm_world
       end if
-      allocate (amn(number_eqns), gmn(number_eqns))
+      allocate (amn(sphere_cluster%number_eqns), gmn(sphere_cluster%number_eqns))
       pole_integration = .true.
       qsevan = 0.
       do pole = 1, number_singular_points
          pole_integration_s = singular_points(pole)
-         recalculate_surface_matrix = .true.
+         sphere_cluster%recalculate_surface_matrix = .true.
          do p = 1, 2
             amn(:) = amnp(:, p)
             gmn = 0.d0
-            call sphere_interaction(number_eqns, 1, amn, gmn, &
+            call sphere_interaction(sphere_cluster%number_eqns, 1, amn, gmn, &
                                     mie_mult=(/.false./), initial_run=.true., skip_external_translation=.true., &
                                     mpi_comm=mpicomm)
-            do i = 1, number_spheres
-               if (host_sphere(i) .ne. 0) cycle
-               call left_right_mode_transformation(sphere_order(i), &
-                                                   amn(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i)), &
-                                                   amn(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i)))
-               call left_right_mode_transformation(sphere_order(i), &
-                                                   gmn(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i)), &
-                                                   gmn(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i)))
-               qsevan(p) = qsevan(p) + sum(dble(conjg(amn(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i))) &
-                                                * gmn(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i)))) &
-                           / layer_ref_index(sphere_layer(i))
+            do i = 1, sphere_cluster%number_spheres
+               if (sphere_cluster%host_sphere(i) .ne. 0) cycle
+               call left_right_mode_transformation(sphere_cluster%sphere_order(i), &
+                        amn(sphere_cluster%sphere_offset(i) + 1:sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i)), &
+                          amn(sphere_cluster%sphere_offset(i) + 1:sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i)))
+               call left_right_mode_transformation(sphere_cluster%sphere_order(i), &
+                        gmn(sphere_cluster%sphere_offset(i) + 1:sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i)), &
+                          gmn(sphere_cluster%sphere_offset(i) + 1:sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i)))
+               qsevan(p) = qsevan(p) + sum(dble(conjg(amn(sphere_cluster%sphere_offset(i) + 1:sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i))) &
+                     * gmn(sphere_cluster%sphere_offset(i) + 1:sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i)))) &
+                           / layer_ref_index(sphere_cluster%sphere_layer(i))
             end do
          end do
       end do
-      qsevan = qsevan * 2.d0 / cross_section_radius**2
+      qsevan = qsevan * 2.d0 / sphere_cluster%cross_section_radius**2
       deallocate (gmn, amn)
       pole_integration = .false.
    end subroutine waveguide_mode_scattering
@@ -318,7 +318,7 @@ contains
       integer :: i, j, rank, numprocs, mpicomm, task, nsend, k
       integer, optional :: mpi_comm
       real(real64) :: qbsca(2, 0:1), qt(2), targetz, qt2(2, 0:1)
-      complex(real64) :: amn(number_eqns, 2)
+      complex(real64) :: amn(sphere_cluster%number_eqns, 2)
       complex(real64), allocatable :: amn1(:, :), amn2(:, :)
       if (present(mpi_comm)) then
          mpicomm = mpi_comm
@@ -344,18 +344,18 @@ contains
                  aimag(layer_ref_index(number_plane_boundaries)) .gt. 1.d-6) then
             qbsca(:, k) = 0.d0
          else
-            do i = 1, number_spheres
-               if (host_sphere(i) .ne. 0) cycle
-               allocate (amn1(sphere_block(i), 2))
-               amn1 = amn(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), 1:2)
-               do j = 1, number_spheres
-                  if (host_sphere(j) .ne. 0) cycle
+            do i = 1, sphere_cluster%number_spheres
+               if (sphere_cluster%host_sphere(i) .ne. 0) cycle
+               allocate (amn1(sphere_cluster%sphere_block(i), 2))
+               amn1 = amn(sphere_cluster%sphere_offset(i) + 1:sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i), 1:2)
+               do j = 1, sphere_cluster%number_spheres
+                  if (sphere_cluster%host_sphere(j) .ne. 0) cycle
                   task = task + 1
                   if (mod(task, numprocs) .ne. rank) cycle
-                  allocate (amn2(sphere_block(j), 2))
-                  amn2 = amn(sphere_offset(j) + 1:sphere_offset(j) + sphere_block(j), 1:2)
-                  call sphere_boundary_scattering(sphere_order(i), sphere_position(:, i), &
-                                                  amn1, sphere_order(j), sphere_position(:, j), amn2, targetz, qt)
+                  allocate (amn2(sphere_cluster%sphere_block(j), 2))
+               amn2 = amn(sphere_cluster%sphere_offset(j) + 1:sphere_cluster%sphere_offset(j) + sphere_cluster%sphere_block(j), 1:2)
+                  call sphere_boundary_scattering(sphere_cluster%sphere_order(i), sphere_cluster%sphere_position(:, i), &
+                                      amn1, sphere_cluster%sphere_order(j), sphere_cluster%sphere_position(:, j), amn2, targetz, qt)
                   qbsca(:, k) = qbsca(:, k) + qt
                   deallocate (amn2)
                end do
@@ -363,7 +363,7 @@ contains
             end do
          end if
       end do
-      qbsca = qbsca / cross_section_radius**2
+      qbsca = qbsca / sphere_cluster%cross_section_radius**2
       if (numprocs .gt. 1) then
          nsend = 4
          qt2 = qbsca
@@ -408,21 +408,21 @@ contains
       implicit none
       integer :: k
       real(real64) :: qbsca(2, 0:1), targetz
-      complex(real64) :: amn(2 * t_matrix_order * (t_matrix_order + 2), 2)
+      complex(real64) :: amn(2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_order + 2), 2)
 
       qbsca = 0.d0
       do k = 0, 1
          if (k .eq. 0) then
-!               targetz=min(bot_boundary,cluster_origin(3)-1.d2)
+!               targetz=min(bot_boundary,sphere_cluster%cluster_origin(3)-1.d2)
             targetz = bot_boundary
          elseif (k .eq. 1) then
-            !              targetz=max(top_boundary,cluster_origin(3)+1.d2)
+            !              targetz=max(top_boundary,sphere_cluster%cluster_origin(3)+1.d2)
             targetz = top_boundary
          end if
-         call sphere_boundary_scattering(t_matrix_order, (/0.d0, 0.d0, 0.d0/), &
-                                         amn, t_matrix_order, (/0.d0, 0.d0, 0.d0/), amn, targetz, qbsca(:, k), lr_to_mode=.false.)
+         call sphere_boundary_scattering(sphere_cluster%t_matrix_order, (/0.d0, 0.d0, 0.d0/), &
+                            amn, sphere_cluster%t_matrix_order, (/0.d0, 0.d0, 0.d0/), amn, targetz, qbsca(:, k), lr_to_mode=.false.)
       end do
-      qbsca = qbsca / cross_section_radius**2
+      qbsca = qbsca / sphere_cluster%cross_section_radius**2
    end subroutine common_origin_hemispherical_scattering
 
    subroutine hemispherical_scattering(amnp, singleorigin, numerical, qbsca, mpi_comm)
@@ -452,9 +452,9 @@ contains
       else
          hemispherical_single_origin = singleorigin
          if (singleorigin) then
-            ncoef = 4 * t_matrix_order * (t_matrix_order + 2)
+            ncoef = 4 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_order + 2)
          else
-            ncoef = 2 * number_eqns
+            ncoef = 2 * sphere_cluster%number_eqns
          end if
          if (allocated(hemispherical_amnp)) deallocate (hemispherical_amnp)
          allocate (hemispherical_amnp(ncoef))
@@ -493,7 +493,7 @@ contains
                                      mpi_comm=mpicomm)
             end if
          end if
-         qbsca = cq * 4.d0 / cross_section_radius**2.
+         qbsca = cq * 4.d0 / sphere_cluster%cross_section_radius**2.
          qbsca(:, 1) = -qbsca(:, 1)
          deallocate (hemispherical_amnp)
       end if
@@ -507,7 +507,7 @@ contains
       q = 0.d0
       if (hemispherical_single_origin) then
          call numerical_scattering_matrix_azimuthal_average_single_origin( &
-            hemispherical_amnp, t_matrix_order, ct, sm, &
+            hemispherical_amnp, sphere_cluster%t_matrix_order, ct, sm, &
             rotate_plane=.false., normalize_s11=.false., s11_only=.true.)
          q(1:2) = sm(1:2)
       else
@@ -559,7 +559,7 @@ contains
                   + const3(3, p) * aimag(conjg(gfs(2, sdir, p)) * amp(1, p) - conjg(gfs(1, sdir, p)) * amp(2, p))) &
                  / incident_field_scale(p)
       end do
-      qe = qe / cross_section_radius**2
+      qe = qe / sphere_cluster%cross_section_radius**2
    end subroutine extinction_theorem
 
 end module scattering_efficiencies

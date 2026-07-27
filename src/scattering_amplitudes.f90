@@ -45,7 +45,7 @@ contains
       wy = cell_width(2)
       nmax = ceiling(maxval(cell_width(1:2)) / pi)
       if (present(num_dirs)) num_dirs = 0
-      smscale = 1.d0 / cross_section_radius**2 * 16.d0 * four_pi / wx / wy
+      smscale = 1.d0 / sphere_cluster%cross_section_radius**2 * 16.d0 * four_pi / wx / wy
       do dir = 1, 2
          if (dir .eq. 1) then
             istrt = 17
@@ -138,24 +138,24 @@ contains
          end do
          if (present(num_dirs)) num_dirs(3 - dir) = nang
       end do
-      qsca = qsca / cross_section_radius**2 * 16.d0 * four_pi / wx / wy
+      qsca = qsca / sphere_cluster%cross_section_radius**2 * 16.d0 * four_pi / wx / wy
    end subroutine periodic_lattice_scattering
 
    subroutine multiple_origin_amplitude_matrix(amnp, s, phi, targetz, dir, sa)
       implicit none
       integer :: p, i, dir
       real(real64) :: phi, targetz
-      complex(real64) :: amnp(number_eqns, 2), sa(4), sat(4), s
+      complex(real64) :: amnp(sphere_cluster%number_eqns, 2), sa(4), sat(4), s
       complex(real64), allocatable :: pmnpi(:, :), amnpi(:, :)
 
       sa = 0.d0
-      do i = 1, number_spheres
-         if (host_sphere(i) .ne. 0) cycle
-         allocate (pmnpi(sphere_block(i), 2), amnpi(sphere_block(i), 2))
-         call layer_vector_spherical_harmonics(s, phi, targetz, dir, sphere_position(:, i), sphere_order(i), pmnpi)
-         amnpi(:, :) = amnp(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), :)
+      do i = 1, sphere_cluster%number_spheres
+         if (sphere_cluster%host_sphere(i) .ne. 0) cycle
+         allocate (pmnpi(sphere_cluster%sphere_block(i), 2), amnpi(sphere_cluster%sphere_block(i), 2))
+         call layer_vector_spherical_harmonics(s, phi, targetz, dir, sphere_cluster%sphere_position(:, i), sphere_cluster%sphere_order(i), pmnpi)
+         amnpi(:, :) = amnp(sphere_cluster%sphere_offset(i) + 1:sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i), :)
          do p = 1, 2
-            call left_right_mode_transformation(sphere_order(i), amnpi(:, p), amnpi(:, p))
+            call left_right_mode_transformation(sphere_cluster%sphere_order(i), amnpi(:, p), amnpi(:, p))
          end do
          sat(1) = sum(pmnpi(:, 2) * amnpi(:, 2)) * 0.5d0
          sat(2) = sum(pmnpi(:, 1) * amnpi(:, 1)) * 0.5d0
@@ -170,8 +170,8 @@ contains
       implicit none
       integer :: dir
       real(real64) :: phi, targetz
- complex(real64) :: amnp(2 * t_matrix_order * (t_matrix_order + 2), 2), sa(4), s, pmnp(2 * t_matrix_order * (t_matrix_order + 2), 2)
-      call layer_vector_spherical_harmonics(s, phi, targetz, dir, cluster_origin, t_matrix_order, pmnp)
+ complex(real64) :: amnp(2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_order + 2), 2), sa(4), s, pmnp(2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_order + 2), 2)
+     call layer_vector_spherical_harmonics(s, phi, targetz, dir, sphere_cluster%cluster_origin, sphere_cluster%t_matrix_order, pmnp)
       sa(1) = 0.5d0 * sum(pmnp(:, 2) * amnp(:, 2))
       sa(2) = 0.5d0 * sum(pmnp(:, 1) * amnp(:, 1))
       sa(3) = -0.5d0 * sum(pmnp(:, 1) * amnp(:, 2))
@@ -211,7 +211,7 @@ contains
       logical, optional :: rotate_plane, s11_only
       integer :: dir, nelem
       real(real64) :: ct, phi, sm(*), csca, targetz
-      complex(real64) :: amnp(number_eqns, 2), sa(4), ri, s, amnpt(number_eqns, 2)
+      complex(real64) :: amnp(sphere_cluster%number_eqns, 2), sa(4), ri, s, amnpt(sphere_cluster%number_eqns, 2)
       if (present(rotate_plane)) then
          rotate = rotate_plane
       else
@@ -395,11 +395,11 @@ contains
       integer :: i, numang, nelem
       integer, optional :: number_angles
       real(real64) :: ct, phi, sm(*), smt(16), csca
-      complex(real64) :: amnp(number_eqns, 2), sa(4)
+      complex(real64) :: amnp(sphere_cluster%number_eqns, 2), sa(4)
       if (present(number_angles)) then
          numang = number_angles
       else
-         numang = 2 * t_matrix_order + 2
+         numang = 2 * sphere_cluster%t_matrix_order + 2
       end if
       if (present(s11_only)) then
          s11only = s11_only
@@ -606,7 +606,7 @@ contains
          mpicomm = mpi_comm_world
       end if
       call initialize_numerical_tables(2 * ntot)
-      runprintunit = run_print_unit
+      runprintunit = sphere_cluster%run_print_unit
       call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
       call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
       a1 = (0.d0, 0.d0)

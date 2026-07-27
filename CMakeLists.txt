@@ -186,6 +186,7 @@ if(FPRETTIFY_EXECUTABLE)
       tests/direct_lu_solver_test.f90
       tests/gpfa_test.f90
       tests/output_regression_test.f90
+      tests/sphere_cluster_test.f90
       tests/translation_expansion_test.f90
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     COMMENT "Formatting Fortran sources"
@@ -209,6 +210,11 @@ if(BUILD_TESTING)
   mstm_apply_fortran_options(direct_lu_solver_test)
   target_link_libraries(direct_lu_solver_test PRIVATE mstm_core)
   add_test(NAME direct_lu_solver_unit COMMAND direct_lu_solver_test)
+
+  add_executable(sphere_cluster_test tests/sphere_cluster_test.f90)
+  mstm_apply_fortran_options(sphere_cluster_test)
+  target_link_libraries(sphere_cluster_test PRIVATE mstm_core)
+  add_test(NAME sphere_cluster_unit COMMAND sphere_cluster_test)
 
   add_executable(translation_expansion_test tests/translation_expansion_test.f90)
   mstm_apply_fortran_options(translation_expansion_test)

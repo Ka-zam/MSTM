@@ -63,7 +63,7 @@ contains
       if (present(fft_option)) then
          fftopt = fft_option
       else
-         fftopt = fft_translation_option
+         fftopt = sphere_cluster%fft_translation_option
       end if
       if (present(store_matrix_option)) then
          smopt = store_matrix_option
@@ -133,7 +133,7 @@ contains
       end if
 
       call parallel_barrier(mpi_comm=mpicomm)
-      if (number_host_spheres .gt. 0) then
+      if (sphere_cluster%number_host_spheres .gt. 0) then
          aout_t2 = 0.
          call external_to_internal_expansion(neqns, nrhs, ain_t, aout_t2, &
                                              rhs_list=rhslist, mpi_comm=mpicomm, con_tran=contran)
@@ -190,19 +190,19 @@ contains
       real(real64) :: r, eps, rpos0(3), xi0(3)
       complex(real64) :: ri0, riext(2)
       nodrt = 0
-      nodrmax = max_mie_order
-      do i = 1, number_spheres
-         host = host_sphere(i)
+      nodrmax = sphere_cluster%max_mie_order
+      do i = 1, sphere_cluster%number_spheres
+         host = sphere_cluster%host_sphere(i)
          call exterior_refractive_index(i, riext)
          ri0 = 2.d0 / (1.d0 / riext(1) + 1.d0 / riext(2))
          if (host .eq. 0) then
-            rpos0 = cluster_origin
+            rpos0 = sphere_cluster%cluster_origin
          else
-            rpos0(:) = sphere_position(:, host)
+            rpos0(:) = sphere_cluster%sphere_position(:, host)
          end if
-         xi0(:) = sphere_position(:, i) - rpos0(:)
+         xi0(:) = sphere_cluster%sphere_position(:, i) - rpos0(:)
          r = sqrt(dot_product(xi0, xi0))
-         call estimate_translation_order(r, ri0, sphere_order(i), eps, ntran(i))
+         call estimate_translation_order(r, ri0, sphere_cluster%sphere_order(i), eps, ntran(i))
          if (host .eq. 0) nodrt = max(nodrt, ntran(i), nodrmax)
       end do
    end subroutine estimate_sphere_translation_orders
@@ -215,12 +215,12 @@ contains
 ! may 2019: k is now rightmost column
    subroutine sphere_plane_wave_coefficients(alpha, sinc, dir, pmnp, excited_spheres, mpi_comm)
       implicit none
-      logical :: exsphere(number_spheres)
-      logical, optional :: excited_spheres(number_spheres)
+      logical :: exsphere(sphere_cluster%number_spheres)
+      logical, optional :: excited_spheres(sphere_cluster%number_spheres)
       integer :: p, i, dir, mpicomm, n, m, mn, rank
       integer, optional :: mpi_comm
       real(real64) :: alpha, sinc, qext, qsca, qabs
-      complex(real64) :: pmnp(number_eqns, 2), ri1(2), ri0(2), pt(2, 2)
+      complex(real64) :: pmnp(sphere_cluster%number_eqns, 2), ri1(2), ri0(2), pt(2, 2)
       complex(real64), allocatable :: pmnptot(:, :), dnpeff(:, :, :), pmnp0(:, :, :)
       if (present(excited_spheres)) then
          exsphere = excited_spheres
@@ -233,51 +233,51 @@ contains
          mpicomm = mpi_comm_world
       end if
       call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
-      if (effective_medium_simulation) then
-         allocate (dnpeff(2, 2, t_matrix_order), pmnp0(t_matrix_order * (t_matrix_order + 2), 2, 2))
-         ri0 = effective_ref_index
+      if (sphere_cluster%effective_medium_simulation) then
+         allocate (dnpeff(2, 2, sphere_cluster%t_matrix_order), pmnp0(sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_order + 2), 2, 2))
+         ri0 = sphere_cluster%effective_ref_index
          ri1 = layer_ref_index(0)
-         call optically_active_mie_coefficients(effective_cluster_radius, ri1, t_matrix_order, &
+         call optically_active_mie_coefficients(sphere_cluster%effective_cluster_radius, ri1, sphere_cluster%t_matrix_order, &
                                                 0.d0, qext, qsca, qabs, &
                                                 ri_medium=ri0, dnp_eff_mie=dnpeff)
 !if(rank.eq.0) then
-!write(*,'(3es16.9)') effective_cluster_radius,effective_ref_index
+!write(*,'(3es16.9)') sphere_cluster%effective_cluster_radius,sphere_cluster%effective_ref_index
 !do n=1,2
 !write(*,'(i2,4es12.4)') n,dnpeff(1,1,n)+dnpeff(2,1,n),dnpeff(1,1,n)-dnpeff(2,1,n)
 !enddo
 !endif
-         call layer_plane_wave_coefficients(alpha, sinc, dir, (/0.d0, 0.d0, 0.d0/), t_matrix_order, &
+         call layer_plane_wave_coefficients(alpha, sinc, dir, (/0.d0, 0.d0, 0.d0/), sphere_cluster%t_matrix_order, &
                                             pmnp0)
-         do n = 1, t_matrix_order
+         do n = 1, sphere_cluster%t_matrix_order
             do m = -n, n
-               mn = mode_index(m, n, t_matrix_order, 2)
+               mn = mode_index(m, n, sphere_cluster%t_matrix_order, 2)
                pt = pmnp0(mn, 1:2, 1:2)
                do p = 1, 2
                   pmnp0(mn, p, :) = dnpeff(p, 1, n) * pt(1, :) + dnpeff(p, 2, n) * pt(2, :)
                end do
             end do
          end do
-         call distribute_from_common_origin(t_matrix_order, pmnp0, pmnp, number_rhs=2, &
+         call distribute_from_common_origin(sphere_cluster%t_matrix_order, pmnp0, pmnp, number_rhs=2, &
                                             vswf_type=1, mpi_comm=mpicomm)
          deallocate (dnpeff, pmnp0)
          return
       end if
 
       pmnp = 0.d0
-      do i = 1, number_spheres
-         if (host_sphere(i) .ne. 0) cycle
+      do i = 1, sphere_cluster%number_spheres
+         if (sphere_cluster%host_sphere(i) .ne. 0) cycle
          if (.not. exsphere(i)) cycle
-         allocate (pmnptot(sphere_block(i), 2))
-         if (gaussian_beam_constant .eq. 0.d0) then
-            call layer_plane_wave_coefficients(alpha, sinc, dir, sphere_position(:, i), sphere_order(i), &
+         allocate (pmnptot(sphere_cluster%sphere_block(i), 2))
+         if (sphere_cluster%gaussian_beam_constant .eq. 0.d0) then
+        call layer_plane_wave_coefficients(alpha, sinc, dir, sphere_cluster%sphere_position(:, i), sphere_cluster%sphere_order(i), &
                                                pmnptot)
          else
-            call layered_gaussian_beam_coefficients(alpha, sinc, dir, sphere_position(:, i), sphere_order(i), &
+   call layered_gaussian_beam_coefficients(alpha, sinc, dir, sphere_cluster%sphere_position(:, i), sphere_cluster%sphere_order(i), &
                                                     pmnptot)
          end if
          do p = 1, 2
-            pmnp(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), p) &
-               = pmnptot(1:sphere_block(i), p)
+            pmnp(sphere_cluster%sphere_offset(i) + 1:sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i), p) &
+               = pmnptot(1:sphere_cluster%sphere_block(i), p)
          end do
          deallocate (pmnptot)
       end do
@@ -313,18 +313,18 @@ contains
       layer = find_layer_index(rpos(3))
       cbinc = dble(sqrt((1.d0 - sinc / riinc) * (1.d0 + sinc / riinc)) * (3 - 2 * sdir))
       pmnp = 0.d0
-      rtran = rpos(:) - gaussian_beam_focal_point(:)
+      rtran = rpos(:) - sphere_cluster%gaussian_beam_focal_point(:)
       r = sqrt(sum(rtran**2))
       call estimate_translation_order(r, riinc, nodr, 1.d-6, nodrgb)
       nodrgb = max(nodrgb, nodr)
 !write(*,'('' gb order:'',i8)') nodrgb
-      nodrgb = min(nodrgb, max_t_matrix_order)
+      nodrgb = min(nodrgb, sphere_cluster%max_t_matrix_order)
       allocate (pmnp0(2 * nodrgb * (nodrgb + 2), 2))
       pmnp = 0.d0
 !write(*,*) 's1'
-      call generate_gaussian_beam_coefficients(alpha, cbinc, gaussian_beam_constant, nodrgb, pmnp0)
+      call generate_gaussian_beam_coefficients(alpha, cbinc, sphere_cluster%gaussian_beam_constant, nodrgb, pmnp0)
       if (layer .eq. incregion .and. incdir) then
-         call tranmat%configure(1, rtran, (/riinc, riinc/), nodrgb .ge. translation_switch_order)
+         call tranmat%configure(1, rtran, (/riinc, riinc/), nodrgb .ge. sphere_cluster%translation_switch_order)
          do p = 1, 2
 !write(*,*) 's2', p
             call tranmat%apply(nodrgb, 2, nodr, 2, pmnp0(:, p), pmnp(:, p))
@@ -333,21 +333,21 @@ contains
       end if
       if (number_plane_boundaries .gt. 0 .and. incindir) then
          shiftgb = .false.
-         if (sdir .eq. 1 .and. gaussian_beam_focal_point(3) .ge. 0.d0) then
+         if (sdir .eq. 1 .and. sphere_cluster%gaussian_beam_focal_point(3) .ge. 0.d0) then
             shiftgb = .true.
-            rshft = (/0.d0, 0.d0, -1.d-5 - gaussian_beam_focal_point(3)/)
+            rshft = (/0.d0, 0.d0, -1.d-5 - sphere_cluster%gaussian_beam_focal_point(3)/)
             zs = -1.d-5
          elseif (sdir .ne. 1 .and. &
-                 gaussian_beam_focal_point(3) .lt. plane_boundary_position(number_plane_boundaries)) then
+                 sphere_cluster%gaussian_beam_focal_point(3) .lt. plane_boundary_position(number_plane_boundaries)) then
             shiftgb = .true.
-            rshft = (/0.d0, 0.d0, plane_boundary_position(number_plane_boundaries) + 1.d-5 - gaussian_beam_focal_point(3)/)
+      rshft = (/0.d0, 0.d0, plane_boundary_position(number_plane_boundaries) + 1.d-5 - sphere_cluster%gaussian_beam_focal_point(3)/)
             zs = plane_boundary_position(number_plane_boundaries) + 1.d-5
          else
-            zs = gaussian_beam_focal_point(3)
+            zs = sphere_cluster%gaussian_beam_focal_point(3)
          end if
          if (shiftgb) then
             allocate (ptvec(2 * nodrgb * (nodrgb + 2)))
-            call tranmat%configure(1, rshft, (/riinc, riinc/), nodrgb .ge. translation_switch_order)
+            call tranmat%configure(1, rshft, (/riinc, riinc/), nodrgb .ge. sphere_cluster%translation_switch_order)
             do p = 1, 2
                ptvec(:) = pmnp0(:, p)
                pmnp0(:, p) = 0.d0
@@ -382,24 +382,24 @@ contains
       implicit none
       integer :: dir, i
       real(real64), save :: ilv(2)
-      complex(real64) :: amnp(number_eqns, 2)
+      complex(real64) :: amnp(sphere_cluster%number_eqns, 2)
 
       if (dir .eq. 1) then
-         do i = 1, number_spheres
-            if (host_sphere(i) .ne. 0) cycle
-            amnp(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), 1:2) &
-               = amnp(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), 1:2) &
-                 * exp((0.d0, -1.d0) * sum(incident_lateral_vector * sphere_position(1:2, i)))
+         do i = 1, sphere_cluster%number_spheres
+            if (sphere_cluster%host_sphere(i) .ne. 0) cycle
+            amnp(sphere_cluster%sphere_offset(i) + 1:sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i), 1:2) &
+               = amnp(sphere_cluster%sphere_offset(i) + 1:sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i), 1:2) &
+                 * exp((0.d0, -1.d0) * sum(incident_lateral_vector * sphere_cluster%sphere_position(1:2, i)))
          end do
          ilv = incident_lateral_vector
 !            incident_lateral_vector=0.d0
       else
 !            incident_lateral_vector=ilv
-         do i = 1, number_spheres
-            if (host_sphere(i) .ne. 0) cycle
-            amnp(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), 1:2) &
-               = amnp(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), 1:2) &
-                 * exp((0.d0, 1.d0) * sum(incident_lateral_vector * sphere_position(1:2, i)))
+         do i = 1, sphere_cluster%number_spheres
+            if (sphere_cluster%host_sphere(i) .ne. 0) cycle
+            amnp(sphere_cluster%sphere_offset(i) + 1:sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i), 1:2) &
+               = amnp(sphere_cluster%sphere_offset(i) + 1:sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i), 1:2) &
+                 * exp((0.d0, 1.d0) * sum(incident_lateral_vector * sphere_cluster%sphere_position(1:2, i)))
          end do
       end if
    end subroutine phase_shift
@@ -415,15 +415,15 @@ contains
                                      single_sphere, origin_position, mpi_comm, merge_procs, merge_radius, &
                                      sphere_translation_list)
       implicit none
-      logical :: mergeprocs, tlist(number_spheres)
-      logical, optional :: merge_procs, sphere_translation_list(number_spheres)
+      logical :: mergeprocs, tlist(sphere_cluster%number_spheres)
+      logical, optional :: merge_procs, sphere_translation_list(sphere_cluster%number_spheres)
       integer :: nodrt, i, m, n, nblk, ntrani, nrhs, task, &
                  rank, numprocs, nsend, proc, mpicomm, noi, &
                  startsphere, endsphere, rhs
       integer, optional :: number_rhs, mpi_comm, single_sphere
       real(real64) :: r0(3), mrad, ri0
       real(real64), optional :: origin_position(3), merge_radius
-      complex(real64) :: amnp(number_eqns, *), amnp0(0:nodrt + 1, nodrt, 2, *), rimedium(2)
+      complex(real64) :: amnp(sphere_cluster%number_eqns, *), amnp0(0:nodrt + 1, nodrt, 2, *), rimedium(2)
       complex(real64), allocatable :: amnpt(:, :, :)
       type(translation_operator_state) :: tranmat
 
@@ -457,7 +457,7 @@ contains
          endsphere = single_sphere
       else
          startsphere = 1
-         endsphere = number_spheres
+         endsphere = sphere_cluster%number_spheres
       end if
       if (present(sphere_translation_list)) then
          tlist = sphere_translation_list
@@ -470,24 +470,24 @@ contains
       task = 0
       do i = startsphere, endsphere
          if (.not. tlist(i)) cycle
-         nblk = sphere_order(i) * (sphere_order(i) + 2) * 2
-         if (host_sphere(i) .eq. 0) then
-            ri0 = sqrt(sum(r0 - sphere_position(:, i))**2)
+         nblk = sphere_cluster%sphere_order(i) * (sphere_cluster%sphere_order(i) + 2) * 2
+         if (sphere_cluster%host_sphere(i) .eq. 0) then
+            ri0 = sqrt(sum(r0 - sphere_cluster%sphere_position(:, i))**2)
             if (ri0 .gt. mrad) cycle
             task = task + 1
             proc = mod(task, numprocs)
             if (proc .eq. rank) then
                call exterior_refractive_index(i, rimedium)
-               noi = sphere_order(i)
-               ntrani = min(nodrt, translation_order(i))
+               noi = sphere_cluster%sphere_order(i)
+               ntrani = min(nodrt, sphere_cluster%translation_order(i))
 !                  ntrani=max(ntrani,noi)
                allocate (amnpt(0:ntrani + 1, ntrani, 2))
                amnpt = (0.d0, 0.d0)
-               call tranmat%configure(1, r0 - sphere_position(:, i), rimedium, &
-                                      max(noi, ntrani) .ge. translation_switch_order)
+               call tranmat%configure(1, r0 - sphere_cluster%sphere_position(:, i), rimedium, &
+                                      max(noi, ntrani) .ge. sphere_cluster%translation_switch_order)
                do rhs = 1, nrhs
                   call tranmat%apply(noi, 2, ntrani, 2, &
-                                     amnp(sphere_offset(i) + 1:sphere_offset(i) + nblk, rhs), amnpt)
+                                     amnp(sphere_cluster%sphere_offset(i) + 1:sphere_cluster%sphere_offset(i) + nblk, rhs), amnpt)
                   do n = 1, ntrani
                      do m = 0, ntrani + 1
                         amnp0(m, n, 1, rhs) = amnp0(m, n, 1, rhs) &
@@ -513,14 +513,14 @@ contains
                                             origin_position, origin_host, vswf_type, mpi_comm, merge_procs, &
                                             single_sphere, sphere_translation_list)
       implicit none
-      logical :: mergeprocs, tlist(number_spheres)
-      logical, optional :: merge_procs, sphere_translation_list(number_spheres)
+      logical :: mergeprocs, tlist(sphere_cluster%number_spheres)
+      logical, optional :: merge_procs, sphere_translation_list(sphere_cluster%number_spheres)
       integer :: nodrt, i, nblk, ntrani, nrhs, task, rhs, startsphere, endsphere, &
                  rank, numprocs, nsend, proc, mpicomm, noi, vtype, ohost
       integer, optional :: number_rhs, mpi_comm, vswf_type, origin_host, single_sphere
       real(real64) :: r0(3)
       real(real64), optional :: origin_position(3)
-      complex(real64) :: amnp(number_eqns, *), amnp0(0:nodrt + 1, nodrt, 2, *), rimedium(2)
+      complex(real64) :: amnp(sphere_cluster%number_eqns, *), amnp0(0:nodrt + 1, nodrt, 2, *), rimedium(2)
       type(translation_operator_state) :: tranmat
 
       if (present(mpi_comm)) then
@@ -559,11 +559,11 @@ contains
             endsphere = single_sphere
          else
             startsphere = 1
-            endsphere = number_spheres
+            endsphere = sphere_cluster%number_spheres
          end if
       else
          startsphere = 1
-         endsphere = number_spheres
+         endsphere = sphere_cluster%number_spheres
       end if
       if (present(sphere_translation_list)) then
          tlist = sphere_translation_list
@@ -573,31 +573,31 @@ contains
 
       call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
       call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
-      amnp(1:number_eqns, 1:nrhs) = (0.d0, 0.d0)
+      amnp(1:sphere_cluster%number_eqns, 1:nrhs) = (0.d0, 0.d0)
       task = 0
       do i = startsphere, endsphere
          if (.not. tlist(i)) cycle
-         nblk = sphere_order(i) * (sphere_order(i) + 2) * 2
-         if (host_sphere(i) .eq. ohost) then
+         nblk = sphere_cluster%sphere_order(i) * (sphere_cluster%sphere_order(i) + 2) * 2
+         if (sphere_cluster%host_sphere(i) .eq. ohost) then
             task = task + 1
             proc = mod(task, numprocs)
             if (proc .eq. rank) then
                call exterior_refractive_index(i, rimedium)
-               noi = sphere_order(i)
+               noi = sphere_cluster%sphere_order(i)
                ntrani = nodrt
-               call tranmat%configure(vtype, sphere_position(:, i) - r0, rimedium, &
-                                      max(noi, ntrani) .ge. translation_switch_order)
+               call tranmat%configure(vtype, sphere_cluster%sphere_position(:, i) - r0, rimedium, &
+                                      max(noi, ntrani) .ge. sphere_cluster%translation_switch_order)
                do rhs = 1, nrhs
                   call tranmat%apply(ntrani, 2, noi, 2, &
                                      amnp0(0:nodrt + 1, 1:nodrt, 1:2, rhs), &
-                                     amnp(sphere_offset(i) + 1:sphere_offset(i) + nblk, rhs))
+                                     amnp(sphere_cluster%sphere_offset(i) + 1:sphere_cluster%sphere_offset(i) + nblk, rhs))
                end do
                call tranmat%clear()
             end if
          end if
       end do
       if (numprocs .gt. 1 .and. mergeprocs) then
-         nsend = number_eqns * nrhs
+         nsend = sphere_cluster%number_eqns * nrhs
          call parallel_allreduce_sum_complex64_sequence(receive_buffer=amnp, &
                                                         mpi_number=nsend, mpi_comm=mpicomm)
       end if

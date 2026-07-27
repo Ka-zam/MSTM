@@ -4,9 +4,7 @@ module translation_surface_interactions
    use iso_fortran_env, only: real64
    use parallel_runtime, only: mpi_comm_world, parallel_wall_time, parallel_rank, parallel_size
    use periodic_lattice_operations, only: periodic_lattice, plane_boundary_lattice_interaction
-   use sphere_data, only: host_sphere, number_spheres, one_side_only, recalculate_surface_matrix, &
-                          run_print_unit, sphere_block, sphere_layer, sphere_offset, sphere_order, sphere_position, &
-                          store_surface_matrix, store_translation_matrix
+   use sphere_data, only: sphere_cluster
    use surface, only: layer_ref_index, plane_boundary_interaction, plane_surface_present
    use wave_functions, only: reverse_azimuthal_modes
 
@@ -142,14 +140,14 @@ contains
       call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
       call parallel_rank(mpi_rank=rank0)
       calcmat = initrun
-      if (.not. (smopt .and. store_translation_matrix)) calcmat = .true.
+      if (.not. (smopt .and. sphere_cluster%store_translation_matrix)) calcmat = .true.
 
       if (calcmat) then
          task = 0
          nmat = 0
-         do i = 1, number_spheres
-            do j = 1, number_spheres
-               if ((host_sphere(i) .eq. 0) .and. (host_sphere(j) .eq. 0)) then
+         do i = 1, sphere_cluster%number_spheres
+            do j = 1, sphere_cluster%number_spheres
+               if ((sphere_cluster%host_sphere(i) .eq. 0) .and. (sphere_cluster%host_sphere(j) .eq. 0)) then
                   task = task + 1
                   proc = mod(task, numprocs)
                   if (proc .eq. rank) then
@@ -159,7 +157,7 @@ contains
             end do
          end do
          nmat_tot = nmat
-         if (smopt .and. store_translation_matrix) then
+         if (smopt .and. sphere_cluster%store_translation_matrix) then
             call clear_periodic_lattice_cache(stored_periodic_interactions)
             allocate (stored_periodic_interactions(nmat))
          end if
@@ -169,43 +167,43 @@ contains
       nmat = 0
       aout = 0.0_real64
       time1 = parallel_wall_time()
-      do i = 1, number_spheres
-         i1 = sphere_offset(i) + 1
-         i2 = sphere_offset(i) + sphere_block(i)
-         nbi = sphere_order(i) * (sphere_order(i) + 2)
-         do j = 1, number_spheres
-            if ((host_sphere(i) .eq. 0) .and. (host_sphere(j) .eq. 0)) then
+      do i = 1, sphere_cluster%number_spheres
+         i1 = sphere_cluster%sphere_offset(i) + 1
+         i2 = sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i)
+         nbi = sphere_cluster%sphere_order(i) * (sphere_cluster%sphere_order(i) + 2)
+         do j = 1, sphere_cluster%number_spheres
+            if ((sphere_cluster%host_sphere(i) .eq. 0) .and. (sphere_cluster%host_sphere(j) .eq. 0)) then
                task = task + 1
                proc = mod(task, numprocs)
                if (proc .eq. rank) then
-                  j1 = sphere_offset(j) + 1
-                  j2 = sphere_offset(j) + sphere_block(j)
-                  nbj = sphere_order(j) * (sphere_order(j) + 2)
+                  j1 = sphere_cluster%sphere_offset(j) + 1
+                  j2 = sphere_cluster%sphere_offset(j) + sphere_cluster%sphere_block(j)
+                  nbj = sphere_cluster%sphere_order(j) * (sphere_cluster%sphere_order(j) + 2)
                   nmat = nmat + 1
                   if (calcmat) then
-                     rp = sphere_position(:, i) - sphere_position(:, j)
-                     ri = layer_ref_index(sphere_layer(i))
+                     rp = sphere_cluster%sphere_position(:, i) - sphere_cluster%sphere_position(:, j)
+                     ri = layer_ref_index(sphere_cluster%sphere_layer(i))
                      if (plane_surface_present) then
                         rmatdim = 4 * nbi * nbj
                      else
                         rmatdim = 2 * nbi * nbj
                      end if
-                     if (smopt .and. store_translation_matrix) then
+                     if (smopt .and. sphere_cluster%store_translation_matrix) then
                         call stored_periodic_interactions(nmat)%configure(rmatdim)
                         loc_rmat => stored_periodic_interactions(nmat)
                      else
                         call rmat%configure(rmatdim)
                         loc_rmat => rmat
                      end if
-                     call plane_boundary_lattice_interaction(sphere_order(i), sphere_order(j), &
-                                                             rp(1), rp(2), sphere_position(3, i), sphere_position(3, j), &
+                     call plane_boundary_lattice_interaction(sphere_cluster%sphere_order(i), sphere_cluster%sphere_order(j), &
+                                         rp(1), rp(2), sphere_cluster%sphere_position(3, i), sphere_cluster%sphere_position(3, j), &
                                                     loc_rmat%matrix, include_source=.true., lr_transformation=.true., index_model=2)
-                     if (smopt .and. store_translation_matrix .and. rank0 .eq. 0) then
+                     if (smopt .and. sphere_cluster%store_translation_matrix .and. rank0 .eq. 0) then
                         time2 = parallel_wall_time()
                         if (time2 - time1 .ge. 15.0_real64) then
-                           write (run_print_unit, '('' assembling pl matrix '',i5,''/'',i5)') &
+                           write (sphere_cluster%run_print_unit, '('' assembling pl matrix '',i5,''/'',i5)') &
                               nmat, nmat_tot
-                           flush (run_print_unit)
+                           flush (sphere_cluster%run_print_unit)
                            time1 = time2
                         end if
                      end if
@@ -216,32 +214,32 @@ contains
                      if (.not. rhslist(rhs)) cycle
                      if (plane_surface_present) then
                         if (.not. contran(rhs)) then
-                           call apply_periodic_lattice_matrix(sphere_order(i), sphere_order(j), &
+                           call apply_periodic_lattice_matrix(sphere_cluster%sphere_order(i), sphere_cluster%sphere_order(j), &
                                                               ain(j1:j2, rhs), aout(i1:i2, rhs), &
                                                               .false., pb_mat=loc_rmat%matrix)
                         else
-                           call apply_periodic_lattice_matrix(sphere_order(i), sphere_order(j), &
+                           call apply_periodic_lattice_matrix(sphere_cluster%sphere_order(i), sphere_cluster%sphere_order(j), &
                                                               aout(j1:j2, rhs), ain(i1:i2, rhs), &
                                                               .true., pb_mat=loc_rmat%matrix)
                         end if
                      else
                         if (.not. contran(rhs)) then
-                           call apply_periodic_lattice_matrix(sphere_order(i), sphere_order(j), &
+                           call apply_periodic_lattice_matrix(sphere_cluster%sphere_order(i), sphere_cluster%sphere_order(j), &
                                                               ain(j1:j2, rhs), aout(i1:i2, rhs), &
                                                               .false., fs_mat=loc_rmat%matrix)
                         else
-                           call apply_periodic_lattice_matrix(sphere_order(i), sphere_order(j), &
+                           call apply_periodic_lattice_matrix(sphere_cluster%sphere_order(i), sphere_cluster%sphere_order(j), &
                                                               aout(j1:j2, rhs), ain(i1:i2, rhs), &
                                                               .true., fs_mat=loc_rmat%matrix)
                         end if
                      end if
                   end do
-                  if (.not. (smopt .and. store_translation_matrix)) call rmat%clear()
+                  if (.not. (smopt .and. sphere_cluster%store_translation_matrix)) call rmat%clear()
                end if
             end if
          end do
       end do
-      if (store_surface_matrix) recalculate_surface_matrix = .false.
+      if (sphere_cluster%store_surface_matrix) sphere_cluster%recalculate_surface_matrix = .false.
    end subroutine periodic_lattice_sphere_interaction
 
    subroutine apply_periodic_lattice_matrix(nodrt, nodrs, as, at, tran, fs_mat, pb_mat)
@@ -316,20 +314,20 @@ contains
       call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
       call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
       call parallel_rank(mpi_rank=rank0)
-      calcmat = initrun .and. recalculate_surface_matrix
-      if (.not. store_surface_matrix) calcmat = .true.
+      calcmat = initrun .and. sphere_cluster%recalculate_surface_matrix
+      if (.not. sphere_cluster%store_surface_matrix) calcmat = .true.
 
       if (calcmat) then
          task = 0
          nmat = 0
-         do i = 1, number_spheres
-            if (one_side_only) then
+         do i = 1, sphere_cluster%number_spheres
+            if (sphere_cluster%one_side_only) then
                jstart = i
             else
                jstart = 1
             end if
-            do j = jstart, number_spheres
-               if ((host_sphere(i) .eq. 0) .and. (host_sphere(j) .eq. 0)) then
+            do j = jstart, sphere_cluster%number_spheres
+               if ((sphere_cluster%host_sphere(i) .eq. 0) .and. (sphere_cluster%host_sphere(j) .eq. 0)) then
                   task = task + 1
                   proc = mod(task, numprocs)
                   if (proc .eq. rank) then
@@ -339,7 +337,7 @@ contains
             end do
          end do
          nmat_tot = nmat
-         if (store_surface_matrix) then
+         if (sphere_cluster%store_surface_matrix) then
             call clear_surface_cache(stored_surface_interactions)
             allocate (stored_surface_interactions(nmat))
          end if
@@ -349,97 +347,97 @@ contains
       nmat = 0
       aout = 0.0_real64
       time1 = parallel_wall_time()
-      do i = 1, number_spheres
-         i1 = sphere_offset(i) + 1
-         i2 = sphere_offset(i) + sphere_block(i)
-         if (one_side_only) then
+      do i = 1, sphere_cluster%number_spheres
+         i1 = sphere_cluster%sphere_offset(i) + 1
+         i2 = sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i)
+         if (sphere_cluster%one_side_only) then
             jstart = i
          else
             jstart = 1
          end if
-         do j = jstart, number_spheres
-            if ((host_sphere(i) .eq. 0) .and. (host_sphere(j) .eq. 0)) then
+         do j = jstart, sphere_cluster%number_spheres
+            if ((sphere_cluster%host_sphere(i) .eq. 0) .and. (sphere_cluster%host_sphere(j) .eq. 0)) then
                task = task + 1
                proc = mod(task, numprocs)
                if (proc .eq. rank) then
-                  j1 = sphere_offset(j) + 1
-                  j2 = sphere_offset(j) + sphere_block(j)
+                  j1 = sphere_cluster%sphere_offset(j) + 1
+                  j2 = sphere_cluster%sphere_offset(j) + sphere_cluster%sphere_block(j)
                   nmat = nmat + 1
                   if (calcmat) then
-                     rp = sphere_position(:, i) - sphere_position(:, j)
+                     rp = sphere_cluster%sphere_position(:, i) - sphere_cluster%sphere_position(:, j)
                      rmatsymm = (abs(rp(1)) .lt. 1.0e-4_real64 .and. abs(rp(2)) .lt. 1.0e-4_real64 &
                                  .and. (.not. periodic_lattice))
                      if (rmatsymm) then
-                        rmatdim = 2 * axial_translation_size(sphere_order(i), sphere_order(j))
+                        rmatdim = 2 * axial_translation_size(sphere_cluster%sphere_order(i), sphere_cluster%sphere_order(j))
                      else
-                        rmatdim = sphere_block(i) * sphere_block(j)
+                        rmatdim = sphere_cluster%sphere_block(i) * sphere_cluster%sphere_block(j)
                      end if
-                     if (store_surface_matrix) then
+                     if (sphere_cluster%store_surface_matrix) then
                         call stored_surface_interactions(nmat)%configure(rmatsymm, rmatdim)
                         loc_rmat => stored_surface_interactions(nmat)
                      else
                         call rmat%configure(rmatsymm, rmatdim)
                         loc_rmat => rmat
                      end if
-                     call plane_boundary_interaction(sphere_order(i), sphere_order(j), &
-                                                     rp(1), rp(2), sphere_position(3, j), sphere_position(3, i), &
+                     call plane_boundary_interaction(sphere_cluster%sphere_order(i), sphere_cluster%sphere_order(j), &
+                                         rp(1), rp(2), sphere_cluster%sphere_position(3, j), sphere_cluster%sphere_position(3, i), &
                                                      loc_rmat%matrix, &
                                                      index_model=2, lr_transformation=.true., &
                                                      make_symmetric=rmatsymm)
-                     if (store_surface_matrix .and. rank0 .eq. 0) then
+                     if (sphere_cluster%store_surface_matrix .and. rank0 .eq. 0) then
                         time2 = parallel_wall_time()
                         if (time2 - time1 .ge. 15.0_real64) then
-                           write (run_print_unit, '('' assembling surf matrix '',i5,''/'',i5)') &
+                           write (sphere_cluster%run_print_unit, '('' assembling surf matrix '',i5,''/'',i5)') &
                               nmat, nmat_tot
-                           flush (run_print_unit)
+                           flush (sphere_cluster%run_print_unit)
                            time1 = time2
                         end if
                      end if
                   else
                      loc_rmat => stored_surface_interactions(nmat)
                   end if
-                  allocate (atempj(sphere_block(j)), atempi(sphere_block(i)))
-                  if ((j .ne. i) .and. one_side_only) allocate (atempj2(sphere_block(j)), atempi2(sphere_block(i)))
+                  allocate (atempj(sphere_cluster%sphere_block(j)), atempi(sphere_cluster%sphere_block(i)))
+                  if ((j .ne. i) .and. sphere_cluster%one_side_only) allocate (atempj2(sphere_cluster%sphere_block(j)), atempi2(sphere_cluster%sphere_block(i)))
                   do rhs = 1, nrhs
                      if (.not. rhslist(rhs)) cycle
                      if (.not. contran(rhs)) then
-                        call apply_surface_interaction_matrix(sphere_order(j), sphere_order(i), &
+                        call apply_surface_interaction_matrix(sphere_cluster%sphere_order(j), sphere_cluster%sphere_order(i), &
                                                               ain(j1:j2, rhs), atempi, loc_rmat, 1)
-                        aout(i1:i2, rhs) = aout(i1:i2, rhs) + atempi(1:sphere_block(i))
+                        aout(i1:i2, rhs) = aout(i1:i2, rhs) + atempi(1:sphere_cluster%sphere_block(i))
                      else
-                        call apply_surface_interaction_matrix(sphere_order(i), sphere_order(j), &
+                        call apply_surface_interaction_matrix(sphere_cluster%sphere_order(i), sphere_cluster%sphere_order(j), &
                                                               ain(i1:i2, rhs), atempj, loc_rmat, 2)
-                        aout(j1:j2, rhs) = aout(j1:j2, rhs) + atempj(1:sphere_block(j))
+                        aout(j1:j2, rhs) = aout(j1:j2, rhs) + atempj(1:sphere_cluster%sphere_block(j))
                      end if
-                     if ((j .ne. i) .and. one_side_only) then
+                     if ((j .ne. i) .and. sphere_cluster%one_side_only) then
                         if (.not. contran(rhs)) then
-                           call reverse_azimuthal_modes(sphere_order(i), &
+                           call reverse_azimuthal_modes(sphere_cluster%sphere_order(i), &
                                                         ain(i1:i2, rhs), atempi)
-                           call apply_surface_interaction_matrix(sphere_order(i), sphere_order(j), &
+                           call apply_surface_interaction_matrix(sphere_cluster%sphere_order(i), sphere_cluster%sphere_order(j), &
                                                                  atempi, atempj, loc_rmat, 2)
-                           call reverse_azimuthal_modes(sphere_order(j), &
+                           call reverse_azimuthal_modes(sphere_cluster%sphere_order(j), &
                                                         atempj, atempj2)
                            aout(j1:j2, rhs) = aout(j1:j2, rhs) &
-                                              + atempj2(1:sphere_block(j))
+                                              + atempj2(1:sphere_cluster%sphere_block(j))
                         else
-                           call reverse_azimuthal_modes(sphere_order(j), &
+                           call reverse_azimuthal_modes(sphere_cluster%sphere_order(j), &
                                                         ain(j1:j2, rhs), atempj)
-                           call apply_surface_interaction_matrix(sphere_order(j), sphere_order(i), &
+                           call apply_surface_interaction_matrix(sphere_cluster%sphere_order(j), sphere_cluster%sphere_order(i), &
                                                                  atempj, atempi, loc_rmat, 1)
-                           call reverse_azimuthal_modes(sphere_order(i), &
+                           call reverse_azimuthal_modes(sphere_cluster%sphere_order(i), &
                                                         atempi, atempi2)
-                           aout(i1:i2, rhs) = aout(i1:i2, rhs) + atempi2(1:sphere_block(i))
+                           aout(i1:i2, rhs) = aout(i1:i2, rhs) + atempi2(1:sphere_cluster%sphere_block(i))
                         end if
                      end if
                   end do
                   deallocate (atempi, atempj)
-                  if ((j .ne. i) .and. one_side_only) deallocate (atempi2, atempj2)
-                  if (.not. store_surface_matrix) call rmat%clear()
+                  if ((j .ne. i) .and. sphere_cluster%one_side_only) deallocate (atempi2, atempj2)
+                  if (.not. sphere_cluster%store_surface_matrix) call rmat%clear()
                end if
             end if
          end do
       end do
-      if (store_surface_matrix) recalculate_surface_matrix = .false.
+      if (sphere_cluster%store_surface_matrix) sphere_cluster%recalculate_surface_matrix = .false.
    end subroutine sphere_surface_interaction
 
    subroutine apply_surface_interaction_matrix(nin, nout, ain, aout, rmat, dir)

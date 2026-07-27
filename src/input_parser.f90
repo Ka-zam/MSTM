@@ -68,7 +68,7 @@ contains
       elseif (varlabel .eq. 'sphere_data_input_file') then
          vartype = 'a'
          avarvalue => sphere_data_input_file
-         recalculate_surface_matrix = .true.
+         sphere_cluster%recalculate_surface_matrix = .true.
 
       elseif (varlabel .eq. 'max_iterations') then
          vartype = 'i'
@@ -80,7 +80,7 @@ contains
 
       elseif (varlabel .eq. 'normalize_solution_error') then
          vartype = 'l'
-         lvarvalue => normalize_solution_error
+         lvarvalue => sphere_cluster%normalize_solution_error
 
       elseif (varlabel .eq. 'mie_epsilon') then
          vartype = 'r'
@@ -112,7 +112,7 @@ contains
 
       elseif (varlabel .eq. 'max_t_matrix_order') then
          vartype = 'i'
-         ivarvalue => max_t_matrix_order
+         ivarvalue => sphere_cluster%max_t_matrix_order
 
       elseif (varlabel .eq. 'fft_translation_option') then
          vartype = 'l'
@@ -160,7 +160,7 @@ contains
 
       elseif (varlabel .eq. 'gaussian_beam_constant') then
          vartype = 'r'
-         rvarvalue => gaussian_beam_constant
+         rvarvalue => sphere_cluster%gaussian_beam_constant
 
       elseif (varlabel .eq. 'excitation_radius') then
          vartype = 'r'
@@ -181,7 +181,7 @@ contains
       elseif (varlabel .eq. 'gaussian_beam_focal_point') then
          vartype = 'r'
          varlen = 3
-         ravarvalue => gaussian_beam_focal_point(1:3)
+         ravarvalue => sphere_cluster%gaussian_beam_focal_point(1:3)
 
       elseif (varlabel .eq. 'calculate_scattering_matrix') then
          vartype = 'l'
@@ -222,63 +222,63 @@ contains
       elseif (varlabel .eq. 'number_spheres') then
          vartype = 'i'
          ivarvalue => input_number_spheres
-         recalculate_surface_matrix = .true.
+         sphere_cluster%recalculate_surface_matrix = .true.
          number_spheres_specified = .true.
 
       elseif (varlabel .eq. 'length_scale_factor') then
          vartype = 'r'
          rvarvalue => length_scale_factor
-         recalculate_surface_matrix = .true.
+         sphere_cluster%recalculate_surface_matrix = .true.
 
       elseif (varlabel .eq. 'ref_index_scale_factor') then
          vartype = 'c'
          cvarvalue => ref_index_scale_factor
-         recalculate_surface_matrix = .true.
+         sphere_cluster%recalculate_surface_matrix = .true.
 
       elseif (varlabel .eq. 'number_plane_boundaries') then
          vartype = 'i'
          ivarvalue => number_plane_boundaries
-         recalculate_surface_matrix = .true.
+         sphere_cluster%recalculate_surface_matrix = .true.
 
       elseif (varlabel .eq. 'maximum_integration_subdivisions') then
          vartype = 'i'
          ivarvalue => maximum_integration_subdivisions
-         recalculate_surface_matrix = .true.
+         sphere_cluster%recalculate_surface_matrix = .true.
 
       elseif (varlabel .eq. 'integration_error_epsilon') then
          vartype = 'r'
          rvarvalue => integration_error_epsilon
-         recalculate_surface_matrix = .true.
+         sphere_cluster%recalculate_surface_matrix = .true.
 
       elseif (varlabel .eq. 'integration_limit_epsilon') then
          vartype = 'r'
          rvarvalue => integration_limit_epsilon
-         recalculate_surface_matrix = .true.
+         sphere_cluster%recalculate_surface_matrix = .true.
 
       elseif (varlabel .eq. 'minimum_initial_segment_size') then
          vartype = 'r'
          rvarvalue => minimum_initial_segment_size
-         recalculate_surface_matrix = .true.
+         sphere_cluster%recalculate_surface_matrix = .true.
 
       elseif (varlabel .eq. 'gf_switch_factor') then
          vartype = 'r'
          rvarvalue => gf_switch_factor
-         recalculate_surface_matrix = .true.
+         sphere_cluster%recalculate_surface_matrix = .true.
 
       elseif (varlabel .eq. 's_scale_constant') then
          vartype = 'r'
          rvarvalue => s_scale_constant
-         recalculate_surface_matrix = .true.
+         sphere_cluster%recalculate_surface_matrix = .true.
 
       elseif (varlabel .eq. 'real_axis_integration_limit') then
          vartype = 'r'
          rvarvalue => real_axis_integration_limit
-         recalculate_surface_matrix = .true.
+         sphere_cluster%recalculate_surface_matrix = .true.
 
       elseif (varlabel .eq. 'minimum_integration_spacing') then
          vartype = 'r'
          rvarvalue => minimum_integration_spacing
-         recalculate_surface_matrix = .true.
+         sphere_cluster%recalculate_surface_matrix = .true.
 
       elseif (varlabel .eq. 'move_to_front') then
          vartype = 'l'
@@ -290,11 +290,11 @@ contains
 
       elseif (varlabel .eq. 'store_translation_matrix') then
          vartype = 'l'
-         lvarvalue => store_translation_matrix
+         lvarvalue => sphere_cluster%store_translation_matrix
 
       elseif (varlabel .eq. 'store_surface_matrix') then
          vartype = 'l'
-         lvarvalue => store_surface_matrix
+         lvarvalue => sphere_cluster%store_surface_matrix
 
       elseif (varlabel .eq. 'calculate_near_field') then
          vartype = 'l'
@@ -621,7 +621,7 @@ contains
             inputline = inputline + 1
             if (trim(parmval) .ne. ' ') then
                if (rank .eq. 0) then
-                  call open_output_file(trim(parmval), run_print_unit)
+                  call open_output_file(trim(parmval), sphere_cluster%run_print_unit)
                   if (runtime_failed()) then
                      stopit = 1
                      exit
@@ -716,7 +716,7 @@ contains
             if (rank .eq. 0) close (temporary_unit)
             data_scaled = .false.
             temporary_pos_file = .true.
-            recalculate_surface_matrix = .true.
+            sphere_cluster%recalculate_surface_matrix = .true.
             cycle
 
          elseif (trim(parmid) .eq. 'new_run') then
@@ -730,7 +730,7 @@ contains
 
          elseif (trim(parmid) .eq. 'layer_ref_index') then
             if (number_plane_boundaries .gt. max_number_plane_boundaries) then
-               if (rank .eq. 0) write (run_print_unit, '('' max # plane boundaries exceeded:'',i3,''>'',i3)') &
+               if (rank .eq. 0) write (sphere_cluster%run_print_unit, '('' max # plane boundaries exceeded:'',i3,''>'',i3)') &
                   number_plane_boundaries, max_number_plane_boundaries
                call set_runtime_error('Maximum number of plane boundaries exceeded')
                stopit = 1
@@ -741,7 +741,7 @@ contains
             read (parmval, *, iostat=istat) layer_ref_index(0)
             layer_ref_index(1:max(1, number_plane_boundaries)) = layer_ref_index(0)
             read (parmval, *, iostat=istat) layer_ref_index(0:number_plane_boundaries)
-            recalculate_surface_matrix = .true.
+            sphere_cluster%recalculate_surface_matrix = .true.
             medium_ref_index_specified = .false.
 
          elseif (trim(parmid) .eq. 'layer_thickness') then
@@ -749,7 +749,7 @@ contains
             inputline = inputline + 1
             input_layer_thickness(1:max(1, number_plane_boundaries)) = 0.d0
             read (parmval, *, iostat=istat) input_layer_thickness(1:max(1, number_plane_boundaries))
-            recalculate_surface_matrix = .true.
+            sphere_cluster%recalculate_surface_matrix = .true.
 
          elseif (trim(parmid) .eq. 'component_radii') then
             call read_real_list(component_radii, number_components)
@@ -771,8 +771,8 @@ contains
                stopit = 1
                call set_runtime_error('Unknown input parameter: '//trim(parmid))
                if (rank .eq. 0) then
-                  write (run_print_unit, '('' unknown input parameter:'',a)') trim(parmid)
-                  flush (run_print_unit)
+                  write (sphere_cluster%run_print_unit, '('' unknown input parameter:'',a)') trim(parmid)
+                  flush (sphere_cluster%run_print_unit)
                end if
                exit
             else

@@ -26,7 +26,7 @@ contains
       end if
       singleorigin = number_plane_boundaries .eq. 0 .and. single_origin_expansion
       iframe = singleorigin .and. incident_frame
-      csca = (q_eff_tot(1, 1) - q_eff_tot(2, 1)) * pi * cross_section_radius**2
+      csca = (q_eff_tot(1, 1) - q_eff_tot(2, 1)) * pi * sphere_cluster%cross_section_radius**2
       csca = two_pi
 
       if (periodic_lattice) then
@@ -51,16 +51,16 @@ contains
                      if (.not. numerical_azimuthal_average) then
 !                        call evaluate_fixed_orientation_scattering_matrix(12,s00,s02,sp22,sm22,costheta,scatmat(:,i),normalize_s11=.false.)
                         call evaluate_fixed_orientation_scattering_matrix( &
-                           t_matrix_order, scat_mat_exp_coef(:, :, 1), scat_mat_exp_coef(:, :, 2), &
+                           sphere_cluster%t_matrix_order, scat_mat_exp_coef(:, :, 1), scat_mat_exp_coef(:, :, 2), &
                            scat_mat_exp_coef(:, :, 3), scat_mat_exp_coef(:, :, 4), &
                            costheta, scatmat(:, i), normalize_s11=.false.)
                      else
                         call numerical_scattering_matrix_azimuthal_average_single_origin( &
-                           amnp, t_matrix_order, costheta, scatmat(:, i), &
+                           amnp, sphere_cluster%t_matrix_order, costheta, scatmat(:, i), &
                            rotate_plane=.true., normalize_s11=.false.)
                      end if
                   else
-                     call common_origin_scattering_matrix(amnp, t_matrix_order, costheta, phi, ampmat, scatmat(:, i), &
+                   call common_origin_scattering_matrix(amnp, sphere_cluster%t_matrix_order, costheta, phi, ampmat, scatmat(:, i), &
                                                           rotate_plane=iframe, normalize_s11=.false.)
                   end if
                else
@@ -101,7 +101,7 @@ contains
                end if
                costheta = -sqrt(1.d0 - sintheta)
                if (singleorigin) then
-                  call common_origin_scattering_matrix(amnp, t_matrix_order, costheta, phi, ampmat, &
+                  call common_origin_scattering_matrix(amnp, sphere_cluster%t_matrix_order, costheta, phi, ampmat, &
                                                        scatmat(1:16, i), &
                                                        rotate_plane=iframe, normalize_s11=.false.)
                else
@@ -110,7 +110,7 @@ contains
                end if
                costheta = -costheta
                if (singleorigin) then
-                  call common_origin_scattering_matrix(amnp, t_matrix_order, costheta, phi, ampmat, &
+                  call common_origin_scattering_matrix(amnp, sphere_cluster%t_matrix_order, costheta, phi, ampmat, &
                                                        scatmat(17:32, i), &
                                                        rotate_plane=iframe, normalize_s11=.false.)
                else

@@ -10,9 +10,9 @@ contains
       integer :: i
       real(real64) :: miesca, mieabs, scaq, absq, h, scacoef, abscoef, root0, root, func, dfunc, srat, arat, across
 
-!         miesca=(mean_qext_mie-mean_qabs_mie)*sphere_volume_fraction*3.d0/4.d0/length_scale_factor
-      mieabs = (mean_qabs_mie) * sphere_volume_fraction * 3.d0 / 4.d0 / length_scale_factor
-      miesca = (mean_qext_mie) * sphere_volume_fraction * 3.d0 / 4.d0 / length_scale_factor
+!         miesca=(sphere_cluster%mean_qext_mie-sphere_cluster%mean_qabs_mie)*sphere_volume_fraction*3.d0/4.d0/length_scale_factor
+      mieabs = (sphere_cluster%mean_qabs_mie) * sphere_volume_fraction * 3.d0 / 4.d0 / length_scale_factor
+      miesca = (sphere_cluster%mean_qext_mie) * sphere_volume_fraction * 3.d0 / 4.d0 / length_scale_factor
       if (target_shape .le. 1) then
 !            scaq=1.d0-0.5d0*(-sum(dif_boundary_sca(:,0))+sum(dif_boundary_sca(:,number_plane_boundaries+1)))
          scaq = 1.d0 - 0.5d0 * (-sum(dif_boundary_sca(:, 0)) + sum(dif_boundary_sca(:, 1))) - q_eff_tot(2, 1)
@@ -24,7 +24,7 @@ contains
          elseif (target_shape .eq. 1) then
             across = pi * (target_dimensions(1) * length_scale_factor)**2
          end if
-         h = four_pi_over_three * dble(number_spheres) * length_scale_factor**3 / (across * sphere_volume_fraction)
+         h = four_pi_over_three * dble(sphere_cluster%number_spheres) * length_scale_factor**3 / (across * sphere_volume_fraction)
          scacoef = -dlog(scaq) / h
          if (abs(mieabs) .lt. 1.d-7) then
             abscoef = 0.d0
@@ -124,13 +124,13 @@ contains
       use levenberg_marquardt
       implicit none
       integer :: info, n0, m0, fitorder
-      real(real64) :: parm(3), vec(4 * t_matrix_order), xfit, rii, rir, fv
-      complex(real64) :: anp(2, t_matrix_order), rifit, ri1(2), rim(2)
+      real(real64) :: parm(3), vec(4 * sphere_cluster%t_matrix_order), xfit, rii, rir, fv
+      complex(real64) :: anp(2, sphere_cluster%t_matrix_order), rifit, ri1(2), rim(2)
 
       ri1 = 1.d0
       rim = layer_ref_index(0)
-      fitorder = min(80, t_matrix_order)
-!         fitorder=2*max_mie_order
+      fitorder = min(80, sphere_cluster%t_matrix_order)
+!         fitorder=2*sphere_cluster%max_mie_order
       m0 = 4 * fitorder
       if (fit_for_radius) then
          n0 = 3
@@ -140,13 +140,13 @@ contains
       if (random_configuration_host_model .eq. 1) then
          xfit = target_dimensions(1) * length_scale_factor
       elseif (random_configuration_host_model .eq. 2) then
-         xfit = vol_radius / (sphere_volume_fraction)**0.33333
+         xfit = sphere_cluster%vol_radius / (sphere_volume_fraction)**0.33333
       end if
-      fv = (vol_radius / (target_dimensions(1) * length_scale_factor))**3.
+      fv = (sphere_cluster%vol_radius / (target_dimensions(1) * length_scale_factor))**3.
       if (random_configuration_host) then
          rifit = rim(1)
       else
-         rii = mean_qext_mie * area_mean_radius**2 * 3.d0 * dble(number_spheres) / (4.d0 * xfit**3) / 2.d0
+         rii = sphere_cluster%mean_qext_mie * sphere_cluster%area_mean_radius**2 * 3.d0 * dble(sphere_cluster%number_spheres) / (4.d0 * xfit**3) / 2.d0
          rir = (1.d0 - fv) + fv * dble(ref_index_scale_factor)
          rifit = cmplx(rir, rii / 2.d0, kind=real64)
       end if
@@ -177,7 +177,7 @@ contains
       if (random_orientation) then
          call optically_active_mie_coefficients(xsp, ri, effective_fit_order, 0.d0, qext, qsca, qabs, &
                                                 anp_mie=anpmie, ri_medium=ri0)
-      elseif (effective_medium_simulation) then
+      elseif (sphere_cluster%effective_medium_simulation) then
          call optically_active_mie_coefficients(xsp, ri0, effective_fit_order, 0.d0, qext, qsca, qabs, &
                                                 ri_medium=ri, anp_eff_mie=anpmie)
       else
@@ -202,8 +202,8 @@ contains
       call calculate_target_volume(target_dimensions, tvol)
       tvol = tvol * length_scale_factor**3
       rc = (tvol * 3.d0 / 4.d0 / pi)**(1.d0 / 3.d0)
-      qe = (dif_csca_ratio(1) * q_eff_tot(3, 1) + q_eff_tot(2, 1)) * cross_section_radius**2 / rc**2
-      ds = (dif_csca_ratio(1) * q_eff_tot(3, 1) + q_eff_tot(2, 1)) * cross_section_radius**2 * pi / tvol
+      qe = (dif_csca_ratio(1) * q_eff_tot(3, 1) + q_eff_tot(2, 1)) * sphere_cluster%cross_section_radius**2 / rc**2
+      ds = (dif_csca_ratio(1) * q_eff_tot(3, 1) + q_eff_tot(2, 1)) * sphere_cluster%cross_section_radius**2 * pi / tvol
 !         a=ds/2.d0
 !         dela=1.d0
 !         do while(abs(dela).gt.1.d-10)
@@ -211,7 +211,7 @@ contains
 !               /(6. - 6.*exp(2*a*rc) + 12.*a*rc*(1. + a*rc))
 !            a=a+dela
 !         enddo
-!         extrat=2.d0*a/((mean_qext_mie)*pi*area_mean_radius**2*dble(number_spheres)/tvol)
+!         extrat=2.d0*a/((sphere_cluster%mean_qext_mie)*pi*sphere_cluster%area_mean_radius**2*dble(sphere_cluster%number_spheres)/tvol)
 ! patch 12/2023
 !
       a = ds * rc
@@ -222,7 +222,7 @@ contains
          dela = -(a * (-1.d0 - 2.d0 * a + exp(2.d0 * a) * (1.d0 + 2.d0 * a * a * (-1.d0 + qe)))) &
                 / (2.d0 + 4.d0 * a * (1.d0 + a) - 2.d0 * exp(2.d0 * a))
          a = a + dela
-         extrat = a / ((mean_qext_mie) * pi * area_mean_radius**2 * dble(number_spheres) / tvol) / rc
+         extrat = a / ((sphere_cluster%mean_qext_mie) * pi * sphere_cluster%area_mean_radius**2 * dble(sphere_cluster%number_spheres) / tvol) / rc
          delextrat = extrat - extrat0
          extrat0 = extrat
       end do

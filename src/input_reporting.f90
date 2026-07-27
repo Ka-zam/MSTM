@@ -47,8 +47,8 @@ contains
             write (iunit, '(3es12.4)') target_dimensions(1) * length_scale_factor
             if (random_configuration_host) then
                write (iunit, '('' target enclosed in host sphere w/ radius, ref index'')')
-               write (iunit, '(3es12.4)') sphere_radius(number_spheres), &
-                  sphere_ref_index(1, number_spheres)
+               write (iunit, '(3es12.4)') sphere_cluster%sphere_radius(sphere_cluster%number_spheres), &
+                  sphere_cluster%sphere_ref_index(1, sphere_cluster%number_spheres)
             end if
          end if
          write (iunit, '('' number of components:'')')
@@ -72,7 +72,7 @@ contains
          else
             call calculate_target_volume(target_dimensions, tvol)
             tvol = tvol * length_scale_factor**3
-            svol = four_pi_over_three * sum(sphere_radius(:)**3)
+            svol = four_pi_over_three * sum(sphere_cluster%sphere_radius(:)**3)
             write (iunit, '(es12.4)') svol / tvol
          end if
          if (ran_config_stat .eq. 0) then
@@ -88,37 +88,37 @@ contains
          write (iunit, '(a)') trim(sphere_data_input_file)
       end if
       write (iunit, '('' number spheres'')')
-      write (iunit, '(i7)') number_spheres
+      write (iunit, '(i7)') sphere_cluster%number_spheres
       write (iunit, '('' length, ref index scale factors'')')
       write (iunit, '(3es15.7)') length_scale_factor, ref_index_scale_factor
       write (iunit, '('' volume cluster radius, area mean sphere radius, circumscribing radius, cross section radius'')')
-      write (iunit, '(4es15.7)') vol_radius, area_mean_radius, circumscribing_radius, cross_section_radius
+      write (iunit, '(4es15.7)') sphere_cluster%vol_radius, sphere_cluster%area_mean_radius, sphere_cluster%circumscribing_radius, sphere_cluster%cross_section_radius
       if (print_sphere_data) then
          write (iunit, '('' sphere properties and associations'')')
-         if (any_optically_active) then
+         if (sphere_cluster%any_optically_active) then
             write (iunit, '(''   sphere    host   layer radius     x       y       z    '', &
               &''     ref indx(L)             ref_indx(R)'')')
          else
             write (iunit, '(''   sphere    host   layer radius     x       y       z           ref indx'')')
          end if
-         do n = 1, number_spheres
-            if (any_optically_active) then
-               write (iunit, '(3i8,4f8.3,4es12.4)') n, host_sphere(n), sphere_layer(n), sphere_radius(n), &
-                  sphere_position(:, n), sphere_ref_index(1:2, n)
+         do n = 1, sphere_cluster%number_spheres
+            if (sphere_cluster%any_optically_active) then
+               write (iunit, '(3i8,4f8.3,4es12.4)') n, sphere_cluster%host_sphere(n), sphere_cluster%sphere_layer(n), sphere_cluster%sphere_radius(n), &
+                  sphere_cluster%sphere_position(:, n), sphere_cluster%sphere_ref_index(1:2, n)
             else
-               write (iunit, '(3i8,4f8.3,4es12.4)') n, host_sphere(n), sphere_layer(n), sphere_radius(n), &
-                  sphere_position(:, n), sphere_ref_index(1, n)
+               write (iunit, '(3i8,4f8.3,4es12.4)') n, sphere_cluster%host_sphere(n), sphere_cluster%sphere_layer(n), sphere_cluster%sphere_radius(n), &
+                  sphere_cluster%sphere_position(:, n), sphere_cluster%sphere_ref_index(1, n)
             end if
          end do
       end if
 
       if (random_orientation) then
          write (iunit, '('' random orientation, estimated t matrix order:'')')
-         write (iunit, '(i6)') t_matrix_order
+         write (iunit, '(i6)') sphere_cluster%t_matrix_order
       else
-         if (gaussian_beam_constant .ne. 0.d0) then
+         if (sphere_cluster%gaussian_beam_constant .ne. 0.d0) then
             write (iunit, '('' incident Gaussian beam: 1/beam width, focal point'')')
-            write (iunit, '(4es12.4)') gaussian_beam_constant, gaussian_beam_focal_point
+            write (iunit, '(4es12.4)') sphere_cluster%gaussian_beam_constant, sphere_cluster%gaussian_beam_focal_point
          else
             write (iunit, '('' incident plane wave'')')
          end if
@@ -135,7 +135,7 @@ contains
          end if
          if (single_origin_expansion) then
             write (iunit, '('' t matrix order:'')')
-            write (iunit, '(i6)') t_matrix_order
+            write (iunit, '(i6)') sphere_cluster%t_matrix_order
          end if
       end if
       if (reflection_model) then
@@ -178,10 +178,10 @@ contains
       write (iunit, '('' max_iterations,solution_epsilon, mie_epsilon, interaction radius'')')
       write (iunit, '(i10,3es12.4)') max_iterations, solution_epsilon, mie_epsilon, interaction_radius
       write (iunit, '('' maximum Mie order, number of equations:'')')
-      write (iunit, '(i4,i10)') max_mie_order, number_eqns
+      write (iunit, '(i4,i10)') sphere_cluster%max_mie_order, sphere_cluster%number_eqns
       write (iunit, '('' mean sphere Mie extinction, absorption efficiencies, albedo'')')
-      write (iunit, '(3es12.4)') mean_qext_mie, mean_qabs_mie, 1.d0 - mean_qabs_mie / mean_qext_mie
-      if (fft_translation_option) then
+      write (iunit, '(3es12.4)') sphere_cluster%mean_qext_mie, sphere_cluster%mean_qabs_mie, 1.d0 - sphere_cluster%mean_qabs_mie / sphere_cluster%mean_qext_mie
+      if (sphere_cluster%fft_translation_option) then
          call fft_plan%configuration(fft_cell_dimensions, fft_volume_fraction, fft_cell_size, &
                                      fft_neighbor_count, fft_order)
          write (iunit, '('' fft translation option implemented'')')
@@ -283,7 +283,7 @@ contains
 
       write (outunit, '('' number iterations, error, solution time '')')
       write (outunit, '(i6,3es12.4)') solution_iterations, solution_error, solution_time
-      if (fft_translation_option .and. print_timings) then
+      if (sphere_cluster%fft_translation_option .and. print_timings) then
          fft_metrics = fft_plan%performance_metrics()
          write (outunit, '('' FFT interactions, 3-D transforms'')')
          write (outunit, '(2i12)') fft_metrics%interaction_calls, fft_metrics%transform_calls
@@ -312,7 +312,7 @@ contains
       end if
       if (random_orientation) then
          write (outunit, '('' calculated t matrix order:'')')
-         write (outunit, '(i6)') t_matrix_order
+         write (outunit, '(i6)') sphere_cluster%t_matrix_order
       end if
 
       if (print_sphere_data) then
@@ -326,9 +326,9 @@ contains
          else
             write (outunit, '(''   sphere   Qext        Qabs        Qvabs'')')
          end if
-         do n = 1, number_spheres
+         do n = 1, sphere_cluster%number_spheres
             if (configuration_average) then
-               write (outunit, '(i8,4es12.4)') n, sphere_position(3, n), q_eff(1:2, 1, n), q_vabs(1, n)
+               write (outunit, '(i8,4es12.4)') n, sphere_cluster%sphere_position(3, n), q_eff(1:2, 1, n), q_vabs(1, n)
             else
                write (outunit, '(i8,3es12.4)') n, q_eff(1:2, 1, n), q_vabs(1, n)
             end if
@@ -352,11 +352,11 @@ contains
 
 !            write(outunit,'('' down, up scattering fraction, total scattering cross section (unpol)'')')
 !               write(outunit,'(9es12.4)') 0.5d0*sum(pl_sca(:,2)),.5d0*sum(pl_sca(:,1)), &
-!                 pi*(0.5d0*sum(pl_sca(:,2))+.5d0*sum(pl_sca(:,1)))*cross_section_radius**2
+!                 pi*(0.5d0*sum(pl_sca(:,2))+.5d0*sum(pl_sca(:,1)))*sphere_cluster%cross_section_radius**2
          if (configuration_average .and. single_origin_expansion) then
             scacoef = (-0.5d0 * sum(dif_boundary_sca(:, 0)) + 0.5d0 * sum(dif_boundary_sca(:, 1))) &
-                      * pi * cross_section_radius**2
-            scarat = scacoef / (q_eff_tot(3, 1) * pi * cross_section_radius**2)
+                      * pi * sphere_cluster%cross_section_radius**2
+            scarat = scacoef / (q_eff_tot(3, 1) * pi * sphere_cluster%cross_section_radius**2)
             write (outunit, '('' down, up diffuse scattering fraction, optically thin dependent/independent ratio'')')
             write (outunit, '(9es12.4)') - 0.5d0 * sum(dif_boundary_sca(:, 0)), &
                0.5d0 * sum(dif_boundary_sca(:, number_plane_boundaries + 1)), &
@@ -400,13 +400,13 @@ contains
             dif_csca_ratio * q_eff_tot(3, 1) / (dif_csca_ratio * q_eff_tot(3, 1) + q_eff_tot(2, 1)), scarat
          write (outunit, '('' NI formulation ratio'')')
          write (outunit, '(5es12.4)') tot_csca, dif_csca, &
-            pi * (dif_csca) / (pi * cross_section_radius**2 * q_eff_tot(1, 1))
+            pi * (dif_csca) / (pi * sphere_cluster%cross_section_radius**2 * q_eff_tot(1, 1))
       end if
       if (configuration_average .and. target_shape .eq. 2 .and. (.not. random_configuration_host)) then
-         scarat = mean_qext_mie * area_mean_radius**2 * 3.d0 * dble(number_spheres) / (4.d0 * fit_radius**3)
-         scarat = 2 * aimag(effective_ref_index) / scarat
+         scarat = sphere_cluster%mean_qext_mie * sphere_cluster%area_mean_radius**2 * 3.d0 * dble(sphere_cluster%number_spheres) / (4.d0 * fit_radius**3)
+         scarat = 2 * aimag(sphere_cluster%effective_ref_index) / scarat
          write (outunit, '('' mie fit effective ri, radius, RT ratio, status'')')
-         write (outunit, '(4es12.4,i5)') effective_ref_index, fit_radius, scarat, fit_stat
+         write (outunit, '(4es12.4,i5)') sphere_cluster%effective_ref_index, fit_radius, scarat, fit_stat
       end if
       if (configuration_average .and. target_shape .eq. 2 .and. calculate_near_field) then
          write (outunit, '('' field fit effective ri'')')
@@ -415,13 +415,13 @@ contains
 
       if (calculate_scattering_matrix .and. .not. periodic_lattice) then
          if (normalize_s11) then
-            s11scale = 1.d0 / ((cross_section_radius**2) * pi * q_eff_tot(3, 1))
+            s11scale = 1.d0 / ((sphere_cluster%cross_section_radius**2) * pi * q_eff_tot(3, 1))
          else
-!               s11scale=(cross_section_radius**2)*q_eff_tot(3,1)
+!               s11scale=(sphere_cluster%cross_section_radius**2)*q_eff_tot(3,1)
             s11scale = two_pi
 !               if(.not.random_orientation) s11scale=pi*s11scale
          end if
-         if (((.not. any_optically_active) .and. random_orientation) .or. azimuthal_average) then
+         if (((.not. sphere_cluster%any_optically_active) .and. random_orientation) .or. azimuthal_average) then
             nsmat = 6
             smvecp(1:6) = smvec(1:6)
          else
@@ -539,7 +539,7 @@ contains
 !               scat_mat_exp_coef=scat_mat_exp_coef*s11scale
             write (outunit, '('' azimuthal averaged scattering matrix expansion coefficients, total field'')')
             write (outunit, '(''    n         11            44            12            34           22p           22m'')')
-            do n = 0, 2 * t_matrix_order
+            do n = 0, 2 * sphere_cluster%t_matrix_order
                write (outunit, '(i5,6es14.6)') n, scat_mat_exp_coef(1, n, 1), scat_mat_exp_coef(16, n, 1), &
                   0.5d0 * (scat_mat_exp_coef(2, n, 2) + scat_mat_exp_coef(5, n, 2)), &
                   0.5d0 * (scat_mat_exp_coef(12, n, 2) + scat_mat_exp_coef(15, n, 2)), &
@@ -548,7 +548,7 @@ contains
             if (configuration_average) then
                write (outunit, '('' azimuthal averaged scattering matrix expansion coefficients, coherent field'')')
                write (outunit, '(''    n         11            44            12            34           22p           22m'')')
-               do n = 0, 2 * t_matrix_order
+               do n = 0, 2 * sphere_cluster%t_matrix_order
                   write (outunit, '(i5,6es14.6)') n, coh_scat_mat_exp_coef(1, n, 1), coh_scat_mat_exp_coef(16, n, 1), &
                      0.5d0 * (coh_scat_mat_exp_coef(2, n, 2) + coh_scat_mat_exp_coef(5, n, 2)), &
                      0.5d0 * (coh_scat_mat_exp_coef(12, n, 2) + coh_scat_mat_exp_coef(15, n, 2)), &
@@ -561,21 +561,21 @@ contains
 !               write(outunit,'(''    w  a11           a22           a33           '',&
 !                &''a23           a32           a44           a12         '',&
 !                &''a34           a13           a24           a14'')')
-!               do n=0,2*t_matrix_order
+!               do n=0,2*sphere_cluster%t_matrix_order
 !                  write(outunit,'(i5,11es14.6)') w,scat_mat_exp_coef(1,1,n),scat_mat_exp_coef(2,2,n),&
 !                    scat_mat_exp_coef(3,3,n),scat_mat_exp_coef(2,3,n),scat_mat_exp_coef(3,2,n),scat_mat_exp_coef(4,4,n),&
 !                    scat_mat_exp_coef(1,2,n),scat_mat_exp_coef(3,4,n),scat_mat_exp_coef(1,3,n),scat_mat_exp_coef(2,4,n),&
 !                    scat_mat_exp_coef(1,4,n)
 !               enddo
             write (outunit, '(''    n         11            44            12            34           22            33'')')
-            do n = 0, 2 * t_matrix_order
+            do n = 0, 2 * sphere_cluster%t_matrix_order
                write (outunit, '(i5,11es14.6)') n, scat_mat_exp_coef(1, 1, n), scat_mat_exp_coef(4, 4, n), &
                   scat_mat_exp_coef(1, 2, n), scat_mat_exp_coef(3, 4, n), &
                   scat_mat_exp_coef(2, 2, n), scat_mat_exp_coef(3, 3, n)
             end do
             write (outunit, '('' orientation averaged coherent scattering matrix expansion coefficients'')')
             write (outunit, '(''    n         11            44            12            34           22            33'')')
-            do n = 0, 2 * t_matrix_order
+            do n = 0, 2 * sphere_cluster%t_matrix_order
                write (outunit, '(i5,11es14.6)') n, coh_scat_mat_exp_coef(1, 1, n), coh_scat_mat_exp_coef(4, 4, n), &
                   coh_scat_mat_exp_coef(1, 2, n), coh_scat_mat_exp_coef(3, 4, n), &
                   coh_scat_mat_exp_coef(2, 2, n), coh_scat_mat_exp_coef(3, 3, n)
@@ -626,7 +626,7 @@ contains
 
       if (random_orientation .and. configuration_average) then
          write (outunit, '('' mean t matrix elements (p=1,2)'')')
-         do i = 1, t_matrix_order
+         do i = 1, sphere_cluster%t_matrix_order
             write (outunit, '(i5,4es12.4)') i, mean_t(1, i), mean_t(2, i)
          end do
       end if

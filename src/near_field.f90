@@ -20,7 +20,7 @@ module near_field
       logical :: outside_spheres
       integer :: ncell(3), layer, host, order, nispheres
       real(real64) :: rcell(3)
-      type(linked_sphere_list), pointer :: sphere_list
+      integer, allocatable :: sphere_indices(:)
       complex(real64), pointer :: vector(:, :, :) => null()
       complex(real64), pointer :: reg_source_vector(:, :, :) => null()
       complex(real64), pointer :: gb_vector(:, :, :) => null()
@@ -61,7 +61,7 @@ contains
                  layer, host, ipos(3), cellnum, nsend, mpicomm, totpoints, point, dir
       integer, optional :: incident_model, output_unit, mpi_comm
       real(real64) :: gridregion(3, 2), rpos(3), alpha, time1, time0, rtemp, sinc
-      complex(real64) :: amnp(number_eqns, 2), evec(3, 2), hvec(3, 2), evec1(3, 2), hvec1(3, 2)
+      complex(real64) :: amnp(sphere_cluster%number_eqns, 2), evec(3, 2), hvec(3, 2), evec1(3, 2), hvec1(3, 2)
       complex(real64), allocatable :: vector(:, :, :)
       complex(real64), optional :: e_field_ave_array(3, 2, griddim(3))
       complex(real64), target, optional :: e_field_array(3, 2, griddim(1), griddim(2), griddim(3)), &
@@ -88,7 +88,7 @@ contains
       else
          mpicomm = mpi_comm_world
       end if
-      incident_gb = gaussian_beam_constant .ne. 0.d0
+      incident_gb = sphere_cluster%gaussian_beam_constant .ne. 0.d0
 
       call parallel_size(mpi_size=local_numprocs, mpi_comm=mpicomm)
       call parallel_rank(mpi_rank=local_rank, mpi_comm=mpicomm)
@@ -117,19 +117,19 @@ contains
          end do
          deallocate (internal_field_vector)
       end if
-      allocate (internal_field_vector(number_spheres))
-      do i = 1, number_spheres
-         nblk = sphere_order(i) * (sphere_order(i) + 2)
+      allocate (internal_field_vector(sphere_cluster%number_spheres))
+      do i = 1, sphere_cluster%number_spheres
+         nblk = sphere_cluster%sphere_order(i) * (sphere_cluster%sphere_order(i) + 2)
          allocate (vector(nblk, 2, 2))
          allocate (internal_field_vector(i)%vector(nblk, 2, 2))
          do p = 1, 2
-            if (number_field_expansions(i) .eq. 1) then
-               call apply_single_sphere_mie_coefficients(i, sphere_order(i), &
-                                                         amnp(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), p), &
+            if (sphere_cluster%number_field_expansions(i) .eq. 1) then
+               call apply_single_sphere_mie_coefficients(i, sphere_cluster%sphere_order(i), &
+                    amnp(sphere_cluster%sphere_offset(i) + 1:sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i), p), &
                                                          vector(1:nblk, 1:2, p), 'c')
             else
                vector(1:nblk, 1:2, p) &
-                  = reshape(amnp(sphere_offset(i) + sphere_block(i) + 1:sphere_offset(i) + 2 * sphere_block(i), p), &
+                  = reshape(amnp(sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i) + 1:sphere_cluster%sphere_offset(i) + 2 * sphere_cluster%sphere_block(i), p), &
                             (/nblk, 2/))
             end if
          end do
@@ -141,12 +141,12 @@ contains
          if (output_header .and. outputunit .ne. 0) call write_near_field_output_header(griddim, outputunit)
       end if
       if (local_rank .eq. 0 .and. outputunit .ne. 0) then
-         write (run_print_unit, '('' near field calculation'')')
-         write (run_print_unit, '('' grid minimum x,y,z:'',3es12.4)') grid_region(:, 1)
-         write (run_print_unit, '('' grid maximum x,y,z:'',3es12.4)') grid_region(:, 2)
-         write (run_print_unit, '('' grid x,y,z dimensions, total points:'',3i5,i12)') griddim(:), product(griddim)
-         write (run_print_unit, '('' total reexpansion cells:'',i5)') total_cells
-         flush (run_print_unit)
+         write (sphere_cluster%run_print_unit, '('' near field calculation'')')
+         write (sphere_cluster%run_print_unit, '('' grid minimum x,y,z:'',3es12.4)') grid_region(:, 1)
+         write (sphere_cluster%run_print_unit, '('' grid maximum x,y,z:'',3es12.4)') grid_region(:, 2)
+         write (sphere_cluster%run_print_unit, '('' grid x,y,z dimensions, total points:'',3i5,i12)') griddim(:), product(griddim)
+         write (sphere_cluster%run_print_unit, '('' total reexpansion cells:'',i5)') total_cells
+         flush (sphere_cluster%run_print_unit)
       end if
 
 !clist=>cell_info_list
@@ -174,8 +174,8 @@ contains
                time1 = parallel_wall_time()
 !                  if(time1-time0.gt.15.d0.and.local_rank.eq.0.and.(.not.present(e_field_ave_array))) then
                if (time1 - time0 .gt. 15.d0 .and. mstm_global_rank .eq. 0) then
-                  write (run_print_unit, '('' completed field point calculation '',i8,''/'',i8)') point, totpoints
-                  flush (run_print_unit)
+                  write (sphere_cluster%run_print_unit, '('' completed field point calculation '',i8,''/'',i8)') point, totpoints
+                  flush (sphere_cluster%run_print_unit)
                   time0 = time1
                end if
                if (mod(cellnum, local_numprocs) .ne. local_rank) cycle
@@ -273,9 +273,8 @@ contains
       implicit none
       integer :: nodr, nblk, i, p, j, cellhost, celllayer
       real(real64) :: rpos(3), rtran(3)
-      complex(real64) :: sourcevec(number_eqns, 2), evec(3, 2), hvec(3, 2), ri2(2), ri
+      complex(real64) :: sourcevec(sphere_cluster%number_eqns, 2), evec(3, 2), hvec(3, 2), ri2(2), ri
       complex(real64), allocatable :: vwf(:, :, :), svec(:, :)
-      type(linked_sphere_list), pointer :: slist
       type(cell_info), pointer :: cellinfo
 
       evec = 0.d0
@@ -289,21 +288,19 @@ contains
          ri = layer_ref_index(celllayer)
          ri2 = ri
       else
-         ri2 = sphere_ref_index(:, cellhost)
+         ri2 = sphere_cluster%sphere_ref_index(:, cellhost)
          ri = 2.d0 / (1.d0 / ri2(1) + 1.d0 / ri2(2))
       end if
       if (cellinfo%nispheres .gt. 0) then
-         slist => cellinfo%sphere_list
          do i = 1, cellinfo%nispheres
-            j = slist%sphere
-            if (i .lt. cellinfo%nispheres) slist => slist%next
-            nodr = sphere_order(j)
+            j = cellinfo%sphere_indices(i)
+            nodr = sphere_cluster%sphere_order(j)
             nblk = nodr * (nodr + 2)
             allocate (vwf(3, nblk, 2), svec(nblk, 2))
-            rtran(:) = rpos(:) - sphere_position(:, j)
+            rtran(:) = rpos(:) - sphere_cluster%sphere_position(:, j)
             call vector_spherical_wave_functions(rtran, ri2, nodr, 3, vwf, index_model=2)
             do p = 1, 2
-               svec = reshape(sourcevec(sphere_offset(j) + 1:sphere_offset(j) + sphere_block(j), p), &
+svec = reshape(sourcevec(sphere_cluster%sphere_offset(j) + 1:sphere_cluster%sphere_offset(j) + sphere_cluster%sphere_block(j), p), &
                               (/nblk, 2/))
                evec(:, p) = evec(:, p) + (matmul(vwf(:, :, 1), svec(:, 1)) + matmul(vwf(:, :, 2), svec(:, 2)))
                hvec(:, p) = hvec(:, p) + (matmul(vwf(:, :, 1), svec(:, 1)) - matmul(vwf(:, :, 2), svec(:, 2))) * ri / (0.d0, 1.d0)
@@ -331,19 +328,18 @@ contains
       implicit none
       integer :: layer, host, nodr, nblk, i, p, num, j, np(2), np0(2)
       real(real64) :: rpos(3), rtran(3)
-      complex(real64) :: sourcevec(number_eqns, 2), evec(3, 2), hvec(3, 2), ri, ri2(2), pshift, pshift0
+      complex(real64) :: sourcevec(sphere_cluster%number_eqns, 2), evec(3, 2), hvec(3, 2), ri, ri2(2), pshift, pshift0
       complex(real64), allocatable :: vwf(:, :, :), svec(:, :)
-      type(linked_sphere_list), pointer :: slist
 
       evec = 0.d0
       hvec = 0.d0
 !return
-      num = sphere_links(host, layer)%number
+      num = size(sphere_cluster%sphere_links(host, layer)%indices)
       if (host .eq. 0) then
          ri = layer_ref_index(layer)
          ri2 = ri
       else
-         ri2 = sphere_ref_index(:, host)
+         ri2 = sphere_cluster%sphere_ref_index(:, host)
          ri = 2.d0 / (1.d0 / ri2(1) + 1.d0 / ri2(2))
       end if
 
@@ -351,23 +347,21 @@ contains
       pshift0 = 1.d0
       if (host .ne. 0 .and. periodic_lattice) then
          i = host
-         do while (host_sphere(i) .ne. 0)
-            i = host_sphere(i)
+         do while (sphere_cluster%host_sphere(i) .ne. 0)
+            i = sphere_cluster%host_sphere(i)
          end do
-         rtran = rpos - sphere_position(:, i)
+         rtran = rpos - sphere_cluster%sphere_position(:, i)
          np0(1:2) = floor((rtran(1:2) + cell_width(1:2) / 2.d0) / cell_width(1:2))
          pshift0 = exp((0.d0, 1.d0) * sum(incident_lateral_vector * dble(np0) * cell_width))
       end if
 
       if (num .gt. 0) then
-         slist => sphere_links(host, layer)%sphere_list
          do i = 1, num
-            j = slist%sphere
-            if (i .lt. num) slist => slist%next
-            nodr = sphere_order(j)
+            j = sphere_cluster%sphere_links(host, layer)%indices(i)
+            nodr = sphere_cluster%sphere_order(j)
             nblk = nodr * (nodr + 2)
             allocate (vwf(3, nblk, 2), svec(nblk, 2))
-            rtran = rpos - sphere_position(:, j)
+            rtran = rpos - sphere_cluster%sphere_position(:, j)
             if (host .eq. 0 .and. periodic_lattice) then
                np(1:2) = floor((rtran(1:2) + cell_width(1:2) / 2.d0) / cell_width(1:2))
                rtran(1:2) = rtran(1:2) - cell_width(1:2) * dble(np(1:2))
@@ -377,7 +371,7 @@ contains
             end if
             call vector_spherical_wave_functions(rtran, ri2, nodr, 3, vwf, index_model=2)
             do p = 1, 2
-               svec = reshape(sourcevec(sphere_offset(j) + 1:sphere_offset(j) + sphere_block(j), p), &
+svec = reshape(sourcevec(sphere_cluster%sphere_offset(j) + 1:sphere_cluster%sphere_offset(j) + sphere_cluster%sphere_block(j), p), &
                               (/nblk, 2/))
                evec(:, p) = evec(:, p) + (matmul(vwf(:, :, 1), svec(:, 1)) + matmul(vwf(:, :, 2), svec(:, 2))) * pshift
         hvec(:, p) = hvec(:, p) + (matmul(vwf(:, :, 1), svec(:, 1)) - matmul(vwf(:, :, 2), svec(:, 2))) * ri / (0.d0, 1.d0) * pshift
@@ -386,10 +380,10 @@ contains
          end do
       end if
       if (host .ne. 0) then
-         nodr = sphere_order(host)
+         nodr = sphere_cluster%sphere_order(host)
          nblk = nodr * (nodr + 2)
          allocate (vwf(3, nblk, 2), svec(nblk, 2))
-         rtran = rpos - sphere_position(:, host)
+         rtran = rpos - sphere_cluster%sphere_position(:, host)
          rtran(1:2) = rtran(1:2) - cell_width(1:2) * dble(np0(1:2))
          call vector_spherical_wave_functions(rtran, ri2, nodr, 1, vwf, index_model=2)
          do p = 1, 2
@@ -405,7 +399,7 @@ contains
       logical :: storecalc
       integer :: layer, nodr, nblk, i, p
       real(real64) :: rpos(3), rtran(3), rcell(3)
-      complex(real64) :: sourcevec(number_eqns, 2), evec(3, 2), hvec(3, 2), ri, rvec(3, 2)
+      complex(real64) :: sourcevec(sphere_cluster%number_eqns, 2), evec(3, 2), hvec(3, 2), ri, rvec(3, 2)
       complex(real64), allocatable :: vwf(:, :, :)
       type(cell_info), pointer :: cellinfo
 
@@ -439,20 +433,20 @@ contains
       else
          evec = 0.d0
          hvec = 0.d0
-         do i = 1, number_spheres
-            if (host_sphere(i) .ne. 0) cycle
-            rtran(:) = rpos(:) - sphere_position(:, i)
+         do i = 1, sphere_cluster%number_spheres
+            if (sphere_cluster%host_sphere(i) .ne. 0) cycle
+            rtran(:) = rpos(:) - sphere_cluster%sphere_position(:, i)
 !write(*,*) rtran
 !flush(6)
             do p = 1, 2
                if (periodic_lattice) then
-                  call plane_boundary_lattice_interaction(1, sphere_order(i), rtran(1), rtran(2), rpos(3), &
-                 sphere_position(3, i), rvec, source_vector=sourcevec(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), p), &
+                  call plane_boundary_lattice_interaction(1, sphere_cluster%sphere_order(i), rtran(1), rtran(2), rpos(3), &
+                 sphere_cluster%sphere_position(3, i), rvec, source_vector=sourcevec(sphere_cluster%sphere_offset(i) + 1:sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i), p), &
                                                           include_source=.false., lr_transformation=.true., index_model=2)
                else
-                  call plane_boundary_interaction(1, sphere_order(i), &
-                                                  rtran(1), rtran(2), sphere_position(3, i), rpos(3), &
-                                        rvec, source_vector=sourcevec(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), p), &
+                  call plane_boundary_interaction(1, sphere_cluster%sphere_order(i), &
+                                                  rtran(1), rtran(2), sphere_cluster%sphere_position(3, i), rpos(3), &
+                                        rvec, source_vector=sourcevec(sphere_cluster%sphere_offset(i) + 1:sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i), p), &
                                                   index_model=2, lr_transformation=.true., make_symmetric=.false.)
                end if
                evec(:, p) = evec(:, p) + matmul(vwf_0(:, :, 1), rvec(:, 1)) + matmul(vwf_0(:, :, 2), rvec(:, 2))
@@ -514,29 +508,29 @@ contains
       implicit none
       integer :: nodr, nblk, i, p
       real(real64) :: rc(3), rhovec(2)
-      complex(real64) :: sourcevec(number_eqns, 2)
+      complex(real64) :: sourcevec(sphere_cluster%number_eqns, 2)
       complex(real64), allocatable :: vector(:, :, :)
       complex(real64), pointer :: storedvector(:, :, :)
 
       nblk = nodr * (nodr + 2)
       allocate (vector(nblk, 2, 2), storedvector(nblk, 2, 2))
       storedvector(1:nblk, 1:2, 1:2) = 0.d0
-      do i = 1, number_spheres
-         if (host_sphere(i) .ne. 0) cycle
-         rhovec(1:2) = rc(1:2) - sphere_position(1:2, i)
+      do i = 1, sphere_cluster%number_spheres
+         if (sphere_cluster%host_sphere(i) .ne. 0) cycle
+         rhovec(1:2) = rc(1:2) - sphere_cluster%sphere_position(1:2, i)
          vector = 0.d0
          do p = 1, 2
             if (periodic_lattice) then
-               call plane_boundary_lattice_interaction(nodr, sphere_order(i), &
-                                                       rhovec(1), rhovec(2), rc(3), sphere_position(3, i), &
+               call plane_boundary_lattice_interaction(nodr, sphere_cluster%sphere_order(i), &
+                                                       rhovec(1), rhovec(2), rc(3), sphere_cluster%sphere_position(3, i), &
                                                        vector(:, :, p), &
-                                              source_vector=sourcevec(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), p), &
+ source_vector=sourcevec(sphere_cluster%sphere_offset(i) + 1:sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i), p), &
                                                        include_source=.false., lr_transformation=.true., index_model=2)
             else
-               call plane_boundary_interaction(nodr, sphere_order(i), &
-                                               rhovec(1), rhovec(2), sphere_position(3, i), rc(3), &
+               call plane_boundary_interaction(nodr, sphere_cluster%sphere_order(i), &
+                                               rhovec(1), rhovec(2), sphere_cluster%sphere_position(3, i), rc(3), &
                                                vector(:, :, p), &
-                                              source_vector=sourcevec(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), p), &
+ source_vector=sourcevec(sphere_cluster%sphere_offset(i) + 1:sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i), p), &
                                                index_model=2, lr_transformation=.true., &
                                                make_symmetric=.false.)
             end if
@@ -550,16 +544,15 @@ contains
       implicit none
       integer :: nodr, nblk, i, p, cellhost, vswf_type
       real(real64) :: rc(3), r
-      complex(real64) :: sourcevec(number_eqns, 2), ri2(2)
+      complex(real64) :: sourcevec(sphere_cluster%number_eqns, 2), ri2(2)
       type(cell_info), pointer :: cellinfo
-      type(linked_sphere_list), pointer :: slist
       type(translation_operator_state) :: tranmat
 
       cellhost = cellinfo%host
       if (cellhost .eq. 0) then
          ri2(1:2) = layer_ref_index(cellinfo%layer)
       else
-         ri2 = sphere_ref_index(:, cellhost)
+         ri2 = sphere_cluster%sphere_ref_index(:, cellhost)
       end if
       nodr = cellinfo%order
       nblk = nodr * (nodr + 2)
@@ -567,36 +560,39 @@ contains
       cellinfo%reg_source_vector(1:nblk, 1:2, 1:2) = 0.d0
       cellinfo%nispheres = 0
       cellinfo%outside_spheres = .false.
-      do i = 1, number_spheres
-         if (host_sphere(i) .eq. cellhost .or. i .eq. cellhost) then
-            rc = cellinfo%rcell(:) - sphere_position(:, i)
+      do i = 1, sphere_cluster%number_spheres
+         if (sphere_cluster%host_sphere(i) /= cellhost) cycle
+         rc = cellinfo%rcell - sphere_cluster%sphere_position(:, i)
+         if (sqrt(sum(rc**2)) <= 2.0_real64 * near_field_expansion_spacing) then
+            cellinfo%nispheres = cellinfo%nispheres + 1
+         end if
+      end do
+      if (allocated(cellinfo%sphere_indices)) deallocate (cellinfo%sphere_indices)
+      allocate (cellinfo%sphere_indices(cellinfo%nispheres))
+      cellinfo%nispheres = 0
+      do i = 1, sphere_cluster%number_spheres
+         if (sphere_cluster%host_sphere(i) .eq. cellhost .or. i .eq. cellhost) then
+            rc = cellinfo%rcell(:) - sphere_cluster%sphere_position(:, i)
             r = sqrt(sum(rc**2))
-            if (r .le. 2.d0 * near_field_expansion_spacing .and. host_sphere(i) .eq. cellhost) then
-               if (cellinfo%nispheres .eq. 0) then
-                  allocate (cellinfo%sphere_list)
-                  slist => cellinfo%sphere_list
-               else
-                  allocate (slist%next)
-                  slist => slist%next
-               end if
-               slist%sphere = i
+            if (r .le. 2.d0 * near_field_expansion_spacing .and. sphere_cluster%host_sphere(i) .eq. cellhost) then
                cellinfo%nispheres = cellinfo%nispheres + 1
+               cellinfo%sphere_indices(cellinfo%nispheres) = i
             else
                cellinfo%outside_spheres = .true.
-               if (host_sphere(i) .eq. cellhost) then
+               if (sphere_cluster%host_sphere(i) .eq. cellhost) then
                   vswf_type = 3
                else
                   vswf_type = 1
                end if
                call tranmat%configure(vswf_type, rc, ri2, &
-                                      max(sphere_order(i), nodr) .ge. translation_switch_order)
+                                      max(sphere_cluster%sphere_order(i), nodr) .ge. sphere_cluster%translation_switch_order)
                do p = 1, 2
-                  if (host_sphere(i) .eq. cellhost) then
-                     call tranmat%apply(sphere_order(i), 2, nodr, 2, &
-                                        sourcevec(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), p), &
+                  if (sphere_cluster%host_sphere(i) .eq. cellhost) then
+                     call tranmat%apply(sphere_cluster%sphere_order(i), 2, nodr, 2, &
+               sourcevec(sphere_cluster%sphere_offset(i) + 1:sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i), p), &
                                         cellinfo%reg_source_vector(:, :, p))
                   else
-                     call tranmat%apply(sphere_order(i), 2, nodr, 2, &
+                     call tranmat%apply(sphere_cluster%sphere_order(i), 2, nodr, 2, &
                                         internal_field_vector(cellhost)%vector(:, :, p), &
                                         cellinfo%reg_source_vector(:, :, p))
                   end if
@@ -635,20 +631,20 @@ contains
       else
          jlim = 0
       end if
-      do depth = max_sphere_depth, 0, -1
-         do i = 1, number_spheres
-            if (sphere_depth(i) .ne. depth) cycle
+      do depth = sphere_cluster%max_sphere_depth, 0, -1
+         do i = 1, sphere_cluster%number_spheres
+            if (sphere_cluster%sphere_depth(i) .ne. depth) cycle
             do jy = jlim(1), jlim(2)
                do jx = jlim(1), jlim(2)
-                  spos = sphere_position(:, i)
+                  spos = sphere_cluster%sphere_position(:, i)
                   if (periodic_lattice) &
                      spos(1:2) = spos(1:2) + dble((/jx, jy/)) * cell_width
                   call sphere_to_grid_points(i, spos, griddim, gridinfo, ingrid)
                   if (ingrid) then
                      slist%sphere = i
-                     slist%host = host_sphere(i)
+                     slist%host = sphere_cluster%host_sphere(i)
                      slist%position = spos
-                     slist%radius = sphere_radius(i)
+                     slist%radius = sphere_cluster%sphere_radius(i)
                      number_intersecting_spheres = number_intersecting_spheres + 1
                      allocate (slist%next)
                      slist => slist%next
@@ -660,9 +656,9 @@ contains
       do l = 1, max(1, number_plane_boundaries)
          pbcellsize(l) = near_field_expansion_spacing
          if (plane_surface_present) then
-            do i = 1, number_spheres
-               if ((sphere_layer(i) .eq. l - 1 .or. sphere_layer(i) .eq. l) .and. host_sphere(i) .eq. 0) then
-                  pbcellsize(l) = min(pbcellsize(l), 1.d0 * abs(plane_boundary_position(l) - sphere_position(3, i)))
+            do i = 1, sphere_cluster%number_spheres
+               if ((sphere_cluster%sphere_layer(i) .eq. l - 1 .or. sphere_cluster%sphere_layer(i) .eq. l) .and. sphere_cluster%host_sphere(i) .eq. 0) then
+                  pbcellsize(l) = min(pbcellsize(l), 1.d0 * abs(plane_boundary_position(l) - sphere_cluster%sphere_position(3, i)))
                end if
             end do
          end if
@@ -768,18 +764,18 @@ contains
       skip = .false.
       do i = 1, 3
          if (grid_spacing(i) .eq. 0.d0) then
-            if (abs(grid_region(i, 1) - spos(i)) .gt. sphere_radius(sphere)) then
+            if (abs(grid_region(i, 1) - spos(i)) .gt. sphere_cluster%sphere_radius(sphere)) then
                skip = .true.
             else
                limits(i, 1) = 1
                limits(i, 2) = 1
             end if
          else
-            r1 = spos(i) - sphere_radius(sphere)
+            r1 = spos(i) - sphere_cluster%sphere_radius(sphere)
             if (r1 .gt. grid_region(i, 2)) then
                skip = .true.
             end if
-            r2 = spos(i) + sphere_radius(sphere)
+            r2 = spos(i) + sphere_cluster%sphere_radius(sphere)
             if (r2 .lt. grid_region(i, 1)) then
                skip = .true.
             end if
@@ -798,19 +794,19 @@ contains
                rpos(:) = (dble(ic(:)) - (/0.5d0, 0.5d0, 0.5d0/)) * grid_spacing(:) + grid_region(:, 1)
                rc(:) = rpos(:) - spos(:)
                r = sqrt(dot_product(rc(:), rc(:)))
-               if (r .gt. sphere_radius(sphere)) cycle
+               if (r .gt. sphere_cluster%sphere_radius(sphere)) cycle
                if (gridinfo(ic(1), ic(2), ic(3))%initialized) cycle
                ingrid = .true.
                gridinfo(ic(1), ic(2), ic(3))%host = sphere
-               gridinfo(ic(1), ic(2), ic(3))%layer = sphere_layer(sphere)
+               gridinfo(ic(1), ic(2), ic(3))%layer = sphere_cluster%sphere_layer(sphere)
                gridinfo(ic(1), ic(2), ic(3))%initialized = .true.
 
 !!                  cellinfo%ncell=(/0,0,0/)
-!!                  cellinfo%rcell(:)=sphere_position(:,sphere)
-!!                  cellinfo%order=sphere_order(sphere)
+!!                  cellinfo%rcell(:)=sphere_cluster%sphere_position(:,sphere)
+!!                  cellinfo%order=sphere_cluster%sphere_order(sphere)
 !                  cellinfo%host=sphere
 !                  cellinfo%order=near_field_expansion_order
-!                  cellinfo%layer=sphere_layer(sphere)
+!                  cellinfo%layer=sphere_cluster%sphere_layer(sphere)
 !                  call find_or_add_cell_info(cellinfo,gridinfo(ic(1),ic(2),ic(3))%cellinfo,cell_info_list)
 !                  gridinfo(ic(1),ic(2),ic(3))%cellnum=total_cells
             end do
