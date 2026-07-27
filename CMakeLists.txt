@@ -415,6 +415,12 @@ if(BUILD_TESTING)
     "near-field-modes.dat,near-field-total.dat,near-field-scattered.dat"
     near_field_modes
   )
+  add_mstm_regression_test(
+    state_lifecycle
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/state-lifecycle.inp"
+    state-lifecycle.dat
+    state_lifecycle
+  )
 
   if(MSTM_ENABLE_MPI)
     set(mpi_test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/mpi_two_rank_effective_medium")

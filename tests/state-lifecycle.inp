@@ -1,0 +1,57 @@
+! Reuse one process while changing translation strategy, solver, and problem size.
+output_file
+state-lifecycle.dat
+number_spheres
+2
+sphere_data
+-0.65d0,0.15d0,-0.25d0,0.45d0,(1.45d0,0.d0)
+ 0.55d0,-0.10d0,0.35d0,0.35d0,(1.70d0,0.d0)
+end_of_sphere_data
+incident_beta_deg
+43.d0
+incident_alpha_deg
+17.d0
+solution_method
+iteration
+solution_epsilon
+1.d-9
+fft_translation_option
+f
+calculate_scattering_matrix
+f
+print_sphere_data
+f
+print_timings
+f
+! Reuse the geometry through a newly configured FFT plan.
+new_run
+fft_translation_option
+t
+min_fft_nsphere
+1
+node_order
+3
+! Clear the FFT plan and replace the iterative solver with direct LU.
+new_run
+fft_translation_option
+f
+solution_method
+direct
+! Resize all sphere-dependent arrays for a different problem.
+new_run
+number_spheres
+1
+sphere_data
+0.d0,0.d0,0.d0,1.d0,(1.5d0,0.d0)
+end_of_sphere_data
+solution_method
+iteration
+! Restore the original problem after every state transition.
+new_run
+number_spheres
+2
+sphere_data
+-0.65d0,0.15d0,-0.25d0,0.45d0,(1.45d0,0.d0)
+ 0.55d0,-0.10d0,0.35d0,0.35d0,(1.70d0,0.d0)
+end_of_sphere_data
+end_of_options

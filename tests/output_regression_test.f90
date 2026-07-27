@@ -36,6 +36,8 @@ program output_regression_test
       call check_nested_sphere(trim(work_directory), failures)
    case ('near_field_modes')
       call check_near_field_modes(trim(work_directory), failures)
+   case ('state_lifecycle')
+      call check_state_lifecycle(trim(work_directory), failures)
    case default
       write (error_unit, '(a)') 'Unknown regression case: '//trim(case_name)
       error stop 2
@@ -354,6 +356,32 @@ contains
       call assert_close('Near-field magnetic incident contribution', &
                         total_field(22) - scattered_field(22), -1.0_real64, failure_count)
    end subroutine check_near_field_modes
+
+   subroutine check_state_lifecycle(directory, failure_count)
+      character(len=*), intent(in) :: directory
+      integer, intent(inout) :: failure_count
+      real(real64) :: efficiency(9, 5)
+      integer :: component, run, unit
+
+      call open_regression_file(directory//'/state-lifecycle.dat', unit)
+      do run = 1, 5
+         call find_line(unit, 'total extinction, absorption, scattering efficiencies', .true.)
+         read (unit, *) efficiency(:, run)
+      end do
+      close (unit)
+
+      call require_finite('Repeated-run efficiencies', reshape(efficiency, [size(efficiency)]), failure_count)
+      call assert_close('Resized single-sphere analytical result', efficiency(1, 4), &
+                        2.1510e-1_real64, failure_count)
+      do component = 1, 9
+         call assert_close('FFT state transition', efficiency(component, 2), &
+                           efficiency(component, 1), failure_count)
+         call assert_close('Direct-solver state transition', efficiency(component, 3), &
+                           efficiency(component, 1), failure_count)
+         call assert_close('Restored-problem state transition', efficiency(component, 5), &
+                           efficiency(component, 1), failure_count)
+      end do
+   end subroutine check_state_lifecycle
 
    subroutine open_regression_file(path, unit)
       character(len=*), intent(in) :: path
