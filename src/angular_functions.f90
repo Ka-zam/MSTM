@@ -1,5 +1,5 @@
 module angular_functions
-   use bessel_functions, only: cricbessel, crichankel
+   use bessel_functions, only: riccati_bessel, riccati_hankel
    use coefficient_indexing, only: amnaddress, amnpaddress
    use constants
    implicit none
@@ -118,7 +118,7 @@ contains
 !
 !  last revised: 15 January 2011
 !
-   subroutine normalizedlegendre(cbe, mmax, nmax, dc)
+   subroutine normalized_associated_legendre(cbe, mmax, nmax, dc)
       use numerical_tables
       implicit none
       integer :: nmax, mmax, m, n, im
@@ -140,7 +140,7 @@ contains
             dc(-m, n) = im * dc(m, n)
          end do
       end do
-   end subroutine normalizedlegendre
+   end subroutine normalized_associated_legendre
 
 !!
 !  Generalized spherical functions
@@ -153,7 +153,7 @@ contains
 !
 !  last revised: 15 January 2011
 !
-   subroutine rotcoef(cbe, kmax, nmax, dc)
+   subroutine rotation_coefficients(cbe, kmax, nmax, dc)
       use numerical_tables
       implicit none
       integer :: kmax, nmax, k, m, sin, n, knmax, nn1, kn, im, m1
@@ -230,7 +230,7 @@ contains
 !write(*,'('' rot3 '',3es13.5)') cbe
 !flush(6)
 !endif
-   end subroutine rotcoef
+   end subroutine rotation_coefficients
 !
 !  Generalized spherical functions: complex argument
 !
@@ -242,7 +242,7 @@ contains
 !
 !  New: 08/25/2011
 !
-   subroutine crotcoef(cbe, kmax, nmax, dc, sin_beta)
+   subroutine complex_rotation_coefficients(cbe, kmax, nmax, dc, sin_beta)
       use numerical_tables
       implicit none
       integer :: kmax, nmax, k, m, in, n, knmax, nn1, kn, im, m1
@@ -303,7 +303,7 @@ contains
             end do
          end do
       end do
-   end subroutine crotcoef
+   end subroutine complex_rotation_coefficients
 !
 ! vector spherical harmonic function
 ! november 2011
@@ -343,7 +343,7 @@ contains
          lrmod = .false.
       end if
       const = 0.5d0 / sqrt_two_pi
-      call crotcoef(cb, 1, nodr, drot)
+      call complex_rotation_coefficients(cb, 1, nodr, drot)
       do n = 1, nodr
          nn1 = n * (n + 1)
          fnm = sqrt(dble(n + n + 1) / 2.d0) / 4.d0 * const
@@ -384,7 +384,7 @@ contains
       implicit none
       integer :: nmax, n, m, nn1, mn
       real(8) :: drot(-1:1, 0:nmax * (nmax + 2)), tau(0:nmax + 1, nmax, 2), cb, fnm
-      call rotcoef(cb, 1, nmax, drot)
+      call rotation_coefficients(cb, 1, nmax, drot)
       do n = 1, nmax
          nn1 = n * (n + 1)
          fnm = sqrt(dble(n + n + 1) / 2.d0) / 4.d0
@@ -407,7 +407,7 @@ contains
 !
 !  last revised: 15 January 2011
 !
-   subroutine rotvec(alpha, beta, gamma, nmax, mmax, amn, idir)
+   subroutine rotate_expansion_coefficients(alpha, beta, gamma, nmax, mmax, amn, idir)
       use numerical_tables
       implicit none
       integer :: nmax, mmax, idir, k, n, m, in, kmax, ka, na, im, m1
@@ -427,8 +427,8 @@ contains
       sbe = sqrt((1.d0 + cbe) * (1.d0 - cbe))
       cbe2 = .5d0 * (1.d0 + cbe)
       sbe2 = .5d0 * (1.d0 - cbe)
-      call ephicoef(ealpha, nmax, ealpham)
-      call ephicoef(egamma, nmax, egammam)
+      call azimuthal_phase_factors(ealpha, nmax, ealpham)
+      call azimuthal_phase_factors(egamma, nmax, egammam)
       in = 1
       dk0(0) = 1.d0
       sben = 1.d0
@@ -504,7 +504,7 @@ contains
             end if
          end do
       end do
-   end subroutine rotvec
+   end subroutine rotate_expansion_coefficients
 !
 !  regular vswf expansion coefficients for a plane wave: general case, complex cos beta
 !
@@ -524,7 +524,7 @@ contains
       else
          lrtran = .true.
       end if
-      call crotcoef(cb, 1, nodr, drot)
+      call complex_rotation_coefficients(cb, 1, nodr, drot)
       do n = 1, nodr
          nn1 = n * (n + 1)
          fnm = sqrt(dble(n + n + 1) / 2.d0) / 4.d0
@@ -542,7 +542,7 @@ contains
       ca = cos(alpha)
       sa = sin(alpha)
       ealpha = cmplx(ca, sa, kind=kind(0.0d0))
-      call ephicoef(ealpha, nodr, ealpham)
+      call azimuthal_phase_factors(ealpha, nodr, ealpham)
       if (lrtran) then
          taulr(:, :, 1) = (tau(:, :, 1) + tau(:, :, 2))*.5d0
          taulr(:, :, 2) = (tau(:, :, 1) - tau(:, :, 2))*.5d0
@@ -663,9 +663,9 @@ contains
       z = r * ri
       do p = 1, 2
          if (itype .eq. 1) then
-            call cricbessel(nmax + lmax, z(p), xi(0:, p))
+            call riccati_bessel(nmax + lmax, z(p), xi(0:, p))
          else
-            call crichankel(nmax + lmax, z(p), xi(0:, p))
+            call riccati_hankel(nmax + lmax, z(p), xi(0:, p))
          end if
          xi(0:, p) = xi(0:, p) / z(p)
          if (z(1) .eq. z(2)) then
@@ -889,7 +889,7 @@ contains
             ephim(m) = ephi * ephim(m - 1)
             ephim(-m) = conjg(ephim(m))
          end do
-         call normalizedlegendre(ct, wmax, wmax, ymn)
+         call normalized_associated_legendre(ct, wmax, wmax, ymn)
          do p = 1, 2
             rri = r * ri(p)
             if (itype .eq. 3) then
@@ -899,7 +899,7 @@ contains
                   hn(n, p) = dble(n + n - 1) / rri * hn(n - 1, p) - hn(n - 2, p)
                end do
             else
-               call cricbessel(wmax, rri, hn(:, p))
+               call riccati_bessel(wmax, rri, hn(:, p))
                hn(:, p) = hn(:, p) / rri
             end if
             if (ri(2) .eq. ri(1)) then
@@ -969,7 +969,7 @@ contains
       sum = 0.d0
       do n = 1, nlim
          call init(n + lmax)
-         call cricbessel(n + lmax, z, xi)
+         call riccati_bessel(n + lmax, z, xi)
          do l = 0, n + lmax
             xi(l) = xi(l) / z * ci**l
          end do
@@ -1036,13 +1036,13 @@ contains
       end if
    end function moffset
 !
-! cartosphere takes the cartesian point (x,y,z) = xp(1), xp(2), xp(3)
+! cartesian_to_spherical takes the Cartesian point (x,y,z) = xp(1), xp(2), xp(3)
 ! and converts to polar form: r: radius, ct: cos(theta), ep = exp(i phi)
 !
 !
 !  last revised: 15 January 2011
 !
-   pure subroutine cartosphere(xp, r, ct, ep)
+   pure subroutine cartesian_to_spherical(xp, r, ct, ep)
       implicit none
       real(8), intent(in) :: xp(3)
       real(8), intent(out) :: r, ct
@@ -1061,16 +1061,16 @@ contains
          ep = cmplx(xp(1), xp(2), kind=kind(0.0d0)) / sqrt(xp(1) * xp(1) + xp(2) * xp(2))
       end if
       return
-   end subroutine cartosphere
+   end subroutine cartesian_to_spherical
 
-   pure subroutine cartospherevec(nt, xp, xps)
+   pure subroutine cartesian_vectors_to_spherical(nt, xp, xps)
       implicit none
       integer, intent(in) :: nt
       real(8), intent(in) :: xp(3, nt)
       real(8), intent(out) :: xps(3, nt)
       integer :: i
       real(8) :: r, ct, phi
-      do concurrent (i = 1:nt) local(r, ct, phi)
+      do concurrent(i=1:nt) local(r, ct, phi)
          r = xp(1, i) * xp(1, i) + xp(2, i) * xp(2, i) + xp(3, i) * xp(3, i)
          if (r .eq. 0.d0) then
             ct = 1.d0
@@ -1087,13 +1087,13 @@ contains
          xps(:, i) = (/ct, phi, r/)
       end do
       return
-   end subroutine cartospherevec
+   end subroutine cartesian_vectors_to_spherical
 
 !
 ! euler rotation of a point (x,y,z) = xp(1), xp(2), xp(3)
 ! November 2012
 !
-   subroutine eulerrotation(xp, eulerangf, dir, xprot, num)
+   subroutine euler_rotate_cartesian_vectors(xp, eulerangf, dir, xprot, num)
       implicit none
       integer :: dir, n, i
       integer, optional :: num
@@ -1127,15 +1127,15 @@ contains
          xpt = matmul(mat3, xpt)
          xprot(:, i) = xpt
       end do
-   end subroutine eulerrotation
+   end subroutine euler_rotate_cartesian_vectors
 !
-! ephicoef returns the complex array epm(m) = exp(i m phi) for
+! azimuthal_phase_factors returns the complex array epm(m) = exp(i m phi) for
 ! m=-nodr,nodr.   ep =exp(i phi), and epm is dimensioned epm(-nd:nd)
 !
 !
 !  last revised: 15 January 2011
 !
-   subroutine ephicoef(ep, nodr, epm)
+   subroutine azimuthal_phase_factors(ep, nodr, epm)
       implicit none
       integer :: nodr, m
       complex(8) :: ep, epm(-nodr:nodr)
@@ -1145,7 +1145,7 @@ contains
          epm(-m) = conjg(epm(m))
       end do
       return
-   end subroutine ephicoef
+   end subroutine azimuthal_phase_factors
 !
 !  test to determine max order of vswf expansion of a plane wave at distance r
 !
@@ -1163,7 +1163,7 @@ contains
       n1 = max(10, int(3.*r + 1))
       allocate (jn(0:n1))
       rri = r * rib
-      call cricbessel(n1, rri, jn)
+      call riccati_bessel(n1, rri, jn)
       jn(0:n1) = jn(0:n1) / rri
       eir = exp(-ci * rri)
       sum = jn(0) * eir

@@ -43,8 +43,8 @@ contains
       xri = xsp * ri0
       rib = 2.d0 / (1.d0 / ri0(1) + 1.d0 / ri0(2))
       do p = 1, 2
-         call cricbessel(nodr, xri(p), psi(0, p))
-         call crichankel(nodr, xri(p), xi(0, p))
+         call riccati_bessel(nodr, xri(p), psi(0, p))
+         call riccati_hankel(nodr, xri(p), xi(0, p))
       end do
       do n = 1, nodr
          do s = 1, 2

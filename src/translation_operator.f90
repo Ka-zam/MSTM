@@ -1,5 +1,6 @@
 module translation_operator
-   use angular_functions, only: atcdim, axialtrancoefrecurrence, cartosphere, ephicoef, gentranmatrix, moffset, rotcoef
+   use angular_functions, only: atcdim, axialtrancoefrecurrence, azimuthal_phase_factors, &
+                                cartesian_to_spherical, gentranmatrix, moffset, rotation_coefficients
    use iso_fortran_env, only: real64
    use wave_functions, only: mtransfer
 
@@ -121,11 +122,11 @@ contains
                allocate (tranmat%rot_mat(-nmin:nmin, 0:nmax * (nmax + 2)))
                allocate (tranmat%phi_mat(-nmax:nmax))
                allocate (tranmat%z_mat(1:tdim))
-               call cartosphere(rtran, r, ct, ephi)
-               call rotcoef(ct, nmin, nmax, tranmat%rot_mat)
+               call cartesian_to_spherical(rtran, r, ct, ephi)
+               call rotation_coefficients(ct, nmin, nmax, tranmat%rot_mat)
                call axialtrancoefrecurrence(vtype, r, rimed, nodrt, nodrs, &
                                             tdim, tranmat%z_mat)
-               call ephicoef(ephi, nmax, tranmat%phi_mat)
+               call azimuthal_phase_factors(ephi, nmax, tranmat%phi_mat)
             else
                allocate (tranmat%gen_mat(nodrt * (nodrt + 2), nodrs * (nodrs + 2), 2))
                call gentranmatrix(nodrs, nodrt, translation_vector=rtran, &

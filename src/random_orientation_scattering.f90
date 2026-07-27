@@ -609,7 +609,7 @@ contains
 !     dc(k,n*(n+1)+m) = ((n-k)!(n+m)!/(n+k)!/(n-m)!)^(1/2) D^k_{mn},
 !     where D^k_{mn} is defined in M&M JOSA 96
 !
-      call rotcoef(ct, 2, nodrexp, dc)
+      call rotation_coefficients(ct, 2, nodrexp, dc)
       sm = 0.d0
       do n = 0, nodrexp
          nn0 = n * (n + 1)

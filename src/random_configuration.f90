@@ -240,8 +240,8 @@ contains
          rnum(1) = two_pi * rnum(1)
          rnum(3) = two_pi * rnum(3)
          rnum(2) = dacos(-1.d0 + 2.d0 * rnum(2))
-         call eulerrotation(sphereposition(:, 1:numberspheres), rnum, 1, &
-                            sphereposition(:, 1:numberspheres), numberspheres)
+         call euler_rotate_cartesian_vectors(sphereposition(:, 1:numberspheres), rnum, 1, &
+                                             sphereposition(:, 1:numberspheres), numberspheres)
       end if
 
       sphereposition(:, 1:numberspheres) = sphereposition(:, 1:numberspheres) * radscale

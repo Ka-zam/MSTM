@@ -184,8 +184,8 @@ contains
 
       do i = 1, 2
          do p = 1, 2
-            call cricbessel(nstop + 1, xri(p, i), psi(0, p, i))
-            call crichankel(nstop + 1, xri(p, i), xi(0, p, i))
+            call riccati_bessel(nstop + 1, xri(p, i), psi(0, p, i))
+            call riccati_hankel(nstop + 1, xri(p, i), xi(0, p, i))
          end do
       end do
       qabs = 0.d0

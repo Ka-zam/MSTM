@@ -587,7 +587,10 @@ contains
                call merge_to_common_origin(t_matrix_order, amnp_s(:, i), amnp_0(:, i), &
                                            origin_position=cluster_origin, merge_procs=.true., &
                                            mpi_comm=mpicomm)
-               if (iframe) call rotvec(alpha, incident_beta, 0.d0, t_matrix_order, t_matrix_order, amnp_0(:, i), 1)
+               if (iframe) then
+                  call rotate_expansion_coefficients(alpha, incident_beta, 0.d0, t_matrix_order, &
+                                                     t_matrix_order, amnp_0(:, i), 1)
+               end if
             end do
             if (light_up) then
                write (*, '('' s8.3.2 '',i3)') mstm_global_rank
@@ -875,7 +878,7 @@ contains
             q_eff_tot_ave = q_eff_tot_ave + q_eff_tot
             q_vabs_ave = q_vabs_ave + q_vabs
             if (target_shape .eq. 2) then
-               call cartospherevec(number_spheres, sphere_position, spherical_position)
+               call cartesian_vectors_to_spherical(number_spheres, sphere_position, spherical_position)
                sphere_position_ave = sphere_position_ave + spherical_position
             else
                sphere_position_ave = sphere_position_ave + sphere_position
@@ -1267,7 +1270,8 @@ contains
          if (configrank .eq. 0) then
             if (rank .eq. 0) solution_time = mstm_mpi_wtime() - time1
             allocate (tpos(3, number_spheres))
-            call cartospherevec(number_spheres, sphere_position(:, 1:number_spheres), tpos(:, 1:number_spheres))
+            call cartesian_vectors_to_spherical(number_spheres, sphere_position(:, 1:number_spheres), &
+                                                tpos(:, 1:number_spheres))
             q_eff_ave = q_eff_ave + q_eff
             q_eff_tot_ave = q_eff_tot_ave + q_eff_tot
             q_vabs_ave = q_vabs_ave + q_vabs

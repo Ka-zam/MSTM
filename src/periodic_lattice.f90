@@ -541,7 +541,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
          addsource = .false.
       end if
       call swfyzlatticesum(nodr, z, -y, x, (/w(2), w(1)/), -k0(2), k0(1), ri, swfsum)
-      call rotcoef(0.d0, nodr, nodr, drot)
+      call rotation_coefficients(0.d0, nodr, nodr, drot)
       do n = 0, nodr
          nn1 = n * (n + 1)
          do k = -n, n
@@ -592,7 +592,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
          call q2db(nodr, x, y, w(1), k0y, kz, ri, q2d)
          sum1(:, s) = q2d
          ct = kz / ri
-         call crotcoef(ct, 0, nodr, ymn)
+         call complex_rotation_coefficients(ct, 0, nodr, ymn)
          terr = 0.d0
          derr = abs(swfyzsum(:))
          do n = 0, nodr
@@ -622,7 +622,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
          do s = 1, smaxp
             kz = -two_pi * dble(s) / w(2)
             ct = kz / ri
-            call crotcoef(ct, 0, nodr, ymn)
+            call complex_rotation_coefficients(ct, 0, nodr, ymn)
             do n = 0, nodr
                c = -((0.d0, -1.d0)**n) / w(2) / ri / sqrt(four_pi / dble(n + n + 1))
                do m = -n, n
@@ -639,7 +639,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
             call q2db(nodr, x, y, w(1), k0y, kz, ri, q2d)
             sum1(:, s) = q2d
             ct = kz / ri
-            call crotcoef(ct, 0, nodr, ymn)
+            call complex_rotation_coefficients(ct, 0, nodr, ymn)
             terr = 0.d0
             derr = abs(swfyzsum(:))
             do n = 0, nodr
@@ -726,7 +726,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       do s = smaxn, smaxp
          kz = k0z + two_pi * dble(s) / w(2)
          ct = kz / ri
-         call crotcoef(ct, 0, nodr, ymn)
+         call complex_rotation_coefficients(ct, 0, nodr, ymn)
          do n = 0, nodr
             c = -((0.d0, -1.d0)**n) / w(2) / ri / sqrt(four_pi / dble(n + n + 1))
             do m = -n, n
@@ -876,7 +876,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
                   (exp(ci * qkernel_kz * qkernel_width) - exp(ci * qkernel_ref_index * u * qkernel_width))
       expzfunc2 = exp(ci * u * qkernel_ref_index * (qkernel_width - qkernel_z)) / &
                   (exp(-ci * qkernel_kz * qkernel_width) - exp(ci * qkernel_ref_index * u * qkernel_width))
-      call crotcoef(u, 0, qkernel_nodr, ymn1)
+      call complex_rotation_coefficients(u, 0, qkernel_nodr, ymn1)
       qfunc = 0.
       do n = 0, qkernel_nodr
          mlim = min(n, nodrtemp)
@@ -998,7 +998,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       end if
       s = kr
       call layer_gf(s, zs, zt, gfunc, skz, tkz)
-      call crotcoef(skz, 2, nodr, drot)
+      call complex_rotation_coefficients(skz, 2, nodr, drot)
       c = exp((0.d0, 1.d0) * (kx * x + ky * y)) / ri / ri / skz / sqrt(four_pi)
       do k = -2, 2, 2
          i = k / 2

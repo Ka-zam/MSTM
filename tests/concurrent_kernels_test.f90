@@ -1,5 +1,5 @@
 program concurrent_kernels_test
-   use angular_functions, only: cartospherevec
+   use angular_functions, only: cartesian_vectors_to_spherical
    use iso_fortran_env, only: real64
    use random_configuration_geometry, only: circumscribing_sphere
    use scattering_amplitudes, only: amplitude_to_scattering_matrix
@@ -19,7 +19,7 @@ program concurrent_kernels_test
    positions = reshape([3.0_real64, 4.0_real64, 0.0_real64, &
                         0.0_real64, 0.0_real64, -2.0_real64, &
                         0.0_real64, 0.0_real64, 0.0_real64], shape(positions))
-   call cartospherevec(size(positions, dim=2), positions, spherical)
+   call cartesian_vectors_to_spherical(size(positions, dim=2), positions, spherical)
    if (maxval(abs(spherical(:, 1) - [0.0_real64, atan2(4.0_real64, 3.0_real64), 5.0_real64])) > tolerance) &
       error stop 'Cartesian-to-spherical concurrent loop failed'
    if (maxval(abs(spherical(:, 2) - [-1.0_real64, 0.0_real64, 2.0_real64])) > tolerance) &

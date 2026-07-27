@@ -178,7 +178,7 @@ contains
       real(8), intent(out) :: sm(4, 4)
       integer :: i, j
       complex(8) :: sp(4, 4)
-      do concurrent (i = 1:4, j = 1:4)
+      do concurrent(i=1:4, j=1:4)
          sp(i, j) = sa(i) * conjg(sa(j))
       end do
       sm(1, 1) = sp(1, 1) + sp(2, 2) + sp(3, 3) + sp(4, 4)
@@ -293,7 +293,7 @@ contains
       cphi = cos(phi)
       sphi = sin(phi)
       ephi = cmplx(cphi, sphi, kind=kind(0.0d0))
-      call ephicoef(ephi, nodrt, ephim)
+      call azimuthal_phase_factors(ephi, nodrt, ephim)
       sa = (0.d0, 0.d0)
       qsca = 0.d0
       do n = 1, nodrt
@@ -527,7 +527,7 @@ contains
 !write(*,'('' foc1 '',3es13.5)') ct
 !flush(6)
 !endif
-      call rotcoef(ct, 2, 2 * ntot, dc)
+      call rotation_coefficients(ct, 2, 2 * ntot, dc)
 
       sm = 0.d0
       do w = 0, 2 * ntot

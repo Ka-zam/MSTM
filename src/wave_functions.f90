@@ -1,7 +1,8 @@
 module wave_functions
    use constants
-   use angular_functions, only: cartosphere, crotcoef, ephicoef, rotcoef
-   use bessel_functions, only: cricbessel, crichankel
+   use angular_functions, only: azimuthal_phase_factors, cartesian_to_spherical, &
+                                complex_rotation_coefficients, rotation_coefficients
+   use bessel_functions, only: riccati_bessel, riccati_hankel
    use coefficient_indexing, only: amnpaddress
    implicit none
 contains
@@ -36,7 +37,7 @@ contains
       else
          lrtomode = .false.
       end if
-      call cartosphere(rpos, r, ct, ephi)
+      call cartesian_to_spherical(rpos, r, ct, ephi)
       if (r .le. 1.d-5) then
          vwh(:, 1:2 * nodr * (nodr + 2)) = (0.d0, 0.d0)
          if (itype .eq. 3) return
@@ -58,9 +59,9 @@ contains
       a = ri * r
       do p = 1, 2
          if (itype .eq. 1) then
-            call cricbessel(nodrp1, a(p), hn(0, p))
+            call riccati_bessel(nodrp1, a(p), hn(0, p))
          else
-            call crichankel(nodrp1, a(p), hn(0, p))
+            call riccati_hankel(nodrp1, a(p), hn(0, p))
          end if
          hn(0:nodrp1, p) = hn(0:nodrp1, p) / a(p)
          if (a(2) .eq. a(1)) then
@@ -68,8 +69,8 @@ contains
             exit
          end if
       end do
-      call rotcoef(ct, 0, nodrp1, pmn)
-      call ephicoef(ephi, nodrp1, ephim)
+      call rotation_coefficients(ct, 0, nodrp1, pmn)
+      call azimuthal_phase_factors(ephi, nodrp1, ephim)
       umn = 0.d0
       do p = 1, 2
          umn(0, 0, p) = hn(0, p) * fnr(2)
@@ -140,7 +141,7 @@ contains
          rho = sqrt(x * x + y * y)
          ephi = cmplx(x, y, kind=kind(0.0d0)) / rho
       end if
-      call rotcoef(ct, 0, nodr, ymn)
+      call rotation_coefficients(ct, 0, nodr, ymn)
       rri = r * ri
       if (itype .eq. 3) then
          hn(0) = -(0.d0, 1.d0) * exp((0.d0, 1.d0) * rri) / rri
@@ -149,7 +150,7 @@ contains
             hn(n) = dble(n + n - 1) / rri * hn(n - 1) - hn(n - 2)
          end do
       else
-         call cricbessel(nodr, rri, hn)
+         call riccati_bessel(nodr, rri, hn)
          hn = hn / rri
       end if
 
@@ -181,7 +182,7 @@ contains
       else
          ephi = cmplx(kx, ky, kind=kind(0.0d0)) / k
       end if
-      call crotcoef(skz, 0, nodr, ymn)
+      call complex_rotation_coefficients(skz, 0, nodr, ymn)
       c = exp((0.d0, 1.d0) * (kx * x + ky * y + ri * skz * z)) / ri / ri / kz / sqrt(four_pi)
       do n = 0, nodr
          cr = ((0.d0, -1.d0))**n * sqrt(dble(n + n + 1))
@@ -203,7 +204,7 @@ contains
       complex(8) :: tmat(2, 2), det
       tmat = mat
       det = mat(1, 1) * mat(2, 2) - mat(2, 1) * mat(1, 2)
-      do concurrent (s = 1:2, t = 1:2)
+      do concurrent(s=1:2, t=1:2)
          imat(s, t) = (-1)**(s + t) * tmat(3 - t, 3 - s) / det
       end do
    end subroutine twobytwoinverse
@@ -250,7 +251,7 @@ contains
       complex(8), intent(in) :: ain(2 * nodr * (nodr + 2))
       complex(8), intent(out) :: aout(2 * nodr * (nodr + 2))
       integer :: m, n, p, mnp, mnp2, im, m1
-      do concurrent (m = -nodr:nodr) local(m1, im, mnp, mnp2)
+      do concurrent(m=-nodr:nodr) local(m1, im, mnp, mnp2)
          m1 = max(abs(m), 1)
          im = (-1)**m
          do n = m1, nodr

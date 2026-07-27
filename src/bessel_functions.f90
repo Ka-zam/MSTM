@@ -4,26 +4,26 @@ module bessel_functions
 contains
 
 !
-!  ricatti-bessel function psi(n), complex argument
+!  Riccati-Bessel function psi(n), complex argument
 !
 !
 !  last revised: 15 January 2011
 !
-   pure subroutine cricbessel(n, ds, psi)
+   pure subroutine riccati_bessel(n, ds, psi)
       implicit none
       integer, intent(in) :: n
       complex(8), intent(in) :: ds
       complex(8), intent(out) :: psi(0:n)
       integer :: i
       complex(8) :: chi(0:n)
-      call cspherebessel(n, ds, psi, chi)
-      do concurrent (i = 0:n)
+      call complex_spherical_bessel(n, ds, psi, chi)
+      do concurrent(i=0:n)
          psi(i) = psi(i) * ds
       end do
       return
-   end subroutine cricbessel
+   end subroutine riccati_bessel
 !
-!  ricatti-hankel function psi(n), complex argument
+!  Riccati-Hankel function xi(n), complex argument
 !
 !
 !  last revised: 15 January 2011
@@ -32,7 +32,7 @@ contains
 !  implies an argument with large imag part, and use of xi = psi + i chi will have
 !  round off problems.   Upwards recurrence is used in this case.
 !
-   pure subroutine crichankel(n, ds, xi)
+   pure subroutine riccati_hankel(n, ds, xi)
       implicit none
       integer, intent(in) :: n
       complex(8), intent(in) :: ds
@@ -48,12 +48,12 @@ contains
             xi(i) = dble(i + i + 1) / ds * xi(i - 1) - xi(i - 2)
          end do
       else
-         call cspherebessel(n, ds, psi, chi)
-         do concurrent (i = 1:n)
+         call complex_spherical_bessel(n, ds, psi, chi)
+         do concurrent(i=1:n)
             xi(i) = (psi(i) + ci * chi(i)) * ds
          end do
       end if
-   end subroutine crichankel
+   end subroutine riccati_hankel
 !
 !     ==========================================================
 !     Purpose: Compute spherical Bessel functions jn(z) & yn(z)
@@ -64,8 +64,8 @@ contains
 !              CSY(n) --- yn(z)
 !              NM --- Highest order computed
 !     Routines called:
-!              MSTA1 and MSTA2 for computing the starting
-!              point for backward recurrence
+!              bessel_recurrence_start and bessel_recurrence_start_for_order
+!              for computing the starting point for backward recurrence
 !     ==========================================================
 !
 !    obtained from, and copywrited by, Jian-Ming Jin
@@ -74,7 +74,7 @@ contains
 !
 !  last revised: 15 January 2011
 !
-   pure subroutine cspherebessel(n, z, csj, csy)
+   pure subroutine complex_spherical_bessel(n, z, csj, csy)
       implicit none
       integer, intent(in) :: n
       complex(8), intent(in) :: z
@@ -96,11 +96,11 @@ contains
       if (n .ge. 2) then
          csa = csj(0)
          csb = csj(1)
-         m = msta1(a0, 200)
+         m = bessel_recurrence_start(a0, 200)
          if (m .lt. n) then
             nm = m
          else
-            m = msta2(a0, n, 15)
+            m = bessel_recurrence_start_for_order(a0, n, 15)
          end if
          cf0 = 0.0d0
          cf1 = 1.0d0 - 100
@@ -112,7 +112,7 @@ contains
          end do
          if (abs(csa) .gt. abs(csb)) cs = csa / cf
          if (abs(csa) .le. abs(csb)) cs = csb / cf0
-         do concurrent (k = 0:min(nm, n))
+         do concurrent(k=0:min(nm, n))
             csj(k) = cs * csj(k)
          end do
       end if
@@ -126,7 +126,7 @@ contains
             csy(k) = (csj(k) * csy(k - 2) - (2.0d0 * k - 1.0d0) / z**3) / csj(k - 2)
          end if
       end do
-   end subroutine cspherebessel
+   end subroutine complex_spherical_bessel
 
    pure subroutine bessel_integer_complex(n, z, nmax, b)
       implicit none
@@ -142,15 +142,15 @@ contains
          return
       end if
 
-      call cjynb(n, z, nmax, cbj, cdj, cby, cdy)
+      call complex_bessel_jy(n, z, nmax, cbj, cdj, cby, cdy)
       nmax = min(n, nmax)
       b(0:nmax) = cbj(0:nmax)
    end subroutine bessel_integer_complex
 
-   pure subroutine cjynb(n, z, nm, cbj, cdj, cby, cdy)
+   pure subroutine complex_bessel_jy(n, z, nm, cbj, cdj, cby, cdy)
       !*****************************************************************************80
       !
-         !! CJYNB: Bessel functions, derivatives, Jn(z) and Yn(z) of complex argument.
+         !! Bessel functions, derivatives, Jn(z) and Yn(z) of complex argument.
       !
       !  Licensing:
       !
@@ -191,18 +191,18 @@ contains
       integer(kind=4), intent(out) :: nm
       complex(kind=8), intent(out) :: cbj(0:n + 1), cby(0:n + 1), cdj(0:n + 1), cdy(0:n + 1)
       real(kind=8), parameter, dimension(4) :: a = (/ &
-                                          -0.7031250000000000D-01, 0.1121520996093750D+00, &
-                                          -0.5725014209747314D+00, 0.6074042001273483D+01/)
+                                               -0.7031250000000000D-01, 0.1121520996093750D+00, &
+                                               -0.5725014209747314D+00, 0.6074042001273483D+01/)
       real(kind=8) a0
       real(kind=8), parameter, dimension(4) :: a1 = (/ &
-                                          0.1171875000000000D+00, -0.1441955566406250D+00, &
-                                          0.6765925884246826D+00, -0.6883914268109947D+01/)
+                                               0.1171875000000000D+00, -0.1441955566406250D+00, &
+                                               0.6765925884246826D+00, -0.6883914268109947D+01/)
       real(kind=8), parameter, dimension(4) :: b = (/ &
-                                          0.7324218750000000D-01, -0.2271080017089844D+00, &
-                                          0.1727727502584457D+01, -0.2438052969955606D+02/)
+                                               0.7324218750000000D-01, -0.2271080017089844D+00, &
+                                               0.1727727502584457D+01, -0.2438052969955606D+02/)
       real(kind=8), parameter, dimension(4) :: b1 = (/ &
-                                          -0.1025390625000000D+00, 0.2775764465332031D+00, &
-                                          -0.1993531733751297D+01, 0.2724882731126854D+02/)
+                                               -0.1025390625000000D+00, 0.2775764465332031D+00, &
+                                               -0.1993531733751297D+01, 0.2724882731126854D+02/)
       complex(kind=8) cbj0
       complex(kind=8) cbj1
       complex(kind=8) cbjk
@@ -227,8 +227,6 @@ contains
       real(kind=8) el
       integer(kind=4) k
       integer(kind=4) m
-!           integer ( kind = 4 ) msta1
-!           integer ( kind = 4 ) msta2
       real(kind=8) r2p
       real(kind=8) y0
 
@@ -238,7 +236,7 @@ contains
       a0 = abs(z)
       nm = n
       if (a0 < 1.0D-100) then
-         do concurrent (k = 0:n)
+         do concurrent(k=0:n)
             cbj(k) = cmplx(0.0D+00, 0.0D+00, kind=8)
             cdj(k) = cmplx(0.0D+00, 0.0D+00, kind=8)
             cby(k) = -cmplx(1.0D+30, 0.0D+00, kind=8)
@@ -252,11 +250,11 @@ contains
          if (n == 0) then
             nm = 1
          end if
-         m = msta1(a0, 200)
+         m = bessel_recurrence_start(a0, 200)
          if (m < nm) then
             nm = m
          else
-            m = msta2(a0, nm, 15)
+            m = bessel_recurrence_start_for_order(a0, nm, 15)
          end if
          cbs = cmplx(0.0D+00, 0.0D+00, kind=8)
          csu = cmplx(0.0D+00, 0.0D+00, kind=8)
@@ -286,7 +284,7 @@ contains
          else
             cs0 = (cbs + cf) / cos(z)
          end if
-         do concurrent (k = 0:nm)
+         do concurrent(k=0:nm)
             cbj(k) = cbj(k) / cs0
          end do
          ce = log(z / 2.0D+00) + el
@@ -329,7 +327,7 @@ contains
          end do
       end if
       cdj(0) = -cbj(1)
-      do concurrent (k = 1:nm)
+      do concurrent(k=1:nm)
          cdj(k) = cbj(k - 1) - k / z * cbj(k)
       end do
       if (1.0D+00 < abs(cbj(0))) then
@@ -345,13 +343,13 @@ contains
          cby(k) = cyy
       end do
       cdy(0) = -cby(1)
-      do concurrent (k = 1:nm)
+      do concurrent(k=1:nm)
          cdy(k) = cby(k - 1) - k / z * cby(k)
       end do
       return
-   end subroutine cjynb
+   end subroutine complex_bessel_jy
 
-   pure integer function msta1(x, mp)
+   pure integer function bessel_recurrence_start(x, mp)
       implicit none
       real(8), intent(in) :: x
       integer, intent(in) :: mp
@@ -359,22 +357,22 @@ contains
       real(8) :: a0, f1, f, f0
       a0 = dabs(x)
       n0 = int(1.1 * a0) + 1
-      f0 = envj(n0, a0) - mp
+      f0 = bessel_order_envelope(n0, a0) - mp
       n1 = n0 + 5
-      f1 = envj(n1, a0) - mp
+      f1 = bessel_order_envelope(n1, a0) - mp
       do it = 1, 20
          nn = n1 - (n1 - n0) / (1.0d0 - f0 / f1)
-         f = envj(nn, a0) - mp
+         f = bessel_order_envelope(nn, a0) - mp
          if (abs(nn - n1) .lt. 1) exit
          n0 = n1
          f0 = f1
          n1 = nn
          f1 = f
       end do
-      msta1 = nn
-   end function msta1
+      bessel_recurrence_start = nn
+   end function bessel_recurrence_start
 
-   pure integer function msta2(x, n, mp)
+   pure integer function bessel_recurrence_start_for_order(x, n, mp)
       implicit none
       real(8), intent(in) :: x
       integer, intent(in) :: n, mp
@@ -382,7 +380,7 @@ contains
       real(8) :: a0, hmp, ejn, obj, f0, f1, f
       a0 = dabs(x)
       hmp = 0.5d0 * dble(mp)
-      ejn = envj(n, a0)
+      ejn = bessel_order_envelope(n, a0)
       if (ejn .le. hmp) then
          obj = mp
          n0 = int(1.1 * a0)
@@ -390,27 +388,27 @@ contains
          obj = hmp + ejn
          n0 = n
       end if
-      f0 = envj(n0, a0) - obj
+      f0 = bessel_order_envelope(n0, a0) - obj
       n1 = n0 + 5
-      f1 = envj(n1, a0) - obj
+      f1 = bessel_order_envelope(n1, a0) - obj
       do it = 1, 20
          nn = n1 - (n1 - n0) / (1.0d0 - f0 / f1)
-         f = envj(nn, a0) - obj
+         f = bessel_order_envelope(nn, a0) - obj
          if (abs(nn - n1) .lt. 1) exit
          n0 = n1
          f0 = f1
          n1 = nn
          f1 = f
       end do
-      msta2 = nn + 10
-   end function msta2
+      bessel_recurrence_start_for_order = nn + 10
+   end function bessel_recurrence_start_for_order
 
-   pure real(8) function envj(n, x)
+   pure real(8) function bessel_order_envelope(n, x)
       implicit none
       integer, intent(in) :: n
       real(8), intent(in) :: x
       integer :: order
       order = max(1, abs(n))
-      envj = 0.5d0 * dlog10(6.28d0 * order) - order * dlog10(1.36d0 * x / order)
-   end function envj
+      bessel_order_envelope = 0.5d0 * dlog10(6.28d0 * order) - order * dlog10(1.36d0 * x / order)
+   end function bessel_order_envelope
 end module bessel_functions
