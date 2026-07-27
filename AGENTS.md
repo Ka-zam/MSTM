@@ -18,6 +18,8 @@ Build MPI mode with `-DMSTM_ENABLE_MPI=ON -DCMAKE_Fortran_COMPILER=mpifort`. Run
 
 For a diagnostic build, add `-DMSTM_ENABLE_RUNTIME_CHECKS=ON`. Warnings are enabled by default; CI also sets `-DMSTM_WARNINGS_AS_ERRORS=ON`.
 
+Generate a line, function, and branch coverage report with `cmake -S . -B build/coverage -DMSTM_ENABLE_COVERAGE=ON`, followed by `cmake --build build/coverage --target coverage`. The report is written to `build/coverage/coverage/coverage.txt` and uploaded by CI.
+
 ## Coding Style & Naming Conventions
 
 Use free-form, standard-conforming Fortran 2023 in `.f90` files. Use descriptive lowercase `snake_case` names for project code; reserve single letters for mathematical indices and short loops. Keep canonical GPFA and MINPACK routine names for provenance. Use three-space indentation and `implicit none` in every program unit. Run `fprettify --config-file .fprettify.rc --silent src/*.f90` before review. Clang-format does not support Fortran, and `.clang-format-ignore` protects these sources from its C++ parser. Prefer generic standard intrinsics (`abs`, `conjg`, `cmplx`) and Fortran 2023 degree intrinsics when inputs are degrees. Do not add compiler extensions or restore `-fallow-argument-mismatch`.

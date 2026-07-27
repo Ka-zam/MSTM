@@ -55,3 +55,24 @@ jobs:
           OMPI_ALLOW_RUN_AS_ROOT: "1"
           OMPI_ALLOW_RUN_AS_ROOT_CONFIRM: "1"
         run: ctest --test-dir build/mpi --output-on-failure
+
+  coverage:
+    runs-on: ubuntu-latest
+    container: gcc:15.2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install CMake and Ninja
+        run: apt-get update && apt-get install --yes cmake ninja-build
+      - name: Configure
+        run: >-
+          cmake -S . -B build/coverage -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DMSTM_ENABLE_COVERAGE=ON
+          -DMSTM_WARNINGS_AS_ERRORS=ON
+      - name: Generate coverage report
+        run: cmake --build build/coverage --target coverage
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: fortran-coverage
+          path: build/coverage/coverage/coverage.txt

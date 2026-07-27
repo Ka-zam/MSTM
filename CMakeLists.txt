@@ -16,6 +16,7 @@ option(MSTM_ENABLE_MPI "Build the distributed-memory MPI implementation" OFF)
 option(MSTM_ENABLE_WARNINGS "Enable GNU Fortran diagnostics" ON)
 option(MSTM_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(MSTM_ENABLE_RUNTIME_CHECKS "Enable GNU Fortran runtime checks" OFF)
+option(MSTM_ENABLE_COVERAGE "Instrument GNU Fortran targets for gcov coverage" OFF)
 
 if(NOT CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
   message(FATAL_ERROR "MSTM currently requires GNU Fortran 15.2 or newer")
@@ -54,6 +55,15 @@ if(MSTM_ENABLE_RUNTIME_CHECKS)
     -finit-integer=-2147483647
     -finit-real=snan
   )
+endif()
+if(MSTM_ENABLE_COVERAGE)
+  find_program(GCOV_EXECUTABLE NAMES gcov REQUIRED)
+  target_compile_options(mstm_fortran_options INTERFACE
+    --coverage
+    -O0
+    -fprofile-abs-path
+  )
+  target_link_options(mstm_fortran_options INTERFACE --coverage)
 endif()
 
 function(mstm_apply_fortran_options target_name)
@@ -422,6 +432,31 @@ if(BUILD_TESTING)
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunSmokeTest.cmake"
     )
   endif()
+endif()
+
+if(MSTM_ENABLE_COVERAGE)
+  if(NOT BUILD_TESTING)
+    message(FATAL_ERROR "MSTM_ENABLE_COVERAGE requires BUILD_TESTING=ON")
+  endif()
+  add_custom_target(coverage
+    COMMAND "${CMAKE_CTEST_COMMAND}" --output-on-failure
+    COMMAND "${CMAKE_COMMAND}"
+      "-DMSTM_BUILD_DIRECTORY=${CMAKE_CURRENT_BINARY_DIR}"
+      "-DMSTM_SOURCE_DIRECTORY=${CMAKE_CURRENT_SOURCE_DIR}"
+      "-DMSTM_GCOV_EXECUTABLE=${GCOV_EXECUTABLE}"
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/GenerateCoverage.cmake"
+    DEPENDS
+      mstm
+      bessel_test
+      concurrent_kernels_test
+      direct_lu_solver_test
+      gpfa_test
+      output_regression_test
+      sphere_cluster_test
+      translation_expansion_test
+    COMMENT "Running tests and generating GNU coverage report"
+    VERBATIM
+  )
 endif()
 
 install(TARGETS mstm RUNTIME DESTINATION bin)
