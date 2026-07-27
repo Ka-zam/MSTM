@@ -14,7 +14,7 @@ cmake --build build/serial -j
 ctest --test-dir build/serial --output-on-failure
 ```
 
-Build MPI mode with `-DMSTM_ENABLE_MPI=ON -DCMAKE_Fortran_COMPILER=mpifort`. Run a case as `build/serial/mstm examples/mstm-2022b-fig1.inp`; paths written by the solver are relative to the working directory.
+Build MPI mode with `-DMSTM_ENABLE_MPI=ON -DCMAKE_Fortran_COMPILER=mpifort`. To enable serial/2-/4-rank equivalence tests, also pass `-DMSTM_SERIAL_REFERENCE_EXECUTABLE="$PWD/build/serial/mstm"`. Run a case as `build/serial/mstm examples/mstm-2022b-fig1.inp`; paths written by the solver are relative to the working directory.
 
 For a diagnostic build, add `-DMSTM_ENABLE_RUNTIME_CHECKS=ON`. Warnings are enabled by default; CI also sets `-DMSTM_WARNINGS_AS_ERRORS=ON`.
 
@@ -28,7 +28,7 @@ Define shared mathematical constants only in `src/constants.f90`; runtime coeffi
 
 ## Testing Guidelines
 
-CTest covers Bessel, GPFA, concurrent-kernel, nested-sphere translation, command-line help and version output, the Figure 1 near-field case, and the December 2023 effective-medium case. Every change must pass all configured serial tests; changes to MPI or shared numerical code must also pass an MPI-enabled build. For numerical changes, compare output against a known-good run and document tolerances, compiler flags, and MPI rank count. Add focused tests when existing cases do not cover the behavior.
+CTest covers analytical Mie identities, Bessel and GPFA kernels, concurrent kernels, translation and solver invariants, repeated state transitions, CLI behavior, averaging modes, nested spheres, plane surfaces, periodic lattices, near fields, and the December 2023 effective-medium case. MPI validation includes direct comparisons of an actual serial executable with two- and four-rank results. Every change must pass all configured serial tests; changes to MPI or shared numerical code must also pass an MPI-enabled build. For numerical changes, compare output against a known-good run and document tolerances, compiler flags, and MPI rank count. Add focused tests when existing cases do not cover the behavior.
 
 ## Commit & Pull Request Guidelines
 
