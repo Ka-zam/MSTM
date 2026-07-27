@@ -2,6 +2,14 @@ cmake_minimum_required(VERSION 3.24)
 
 project(MSTM VERSION 4.0.0 LANGUAGES Fortran)
 
+set(mstm_generated_directory "${CMAKE_CURRENT_BINARY_DIR}/generated")
+file(MAKE_DIRECTORY "${mstm_generated_directory}")
+configure_file(
+  cmake/mstm_version.f90.in
+  "${mstm_generated_directory}/mstm_version.f90"
+  @ONLY
+)
+
 option(MSTM_ENABLE_MPI "Build the distributed-memory MPI implementation" OFF)
 
 if(NOT CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
@@ -115,7 +123,13 @@ if(MSTM_ENABLE_MPI)
   target_link_libraries(mstm_core PUBLIC MPI::MPI_Fortran)
 endif()
 
-add_executable(mstm src/main.f90)
+add_executable(mstm
+  "${mstm_generated_directory}/mstm_version.f90"
+  src/main.f90
+)
+set_target_properties(mstm PROPERTIES
+  Fortran_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/executable-modules"
+)
 target_compile_options(mstm PRIVATE -std=f2023)
 target_link_libraries(mstm PRIVATE mstm_core)
 
@@ -161,6 +175,12 @@ if(BUILD_TESTING)
   target_compile_options(concurrent_kernels_test PRIVATE -std=f2023)
   target_link_libraries(concurrent_kernels_test PRIVATE mstm_core)
   add_test(NAME concurrent_kernels_unit COMMAND concurrent_kernels_test)
+
+  add_test(NAME cli_help COMMAND $<TARGET_FILE:mstm> help)
+  set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "Usage:")
+
+  add_test(NAME cli_version COMMAND $<TARGET_FILE:mstm> --version)
+  set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "MSTM ${PROJECT_VERSION}")
 
   function(add_mstm_example_test test_name input_name expected_outputs)
     set(test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/${test_name}")

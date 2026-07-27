@@ -1,0 +1,7 @@
+module mstm_version_info
+   implicit none(type, external)
+   private
+
+   character(len=*), parameter, public :: mstm_version = '@PROJECT_VERSION@'
+
+end module mstm_version_info

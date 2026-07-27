@@ -27,6 +27,8 @@ Pass an input file on the command line. With no argument, MSTM reads `mstm.inp` 
 
 ```sh
 build/serial/mstm examples/mstm-2022b-fig1.inp
+build/serial/mstm --help
+build/serial/mstm --version
 ctest --test-dir build/serial --output-on-failure
 mpiexec -n 4 build/mpi/mstm examples/mstm-2022b-fig1.inp
 ```
