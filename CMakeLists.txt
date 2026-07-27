@@ -98,6 +98,7 @@ set(mstm_core_sources
   src/scattering_efficiencies.f90
   src/random_orientation_scattering.f90
   src/near_field.f90
+  src/direct_lu_solver.f90
   src/solver.f90
   src/random_configuration_state.f90
   src/random_configuration_sorting.f90
@@ -182,6 +183,7 @@ if(FPRETTIFY_EXECUTABLE)
       src/main.f90
       tests/bessel_test.f90
       tests/concurrent_kernels_test.f90
+      tests/direct_lu_solver_test.f90
       tests/gpfa_test.f90
       tests/output_regression_test.f90
       tests/translation_expansion_test.f90
@@ -202,6 +204,11 @@ if(BUILD_TESTING)
   mstm_apply_fortran_options(gpfa_test)
   target_link_libraries(gpfa_test PRIVATE mstm_gpfa)
   add_test(NAME gpfa_unit COMMAND gpfa_test)
+
+  add_executable(direct_lu_solver_test tests/direct_lu_solver_test.f90)
+  mstm_apply_fortran_options(direct_lu_solver_test)
+  target_link_libraries(direct_lu_solver_test PRIVATE mstm_core)
+  add_test(NAME direct_lu_solver_unit COMMAND direct_lu_solver_test)
 
   add_executable(translation_expansion_test tests/translation_expansion_test.f90)
   mstm_apply_fortran_options(translation_expansion_test)

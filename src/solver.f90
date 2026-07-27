@@ -9,6 +9,9 @@
 module solver
    use, intrinsic :: iso_fortran_env, only: real64
    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+   use direct_lu_solver, only: direct_lu_solver_t, solver_breakdown, solver_converged, &
+                               solver_iteration_limit, solver_non_finite, solver_singular, &
+                               solver_status_message
    use parallel_runtime, only: mpi_comm_null, mpi_comm_world, mstm_global_rank, parallel_allreduce_sum, &
                                parallel_barrier, parallel_broadcast, parallel_communicator_create, parallel_group, &
                                parallel_group_include, parallel_rank, parallel_reduce_sum, parallel_size, &
@@ -25,76 +28,12 @@ module solver
                                       phase_shift, sphere_interaction, sphere_plane_wave_coefficients
    implicit none
 
-   integer, parameter :: solver_converged = 0
-   integer, parameter :: solver_iteration_limit = 1
-   integer, parameter :: solver_breakdown = 2
-   integer, parameter :: solver_singular = 3
-   integer, parameter :: solver_non_finite = 4
    real(real64) :: direct_matrix_assembly_time = 0.0_real64
    real(real64) :: direct_factorization_time = 0.0_real64
    real(real64) :: direct_condition_estimation_time = 0.0_real64
    real(real64) :: direct_backsolve_time = 0.0_real64
 
-   interface
-      subroutine zgetrf(m, n, a, lda, ipiv, info)
-         import real64
-         integer, intent(in) :: m, n, lda
-         complex(real64), intent(inout) :: a(lda, *)
-         integer, intent(out) :: ipiv(*), info
-      end subroutine zgetrf
-
-      subroutine zgetrs(trans, n, nrhs, a, lda, ipiv, b, ldb, info)
-         import real64
-         character(len=1), intent(in) :: trans
-         integer, intent(in) :: n, nrhs, lda, ldb, ipiv(*)
-         complex(real64), intent(in) :: a(lda, *)
-         complex(real64), intent(inout) :: b(ldb, *)
-         integer, intent(out) :: info
-      end subroutine zgetrs
-
-      function zlange(norm, m, n, a, lda, work) result(matrix_norm)
-         import real64
-         character(len=1), intent(in) :: norm
-         integer, intent(in) :: m, n, lda
-         complex(real64), intent(in) :: a(lda, *)
-         real(real64), intent(out) :: work(*)
-         real(real64) :: matrix_norm
-      end function zlange
-
-      subroutine zgecon(norm, n, a, lda, matrix_norm, reciprocal_condition, work, real_work, info)
-         import real64
-         character(len=1), intent(in) :: norm
-         integer, intent(in) :: n, lda
-         complex(real64), intent(in) :: a(lda, *)
-         real(real64), intent(in) :: matrix_norm
-         real(real64), intent(out) :: reciprocal_condition
-         complex(real64), intent(out) :: work(*)
-         real(real64), intent(out) :: real_work(*)
-         integer, intent(out) :: info
-      end subroutine zgecon
-   end interface
-
 contains
-
-   pure function solver_status_message(status) result(message)
-      integer, intent(in) :: status
-      character(len=48) :: message
-
-      select case (status)
-      case (solver_converged)
-         message = 'converged'
-      case (solver_iteration_limit)
-         message = 'iteration limit reached'
-      case (solver_breakdown)
-         message = 'iterative solver breakdown'
-      case (solver_singular)
-         message = 'singular interaction matrix'
-      case (solver_non_finite)
-         message = 'non-finite solver value'
-      case default
-         write (message, '(a,i0)') 'unknown solver status ', status
-      end select
-   end function solver_status_message
 
    pure real(real64) function relative_residual_norm(residual, right_hand_side)
       complex(real64), intent(in) :: residual(:), right_hand_side(:)
@@ -135,6 +74,7 @@ contains
                                 solution_eps, convergence_eps
       complex(real64) :: amnpkq(number_eqns), pmnpkq(number_eqns), pmnpan(number_eqns)
       complex(real64), allocatable :: pmnp0(:, :, :), amnp0(:)
+      type(direct_lu_solver_t) :: direct_solver
       character(len=4) :: timeunit
       character(len=128) :: tmatrixfile
       character(len=256) :: io_message
@@ -303,7 +243,7 @@ contains
                            return
                         end if
                      else
-                        call solve_direct_system(pmnpan, amnpkq, &
+                        call solve_direct_system(direct_solver, pmnpan, amnpkq, &
                                                  initialize_solver=initialize, solution_error=solnerr, &
                                                  number_iterations=iter, solution_eps=solneps, &
                                                  solution_status=ierr, mpi_comm=pcomm)
@@ -492,6 +432,7 @@ contains
       real(real64), optional, intent(out) :: reciprocal_condition
       complex(real64) :: amnp(number_eqns, 2)
       complex(real64), allocatable :: pmnpan(:), pmnp0(:, :)
+      type(direct_lu_solver_t) :: direct_solver
       character(len=1), optional :: solution_method
       data firstrun/.true./
       if (present(mpi_comm)) then
@@ -620,7 +561,7 @@ contains
                flush (6)
             end if
             if (dirsoln) then
-               call solve_direct_system(pmnpan, amnp(:, p), initialize_solver=initialize, &
+               call solve_direct_system(direct_solver, pmnpan, amnp(:, p), initialize_solver=initialize, &
                                         number_iterations=iter, solution_error=serr, solution_eps=eps, &
                                         solution_status=ierr, mpi_comm=mpicomm, &
                                         reciprocal_condition=direct_condition)
@@ -705,33 +646,28 @@ contains
       deallocate (pmnp0, pmnpan)
    end subroutine solve_fixed_orientation
 
-   subroutine solve_direct_system(pnp, anp, initialize_solver, solution_error, &
+   subroutine solve_direct_system(direct_solver, pnp, anp, initialize_solver, solution_error, &
                                   number_iterations, solution_eps, solution_status, mpi_comm, &
                                   max_refinements, reciprocal_condition)
-      implicit none
+      implicit none(type, external)
+      class(direct_lu_solver_t), intent(inout) :: direct_solver
       logical :: initialize
-      logical, save :: firstrun = .true.
       logical, optional, intent(in) :: initialize_solver
-      integer :: ierr, rank, refinement, refinement_limit, mpicomm, status
+      integer :: rank, refinement, refinement_limit, mpicomm, status
       integer :: integer_buffer(2)
-      integer, allocatable, save :: pivot(:)
       integer, optional, intent(out) :: number_iterations, solution_status
       integer, optional, intent(in) :: mpi_comm, max_refinements
-      real(real64) :: matrix_norm, residual, seps, phase_start
+      real(real64) :: residual, seps, phase_start
       real(real64) :: real_buffer(2)
-      real(real64), save :: direct_reciprocal_condition = 0.0_real64
       real(real64), optional, intent(out) :: solution_error, reciprocal_condition
       real(real64), optional, intent(in) :: solution_eps
-      real(real64), allocatable :: norm_work(:), condition_real_work(:)
       complex(real64), intent(in) :: pnp(number_eqns)
       complex(real64), intent(out) :: anp(number_eqns)
-      complex(real64) :: correction(number_eqns), residual_vector(number_eqns)
-      complex(real64), allocatable :: condition_work(:)
-      complex(real64), allocatable, save :: interaction_matrix(:, :), factored_matrix(:, :)
+      complex(real64), allocatable :: interaction_matrix(:, :)
 
       mpicomm = mpi_comm_world
       if (present(mpi_comm)) mpicomm = mpi_comm
-      initialize = firstrun
+      initialize = .not. direct_solver%is_factorized()
       if (present(initialize_solver)) initialize = initialize_solver
       seps = 1.0e-12_real64
       if (present(solution_eps)) seps = max(solution_eps, 0.0_real64)
@@ -749,102 +685,46 @@ contains
          direct_factorization_time = 0.0_real64
          direct_condition_estimation_time = 0.0_real64
          direct_backsolve_time = 0.0_real64
-         if (allocated(interaction_matrix)) deallocate (interaction_matrix, factored_matrix, pivot)
          allocate (interaction_matrix(number_eqns, number_eqns))
-         allocate (factored_matrix(number_eqns, number_eqns), pivot(number_eqns))
          pl_error_codes = 0
          phase_start = parallel_wall_time()
          call general_interaction_matrix(interaction_matrix, mie_mult=.true., mpi_comm=mpicomm)
          if (rank == 0) direct_matrix_assembly_time = parallel_wall_time() - phase_start
          call parallel_reduce_sum(mpi_rank=0, &
                                   receive_buffer=pl_error_codes, mpi_number=6, mpi_comm=mpicomm)
-         ierr = 0
-         if (rank .eq. 0) then
-            if (any(pl_error_codes .ne. 0)) then
+         if (rank == 0) then
+            if (any(pl_error_codes /= 0)) then
                write (run_print_unit, '('' direct interaction-matrix error codes:'',10i4)') &
                   pl_error_codes, pl_rs_imax
             end if
-            allocate (norm_work(number_eqns), condition_work(2 * number_eqns), &
-                      condition_real_work(2 * number_eqns))
-            phase_start = parallel_wall_time()
-            matrix_norm = zlange('1', number_eqns, number_eqns, interaction_matrix, number_eqns, norm_work)
-            direct_condition_estimation_time = direct_condition_estimation_time + parallel_wall_time() - phase_start
-            factored_matrix = interaction_matrix
-            phase_start = parallel_wall_time()
-            call zgetrf(number_eqns, number_eqns, factored_matrix, number_eqns, pivot, ierr)
-            direct_factorization_time = parallel_wall_time() - phase_start
-            if (ierr > 0) then
-               status = solver_singular
-            elseif (ierr < 0) then
-               status = solver_breakdown
-            else
-               phase_start = parallel_wall_time()
-               call zgecon('1', number_eqns, factored_matrix, number_eqns, matrix_norm, &
-                           direct_reciprocal_condition, condition_work, condition_real_work, ierr)
-               direct_condition_estimation_time = direct_condition_estimation_time + &
-                                                  parallel_wall_time() - phase_start
-               if (ierr /= 0) then
-                  status = solver_breakdown
-               elseif (.not. ieee_is_finite(direct_reciprocal_condition) .or. &
-                       direct_reciprocal_condition <= tiny(1.0_real64)) then
-                  status = solver_singular
-               end if
-            end if
-            deallocate (norm_work, condition_work, condition_real_work)
+            call direct_solver%factor(interaction_matrix, status)
+            direct_factorization_time = direct_solver%factorization_time()
+            direct_condition_estimation_time = direct_solver%condition_estimation_time()
          end if
+         deallocate (interaction_matrix)
          integer_buffer(1) = status
          call parallel_broadcast(send_buffer=integer_buffer(1:1), mpi_number=1, mpi_rank=0, mpi_comm=mpicomm)
          status = integer_buffer(1)
-         firstrun = .false.
       end if
 
-      if (status == solver_converged .and. rank .eq. 0) then
-         anp = pnp
-         phase_start = parallel_wall_time()
-         call zgetrs('N', number_eqns, 1, factored_matrix, number_eqns, pivot, anp, number_eqns, ierr)
-         direct_backsolve_time = direct_backsolve_time + parallel_wall_time() - phase_start
-         if (ierr /= 0) status = solver_breakdown
-         if (status == solver_converged) then
-            residual_vector = pnp - matmul(interaction_matrix, anp)
-            residual = relative_residual_norm(residual_vector, pnp)
-         end if
-         do while (status == solver_converged .and. residual > seps .and. refinement < refinement_limit)
-            correction = residual_vector
-            phase_start = parallel_wall_time()
-            call zgetrs('N', number_eqns, 1, factored_matrix, number_eqns, pivot, correction, number_eqns, ierr)
-            direct_backsolve_time = direct_backsolve_time + parallel_wall_time() - phase_start
-            if (ierr /= 0) then
-               status = solver_breakdown
-               exit
-            end if
-            anp = anp + correction
-            refinement = refinement + 1
-            residual_vector = pnp - matmul(interaction_matrix, anp)
-            residual = relative_residual_norm(residual_vector, pnp)
-         end do
-         if (status == solver_converged) then
-            if (.not. ieee_is_finite(residual) .or. .not. complex_vector_is_finite(anp)) then
-               status = solver_non_finite
-            elseif (residual > seps) then
-               status = solver_iteration_limit
-            end if
-         end if
+      if (status == solver_converged .and. rank == 0) then
+         call direct_solver%solve(pnp, anp, seps, refinement_limit, refinement, residual, status)
+         direct_backsolve_time = direct_solver%backsolve_time()
       end if
 
       integer_buffer = [status, refinement]
-      real_buffer = [residual, direct_reciprocal_condition]
+      real_buffer = [residual, direct_solver%condition_estimate()]
       call parallel_broadcast(send_buffer=integer_buffer, mpi_number=2, mpi_rank=0, mpi_comm=mpicomm)
       call parallel_broadcast(send_buffer=real_buffer, mpi_number=2, mpi_rank=0, mpi_comm=mpicomm)
       call parallel_broadcast(send_buffer=anp, mpi_number=number_eqns, mpi_rank=0, mpi_comm=mpicomm)
       status = integer_buffer(1)
       refinement = integer_buffer(2)
       residual = real_buffer(1)
-      direct_reciprocal_condition = real_buffer(2)
 
       if (present(solution_status)) solution_status = status
       if (present(solution_error)) solution_error = residual
       if (present(number_iterations)) number_iterations = refinement
-      if (present(reciprocal_condition)) reciprocal_condition = direct_reciprocal_condition
+      if (present(reciprocal_condition)) reciprocal_condition = real_buffer(2)
    end subroutine solve_direct_system
 !
 ! iteration solver
