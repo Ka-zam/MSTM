@@ -1522,7 +1522,7 @@ contains
 
       return
    end subroutine qrsolv
-   real(8) function enorm(n, x)
+   pure real(8) function enorm(n, x)
 
 !*****************************************************************************80
 !
@@ -1565,8 +1565,8 @@ contains
 
       integer, parameter :: rk = kind(1.0D+00)
 
-      integer n
-      real(kind=rk) x(n)
+      integer, intent(in) :: n
+      real(kind=rk), intent(in) :: x(n)
 !  real ( kind = rk ) enorm
 
       enorm = sqrt(sum(x(1:n)**2))

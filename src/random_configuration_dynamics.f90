@@ -363,11 +363,12 @@ contains
       if (present(collision_pos)) collision_pos = collisionpos
    end subroutine trajectorytest
 
-   subroutine paircollisiontest(pos1, u1, pos2, u2, rcol, collision, tcollision)
+   pure subroutine paircollisiontest(pos1, u1, pos2, u2, rcol, collision, tcollision)
       implicit none
-      real(8) :: pos1(3), u1(3), pos2(3), u2(3), rcol, tcollision, &
-                 urel(3), posrel(3), a, b, c, d
-      logical :: collision
+      real(8), intent(in) :: pos1(3), u1(3), pos2(3), u2(3), rcol
+      logical, intent(out) :: collision
+      real(8), intent(out) :: tcollision
+      real(8) :: urel(3), posrel(3), a, b, c, d
       urel = u2 - u1
       posrel = pos2 - pos1
       b = 2.d0 * dot_product(urel, posrel)
@@ -393,10 +394,11 @@ contains
       collision = .true.
    end subroutine paircollisiontest
 
-   subroutine collisiontrajectory(mass1, pos1, u1, mass2, pos2, u2, u1new, u2new)
+   pure subroutine collisiontrajectory(mass1, pos1, u1, mass2, pos2, u2, u1new, u2new)
       implicit none
-      real(8) :: mass1, pos1(3), u1(3), mass2, pos2(3), u2(3), u1new(3), u2new(3), &
-                 posrel(3), rc, cosb, sinb, alpha, cosa, sina, rotmat(3, 3), u1p(3), u2p(3), &
+      real(8), intent(in) :: mass1, pos1(3), u1(3), mass2, pos2(3), u2(3)
+      real(8), intent(out) :: u1new(3), u2new(3)
+      real(8) :: posrel(3), rc, cosb, sinb, alpha, cosa, sina, rotmat(3, 3), u1p(3), u2p(3), &
                  u1pn(3), u2pn(3)
       posrel = pos2 - pos1
       rc = sqrt(dot_product(posrel, posrel))

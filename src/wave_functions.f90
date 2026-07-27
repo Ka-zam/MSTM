@@ -195,30 +195,28 @@ contains
 ! inverse of a 2 X 2 complex matrix.
 ! March 2013
 !
-   subroutine twobytwoinverse(mat, imat)
+   pure subroutine twobytwoinverse(mat, imat)
       implicit none
-      integer :: s, t, ss, st
-      complex(8) :: mat(2, 2), imat(2, 2), tmat(2, 2), det
+      complex(8), intent(in) :: mat(2, 2)
+      complex(8), intent(out) :: imat(2, 2)
+      integer :: s, t
+      complex(8) :: tmat(2, 2), det
       tmat = mat
       det = mat(1, 1) * mat(2, 2) - mat(2, 1) * mat(1, 2)
-      do s = 1, 2
-         ss = (-1)**s
-         do t = 1, 2
-            st = (-1)**t
-            imat(s, t) = ss * st * tmat(3 - t, 3 - s) / det
-         end do
+      do concurrent (s = 1:2, t = 1:2)
+         imat(s, t) = (-1)**(s + t) * tmat(3 - t, 3 - s) / det
       end do
    end subroutine twobytwoinverse
 !
 ! move between unequal size matrices.
 ! March 2013
 !
-   subroutine mtransfer(nin, nout, cin, cout)
+   pure subroutine mtransfer(nin, nout, cin, cout)
       implicit none
-      integer :: nin, nout, nmin
-      complex(8) :: cin(0:nin + 1, nin, 2), cout(0:nout + 1, nout, 2), &
-                    ct(0:max(nin, nout) + 1, max(nin, nout), 2)
-      nmin = min(nin, nout)
+      integer, intent(in) :: nin, nout
+      complex(8), intent(in) :: cin(0:nin + 1, nin, 2)
+      complex(8), intent(out) :: cout(0:nout + 1, nout, 2)
+      complex(8) :: ct(0:max(nin, nout) + 1, max(nin, nout), 2)
       ct = 0.d0
       ct(0:nin + 1, 1:nin, 1:2) = cin(0:nin + 1, 1:nin, 1:2)
       cout = 0.d0
@@ -246,11 +244,13 @@ contains
       end if
    end subroutine lr_mode_transformation
 
-   subroutine degree_transformation(nodr, ain, aout)
+   pure subroutine degree_transformation(nodr, ain, aout)
       implicit none
-      integer :: nodr, m, n, p, mnp, mnp2, im, m1
-      complex(8) :: ain(2 * nodr * (nodr + 2)), aout(2 * nodr * (nodr + 2))
-      do m = -nodr, nodr
+      integer, intent(in) :: nodr
+      complex(8), intent(in) :: ain(2 * nodr * (nodr + 2))
+      complex(8), intent(out) :: aout(2 * nodr * (nodr + 2))
+      integer :: m, n, p, mnp, mnp2, im, m1
+      do concurrent (m = -nodr:nodr) local(m1, im, mnp, mnp2)
          m1 = max(abs(m), 1)
          im = (-1)**m
          do n = m1, nodr

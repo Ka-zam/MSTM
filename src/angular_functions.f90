@@ -1005,15 +1005,16 @@ contains
 !  last revised: 15 January 2011
 !
 
-   integer function atcadd(m, n, ntot)
+   pure integer function atcadd(m, n, ntot)
       implicit none
-      integer :: m, n, ntot
+      integer, intent(in) :: m, n, ntot
       atcadd = n - ntot + (max(1, m) * (1 + 2 * ntot - max(1, m))) / 2 + ntot * min(1, m)
    end function atcadd
 
-   integer function atcdim(ntot, ltot)
+   pure integer function atcdim(ntot, ltot)
       implicit none
-      integer :: ntot, ltot, nmin, nmax
+      integer, intent(in) :: ntot, ltot
+      integer :: nmin, nmax
       nmin = min(ntot, ltot)
       nmax = max(ntot, ltot)
       atcdim = 2 * (nmin * (1 - nmin * nmin + 3 * nmax * (2 + nmin))) / 3
@@ -1021,9 +1022,9 @@ contains
 !
 ! the offset (integer) for the ntot X ltot translation matrix for degree m
 !
-   integer function moffset(m, ntot, ltot)
+   pure integer function moffset(m, ntot, ltot)
       implicit none
-      integer :: m, ntot, ltot
+      integer, intent(in) :: m, ntot, ltot
       if (m .eq. 0) then
          moffset = 0
       elseif (m .lt. 0) then
@@ -1041,10 +1042,11 @@ contains
 !
 !  last revised: 15 January 2011
 !
-   subroutine cartosphere(xp, r, ct, ep)
+   pure subroutine cartosphere(xp, r, ct, ep)
       implicit none
-      real(8) :: xp(3), r, ct
-      complex(8) :: ep
+      real(8), intent(in) :: xp(3)
+      real(8), intent(out) :: r, ct
+      complex(8), intent(out) :: ep
       r = xp(1) * xp(1) + xp(2) * xp(2) + xp(3) * xp(3)
       if (r .eq. 0.d0) then
          ct = 1.d0
@@ -1061,11 +1063,14 @@ contains
       return
    end subroutine cartosphere
 
-   subroutine cartospherevec(nt, xp, xps)
+   pure subroutine cartospherevec(nt, xp, xps)
       implicit none
-      integer :: nt, i
-      real(8) :: xp(3, nt), xps(3, nt), r, ct, phi
-      do i = 1, nt
+      integer, intent(in) :: nt
+      real(8), intent(in) :: xp(3, nt)
+      real(8), intent(out) :: xps(3, nt)
+      integer :: i
+      real(8) :: r, ct, phi
+      do concurrent (i = 1:nt) local(r, ct, phi)
          r = xp(1, i) * xp(1, i) + xp(2, i) * xp(2, i) + xp(3, i) * xp(3, i)
          if (r .eq. 0.d0) then
             ct = 1.d0

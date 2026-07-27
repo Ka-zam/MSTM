@@ -134,8 +134,8 @@ contains
       !  internal function
       !  compare two real number and return the result
 
-      logical function hslt(a, b)
-         REAL(8) :: a, b
+      pure logical function hslt(a, b)
+         REAL(8), intent(in) :: a, b
          IF (abs(a - b) < eps) then
             hslt = .false.
          ELSE

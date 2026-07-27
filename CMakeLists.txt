@@ -132,6 +132,7 @@ if(FPRETTIFY_EXECUTABLE)
       ${mstm_core_sources}
       src/main.f90
       tests/bessel_test.f90
+      tests/concurrent_kernels_test.f90
       tests/gpfa_test.f90
       tests/translation_expansion_test.f90
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -156,6 +157,11 @@ if(BUILD_TESTING)
   target_compile_options(translation_expansion_test PRIVATE -std=f2023)
   target_link_libraries(translation_expansion_test PRIVATE mstm_core)
   add_test(NAME translation_expansion_unit COMMAND translation_expansion_test)
+
+  add_executable(concurrent_kernels_test tests/concurrent_kernels_test.f90)
+  target_compile_options(concurrent_kernels_test PRIVATE -std=f2023)
+  target_link_libraries(concurrent_kernels_test PRIVATE mstm_core)
+  add_test(NAME concurrent_kernels_unit COMMAND concurrent_kernels_test)
 
   function(add_mstm_example_test test_name input_name expected_outputs)
     set(test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/${test_name}")

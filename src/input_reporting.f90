@@ -630,8 +630,9 @@ contains
 
    end subroutine print_calculation_results
 
-   function scaled_scat_mat(s)
-      real(8) :: scaled_scat_mat(16), s(16)
+   pure function scaled_scat_mat(s)
+      real(8), intent(in) :: s(16)
+      real(8) :: scaled_scat_mat(16)
       if (s(1) .eq. 0.d0) then
          scaled_scat_mat = 0.d0
       else
@@ -640,10 +641,11 @@ contains
       end if
    end function scaled_scat_mat
 
-   subroutine scat_mat_to_phase_mat(smat, u, up, phi, smatrot)
+   pure subroutine scat_mat_to_phase_mat(smat, u, up, phi, smatrot)
       implicit none
-      real(8) smat(4, 4), u, up, phi, smatrot(4, 4), s, sp, us, ss, csig, &
-         ssig, c2sig, s2sig, mat1(4, 4), mat2(4, 4)
+      real(8), intent(in) :: smat(4, 4), u, up, phi
+      real(8), intent(out) :: smatrot(4, 4)
+      real(8) :: s, sp, us, ss, csig, ssig, c2sig, s2sig, mat1(4, 4), mat2(4, 4)
 
       s = sqrt(1.d0 - u * u)
       sp = sqrt(1.d0 - up * up)

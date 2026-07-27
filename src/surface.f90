@@ -628,17 +628,17 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       end do
    end subroutine energykernel
 
-   real(8) function mnorm(n, m)
+   pure real(8) function mnorm(n, m)
       implicit none
-      integer :: n
-      complex(8) :: m(n)
+      integer, intent(in) :: n
+      complex(8), intent(in) :: m(n)
       mnorm = sqrt(dble(dot_product(m, m)))
    end function mnorm
 
-   integer function layer_id(z)
+   pure integer function layer_id(z)
       implicit none
       integer :: n
-      real(8) :: z
+      real(8), intent(in) :: z
       layer_id = 0
       do n = 1, number_plane_boundaries
          if (z .ge. plane_boundary_position(n)) then

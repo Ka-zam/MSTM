@@ -24,7 +24,7 @@ Define shared mathematical constants only in `src/constants.f90`; runtime coeffi
 
 ## Testing Guidelines
 
-CTest runs focused Bessel, GPFA, and nested-sphere translation unit tests, the Figure 1 near-field case, and the December 2023 effective-medium case. Every change must pass all five in serial mode; changes to MPI or shared numerical code must also pass an MPI-enabled build. For numerical changes, compare output against a known-good run and document tolerances, compiler flags, and MPI rank count. Add focused tests when existing cases do not cover the behavior.
+CTest runs focused Bessel, GPFA, concurrent-kernel, and nested-sphere translation unit tests, the Figure 1 near-field case, and the December 2023 effective-medium case. Every change must pass all six in serial mode; changes to MPI or shared numerical code must also pass an MPI-enabled build. For numerical changes, compare output against a known-good run and document tolerances, compiler flags, and MPI rank count. Add focused tests when existing cases do not cover the behavior.
 
 ## Commit & Pull Request Guidelines
 

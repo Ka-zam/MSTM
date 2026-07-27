@@ -105,11 +105,12 @@ contains
       e0 = dexp(ampintercept) * exp((0.d0, 1.d0) * phaseintercept)
    end subroutine effectiverefractiveindex
 
-   subroutine linearregression(ndat, fdat, xdat, a, b)
+   pure subroutine linearregression(ndat, fdat, xdat, a, b)
       implicit none
-      integer :: ndat
-      real(8) :: fdat(ndat), xdat(ndat), a, b, xbar, x2bar, &
-                 fbar, xfbar
+      integer, intent(in) :: ndat
+      real(8), intent(in) :: fdat(ndat), xdat(ndat)
+      real(8), intent(out) :: a, b
+      real(8) :: xbar, x2bar, fbar, xfbar
       fbar = sum(fdat(1:ndat)) / dble(ndat)
       xbar = sum(xdat(1:ndat)) / dble(ndat)
       xfbar = sum(xdat(1:ndat) * fdat(1:ndat)) / dble(ndat)

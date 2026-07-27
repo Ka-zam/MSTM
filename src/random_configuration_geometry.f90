@@ -9,13 +9,15 @@ module random_configuration_geometry
              sample_position, sort_positions, sort_radii, swap_cell_contents, target_distribution_stats, target_volume
 contains
 
-   subroutine direct_overlap_test(nsphere, radius, position, overlap, distance, pair)
+   pure subroutine direct_overlap_test(nsphere, radius, position, overlap, distance, pair)
       implicit none
-      logical :: overlap
-      integer :: nsphere, i, j
-      integer, optional :: pair(2)
-      real(8) :: radius(nsphere), position(3, nsphere), rij
-      real(8), optional :: distance
+      integer, intent(in) :: nsphere
+      real(8), intent(in) :: radius(nsphere), position(3, nsphere)
+      logical, intent(out) :: overlap
+      real(8), optional, intent(out) :: distance
+      integer, optional, intent(out) :: pair(2)
+      integer :: i, j
+      real(8) :: rij
       overlap = .false.
       do i = 1, nsphere - 1
          do j = i + 1, nsphere
@@ -320,15 +322,15 @@ contains
       radius = -radius
    end subroutine sort_radii
 
-   subroutine circumscribing_sphere(nsphere, radius, position, rcell)
+   pure subroutine circumscribing_sphere(nsphere, radius, position, rcell)
       implicit none
-      integer :: nsphere, i
-      real(8) :: radius(nsphere), position(3, nsphere), ri, rcell, mpos(3)
+      integer, intent(in) :: nsphere
+      real(8), intent(in) :: radius(nsphere), position(3, nsphere)
+      real(8), intent(out) :: rcell
+      integer :: i
       rcell = 0.d0
-      mpos = sum(position(:, :), 2) / dble(nsphere)
-      do i = 1, nsphere
-         ri = sqrt(sum((position(:, i))**2)) + radius(i)
-         rcell = max(rcell, ri)
+      do concurrent (i = 1:nsphere) reduce(max:rcell)
+         rcell = max(rcell, sqrt(sum(position(:, i)**2)) + radius(i))
       end do
    end subroutine circumscribing_sphere
 

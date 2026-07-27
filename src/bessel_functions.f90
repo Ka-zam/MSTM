@@ -9,12 +9,15 @@ contains
 !
 !  last revised: 15 January 2011
 !
-   subroutine cricbessel(n, ds, psi)
+   pure subroutine cricbessel(n, ds, psi)
       implicit none
-      integer :: n, i
-      complex(8) :: ds, psi(0:n), chi(0:n)
+      integer, intent(in) :: n
+      complex(8), intent(in) :: ds
+      complex(8), intent(out) :: psi(0:n)
+      integer :: i
+      complex(8) :: chi(0:n)
       call cspherebessel(n, ds, psi, chi)
-      do i = 0, n
+      do concurrent (i = 0:n)
          psi(i) = psi(i) * ds
       end do
       return
@@ -29,12 +32,14 @@ contains
 !  implies an argument with large imag part, and use of xi = psi + i chi will have
 !  round off problems.   Upwards recurrence is used in this case.
 !
-   subroutine crichankel(n, ds, xi)
+   pure subroutine crichankel(n, ds, xi)
       implicit none
-      integer :: n, i
-      complex(8) :: ds, psi(0:n), chi(0:n), xi(0:n), ci, &
-                    psi0
-      data ci/(0.d0, 1.d0)/
+      integer, intent(in) :: n
+      complex(8), intent(in) :: ds
+      complex(8), intent(out) :: xi(0:n)
+      complex(8), parameter :: ci = (0.d0, 1.d0)
+      integer :: i
+      complex(8) :: psi(0:n), chi(0:n), psi0
       xi(0) = -ci * exp(ci * ds)
       psi0 = sin(ds)
       if (abs(xi(0)) / abs(psi0) .lt. 1.d-6) then
@@ -44,7 +49,7 @@ contains
          end do
       else
          call cspherebessel(n, ds, psi, chi)
-         do i = 1, n
+         do concurrent (i = 1:n)
             xi(i) = (psi(i) + ci * chi(i)) * ds
          end do
       end if
@@ -69,11 +74,14 @@ contains
 !
 !  last revised: 15 January 2011
 !
-   subroutine cspherebessel(n, z, csj, csy)
+   pure subroutine cspherebessel(n, z, csj, csy)
       implicit none
-      integer :: n, nm, k, m
+      integer, intent(in) :: n
+      complex(8), intent(in) :: z
+      complex(8), intent(out) :: csj(0:n), csy(0:n)
+      integer :: nm, k, m
       real(8) :: a0
-      complex(8) :: z, csj(0:n), csy(0:n), csa, csb, cs, cf0, cf1, cf
+      complex(8) :: csa, csb, cs, cf0, cf1, cf
       a0 = abs(z)
       nm = n
       if (a0 .lt. 1.0d-60) then
@@ -104,7 +112,7 @@ contains
          end do
          if (abs(csa) .gt. abs(csb)) cs = csa / cf
          if (abs(csa) .le. abs(csb)) cs = csb / cf0
-         do k = 0, min(nm, n)
+         do concurrent (k = 0:min(nm, n))
             csj(k) = cs * csj(k)
          end do
       end if
@@ -120,10 +128,13 @@ contains
       end do
    end subroutine cspherebessel
 
-   subroutine bessel_integer_complex(n, z, nmax, b)
+   pure subroutine bessel_integer_complex(n, z, nmax, b)
       implicit none
-      integer :: n, nmax
-      complex(8) :: z, b(0:n), cbj(0:n + 1), cdj(0:n + 1), cby(0:n + 1), cdy(0:n + 1)
+      integer, intent(in) :: n
+      complex(8), intent(in) :: z
+      integer, intent(out) :: nmax
+      complex(8), intent(out) :: b(0:n)
+      complex(8) :: cbj(0:n + 1), cdj(0:n + 1), cby(0:n + 1), cdy(0:n + 1)
 
       if (aimag(z) .eq. 0.d0) then
          b = bessel_jn(0, n, real(z, kind=kind(0.d0)))
@@ -136,7 +147,7 @@ contains
       b(0:nmax) = cbj(0:nmax)
    end subroutine bessel_integer_complex
 
-   subroutine cjynb(n, z, nm, cbj, cdj, cby, cdy)
+   pure subroutine cjynb(n, z, nm, cbj, cdj, cby, cdy)
       !*****************************************************************************80
       !
          !! CJYNB: Bessel functions, derivatives, Jn(z) and Yn(z) of complex argument.
@@ -175,30 +186,29 @@ contains
       !    the values of Jn(z), Jn'(z), Yn(z), Yn'(z).
       !
       implicit none
-      integer(kind=4) n
-      real(kind=8), save, dimension(4) :: a = (/ &
+      integer(kind=4), intent(in) :: n
+      complex(kind=8), intent(in) :: z
+      integer(kind=4), intent(out) :: nm
+      complex(kind=8), intent(out) :: cbj(0:n + 1), cby(0:n + 1), cdj(0:n + 1), cdy(0:n + 1)
+      real(kind=8), parameter, dimension(4) :: a = (/ &
                                           -0.7031250000000000D-01, 0.1121520996093750D+00, &
                                           -0.5725014209747314D+00, 0.6074042001273483D+01/)
       real(kind=8) a0
-      real(kind=8), save, dimension(4) :: a1 = (/ &
+      real(kind=8), parameter, dimension(4) :: a1 = (/ &
                                           0.1171875000000000D+00, -0.1441955566406250D+00, &
                                           0.6765925884246826D+00, -0.6883914268109947D+01/)
-      real(kind=8), save, dimension(4) :: b = (/ &
+      real(kind=8), parameter, dimension(4) :: b = (/ &
                                           0.7324218750000000D-01, -0.2271080017089844D+00, &
                                           0.1727727502584457D+01, -0.2438052969955606D+02/)
-      real(kind=8), save, dimension(4) :: b1 = (/ &
+      real(kind=8), parameter, dimension(4) :: b1 = (/ &
                                           -0.1025390625000000D+00, 0.2775764465332031D+00, &
                                           -0.1993531733751297D+01, 0.2724882731126854D+02/)
-      complex(kind=8) cbj(0:n + 1)
       complex(kind=8) cbj0
       complex(kind=8) cbj1
       complex(kind=8) cbjk
       complex(kind=8) cbs
-      complex(kind=8) cby(0:n + 1)
       complex(kind=8) cby0
       complex(kind=8) cby1
-      complex(kind=8) cdj(0:n + 1)
-      complex(kind=8) cdy(0:n + 1)
       complex(kind=8) ce
       complex(kind=8) cf
       complex(kind=8) cf1
@@ -219,10 +229,8 @@ contains
       integer(kind=4) m
 !           integer ( kind = 4 ) msta1
 !           integer ( kind = 4 ) msta2
-      integer(kind=4) nm
       real(kind=8) r2p
       real(kind=8) y0
-      complex(kind=8) z
 
       el = 0.5772156649015329D+00
       r2p = 0.63661977236758D+00
@@ -230,7 +238,7 @@ contains
       a0 = abs(z)
       nm = n
       if (a0 < 1.0D-100) then
-         do k = 0, n
+         do concurrent (k = 0:n)
             cbj(k) = cmplx(0.0D+00, 0.0D+00, kind=8)
             cdj(k) = cmplx(0.0D+00, 0.0D+00, kind=8)
             cby(k) = -cmplx(1.0D+30, 0.0D+00, kind=8)
@@ -278,7 +286,7 @@ contains
          else
             cs0 = (cbs + cf) / cos(z)
          end if
-         do k = 0, nm
+         do concurrent (k = 0:nm)
             cbj(k) = cbj(k) / cs0
          end do
          ce = log(z / 2.0D+00) + el
@@ -321,7 +329,7 @@ contains
          end do
       end if
       cdj(0) = -cbj(1)
-      do k = 1, nm
+      do concurrent (k = 1:nm)
          cdj(k) = cbj(k - 1) - k / z * cbj(k)
       end do
       if (1.0D+00 < abs(cbj(0))) then
@@ -337,16 +345,18 @@ contains
          cby(k) = cyy
       end do
       cdy(0) = -cby(1)
-      do k = 1, nm
+      do concurrent (k = 1:nm)
          cdy(k) = cby(k - 1) - k / z * cby(k)
       end do
       return
    end subroutine cjynb
 
-   integer function msta1(x, mp)
+   pure integer function msta1(x, mp)
       implicit none
-      integer :: mp, n0, n1, it, nn
-      real(8) :: x, a0, f1, f, f0
+      real(8), intent(in) :: x
+      integer, intent(in) :: mp
+      integer :: n0, n1, it, nn
+      real(8) :: a0, f1, f, f0
       a0 = dabs(x)
       n0 = int(1.1 * a0) + 1
       f0 = envj(n0, a0) - mp
@@ -364,10 +374,12 @@ contains
       msta1 = nn
    end function msta1
 
-   integer function msta2(x, n, mp)
+   pure integer function msta2(x, n, mp)
       implicit none
-      integer :: n, mp, n0, n1, it, nn
-      real(8) :: x, a0, hmp, ejn, obj, f0, f1, f
+      real(8), intent(in) :: x
+      integer, intent(in) :: n, mp
+      integer :: n0, n1, it, nn
+      real(8) :: a0, hmp, ejn, obj, f0, f1, f
       a0 = dabs(x)
       hmp = 0.5d0 * dble(mp)
       ejn = envj(n, a0)
@@ -393,11 +405,12 @@ contains
       msta2 = nn + 10
    end function msta2
 
-   real(8) function envj(n, x)
+   pure real(8) function envj(n, x)
       implicit none
-      integer :: n
-      real(8) :: x
-      n = max(1, abs(n))
-      envj = 0.5d0 * dlog10(6.28d0 * n) - n * dlog10(1.36d0 * x / n)
+      integer, intent(in) :: n
+      real(8), intent(in) :: x
+      integer :: order
+      order = max(1, abs(n))
+      envj = 0.5d0 * dlog10(6.28d0 * order) - order * dlog10(1.36d0 * x / order)
    end function envj
 end module bessel_functions

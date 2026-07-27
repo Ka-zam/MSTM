@@ -1029,9 +1029,10 @@ contains
       end if
    end subroutine fftmtx
 
-   logical function checkn235(n)
+   pure logical function checkn235(n)
       implicit none
-      integer :: n, nn, ifac, ll, kk
+      integer, intent(in) :: n
+      integer :: nn, ifac, ll, kk
       nn = n
       ifac = 2
       do ll = 1, 3
@@ -1045,9 +1046,10 @@ contains
       checkn235 = nn .eq. 1
    end function checkn235
 
-   integer function correctn235(n)
+   pure integer function correctn235(n)
       implicit none
-      integer :: n, n1
+      integer, intent(in) :: n
+      integer :: n1
       n1 = n
       do while (.not. checkn235(n1))
          n1 = n1 + 1

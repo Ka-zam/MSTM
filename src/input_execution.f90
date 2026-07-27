@@ -751,7 +751,7 @@ contains
       integer :: rank, numprocs, m, n, p, mnp, griddim(3), ipos(3), ix, iy, iz, &
                  numprocsperconfig, configcolor, configgroup, configcomm, configrank, config0comm, nconfigave, nsend
       real(8) :: time1, timet, diffac, csca(1), xspfit, rpos(3), rtemp(1)
-      real(8), allocatable :: texpcoef(:, :, :)
+      real(8), allocatable :: texpcoef(:, :, :), spherical_position(:, :)
       complex(8) :: ritemp(2), aneff, ctemp(1), rieff, e0
       complex(8), allocatable :: pmnp0(:, :), anp0(:, :), edat(:)
       character(len=256) :: tmatchar1, tmatchar2
@@ -800,6 +800,7 @@ contains
       q_eff_tot_ave = 0.d0
       q_vabs_ave = 0.d0
       sphere_position_ave = 0.d0
+      if (target_shape .eq. 2) allocate (spherical_position(3, number_spheres))
       pl_sca_ave = 0.d0
       boundary_sca_ave = 0.d0
       boundary_ext_ave = 0.d0
@@ -873,9 +874,12 @@ contains
             q_eff_ave = q_eff_ave + q_eff
             q_eff_tot_ave = q_eff_tot_ave + q_eff_tot
             q_vabs_ave = q_vabs_ave + q_vabs
-            if (target_shape .eq. 2) &
-               call cartospherevec(number_spheres, sphere_position, sphere_position)
-            sphere_position_ave = sphere_position_ave + sphere_position
+            if (target_shape .eq. 2) then
+               call cartospherevec(number_spheres, sphere_position, spherical_position)
+               sphere_position_ave = sphere_position_ave + spherical_position
+            else
+               sphere_position_ave = sphere_position_ave + sphere_position
+            end if
             pl_sca_ave = pl_sca_ave + pl_sca
             surface_absorptance_ave = surface_absorptance_ave + surface_absorptance
             if (calculate_up_down_scattering) boundary_sca_ave = boundary_sca_ave + boundary_sca

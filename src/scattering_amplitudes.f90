@@ -172,15 +172,14 @@ contains
       sa(4) = -0.5d0 * sum(pmnp(:, 2) * amnp(:, 1))
    end subroutine common_origin_amplitude_matrix
 
-   subroutine amplitude_to_scattering_matrix(sa, sm)
+   pure subroutine amplitude_to_scattering_matrix(sa, sm)
       implicit none
+      complex(8), intent(in) :: sa(4)
+      real(8), intent(out) :: sm(4, 4)
       integer :: i, j
-      real(8) :: sm(4, 4)
-      complex(8) :: sa(4), sp(4, 4)
-      do i = 1, 4
-         do j = 1, 4
-            sp(i, j) = sa(i) * conjg(sa(j))
-         end do
+      complex(8) :: sp(4, 4)
+      do concurrent (i = 1:4, j = 1:4)
+         sp(i, j) = sa(i) * conjg(sa(j))
       end do
       sm(1, 1) = sp(1, 1) + sp(2, 2) + sp(3, 3) + sp(4, 4)
       sm(1, 2) = -sp(1, 1) + sp(2, 2) - sp(3, 3) + sp(4, 4)
