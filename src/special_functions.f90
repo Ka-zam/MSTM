@@ -3,7 +3,6 @@ module specialfuncs
    use bessel_functions
    use coefficient_indexing
    use quadrature_functions
-   use runtime_support
    use wave_functions
    implicit none
    public

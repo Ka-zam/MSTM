@@ -1,6 +1,5 @@
 module nearfield
    use mpidefs
-   use intrinsics
    use specialfuncs
    use spheredata
    use mie

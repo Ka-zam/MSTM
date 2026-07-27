@@ -1,11 +1,11 @@
 module random_orientation_scattering
    use constants
    use fft_translation
-   use intrinsics
    use mie
    use mpidefs
    use numerical_tables
    use periodic_lattice_subroutines
+   use runtime_support, only: write_elapsed_time
    use specialfuncs
    use spheredata
    use surface_subroutines
@@ -208,7 +208,7 @@ contains
          allocate (dm(-nodr - 1:nodr + 1, 3, nodr, 2, nodr, 2), dmcf(-nodr - 1:nodr + 1, 3, nodr, 2, nodr, 2))
          if (rank0 .eq. 0 .and. nkq) then
             time2 = mstm_mpi_wtime() - time1
-            call timewrite(run_print_unit, ' t matrix read time:', time2)
+            call write_elapsed_time(run_print_unit, ' t matrix read time:', time2)
             time1 = mstm_mpi_wtime()
          end if
          dm = (0.d0, 0.d0)
@@ -393,7 +393,7 @@ contains
                        mpi_number=sizedm, mpi_operation=mstm_mpi_sum, mpi_comm=new_comm)
          if (rank0 .eq. 0 .and. nkq) then
             time2 = mstm_mpi_wtime() - time1
-            call timewrite(run_print_unit, ' d matrix time:', time2)
+            call write_elapsed_time(run_print_unit, ' d matrix time:', time2)
             time1 = mstm_mpi_wtime()
          end if
 !
@@ -583,7 +583,7 @@ contains
 !            enddo
          if (rank0 .eq. 0 .and. nkq) then
             time2 = mstm_mpi_wtime() - time1
-            call timewrite(run_print_unit, ' scat matrix coef time:', time2)
+            call write_elapsed_time(run_print_unit, ' scat matrix coef time:', time2)
          end if
          deallocate (windex, vindex, wvindex, wvnum, dm)
          deallocate (vc)

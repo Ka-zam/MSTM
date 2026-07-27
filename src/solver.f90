@@ -8,7 +8,6 @@
 !
 module solver
    use mpidefs
-   use intrinsics
    use numerical_tables
    use specialfuncs
    use spheredata

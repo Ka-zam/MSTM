@@ -2,8 +2,7 @@ module runtime_support
    implicit none
 contains
 
-   subroutine timewrite(iunit, char1, time, line_break)
-      use intrinsics
+   subroutine write_elapsed_time(iunit, char1, time, line_break)
       implicit none
       integer :: iunit
       real(8) :: time, time2
@@ -37,5 +36,5 @@ contains
          end if
       end if
       if (linebreak) flush (iunit)
-   end subroutine timewrite
+   end subroutine write_elapsed_time
 end module runtime_support

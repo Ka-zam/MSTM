@@ -3,7 +3,6 @@
 
 module input_state
    use specialfuncs
-   use intrinsics
    use mpidefs
    use solver
    use spheredata

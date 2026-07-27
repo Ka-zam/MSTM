@@ -8,7 +8,7 @@ module input_execution
    implicit none
 contains
 
-   subroutine main_calling_program(print_output, set_t_matrix_order, dry_run, mpi_comm)
+   subroutine execute_simulation(print_output, set_t_matrix_order, dry_run, mpi_comm)
       implicit none
       logical :: stopit, singleorigin, iframe, sett, printout, dryrun, averagerun
       logical, optional :: print_output, set_t_matrix_order, dry_run
@@ -664,7 +664,7 @@ contains
          end if
 
          if (periodic_lattice .or. reflection_model) then
-            call surface_absorptance_calculation()
+            call calculate_surface_absorptance()
          end if
 
          if (number_plane_boundaries .gt. 0 .and. .not. periodic_lattice) then
@@ -728,7 +728,7 @@ contains
          if (rank .eq. 0) call print_error_codes(run_print_unit)
       end if
 
-   end subroutine main_calling_program
+   end subroutine execute_simulation
 
    subroutine gather_error_codes(mpicomm)
       implicit none
@@ -749,7 +749,7 @@ contains
       end if
    end subroutine gather_error_codes
 
-   subroutine configuration_average_calling_program()
+   subroutine run_configuration_average()
       implicit none
       logical :: singleorigin, iframe
       integer :: rank, numprocs, m, n, p, mnp, griddim(3), ipos(3), ix, iy, iz, &
@@ -793,7 +793,7 @@ contains
 !singleorigin=.true.
       iframe = singleorigin .and. incident_frame
 
-      call main_calling_program(print_output=.false., set_t_matrix_order=.true., dry_run=.true.)
+      call execute_simulation(print_output=.false., set_t_matrix_order=.true., dry_run=.true.)
 
       if (allocated(q_eff_ave)) deallocate (q_eff_ave, q_eff_tot_ave, q_vabs_ave, sphere_position_ave, boundary_sca_ave, &
                                             boundary_ext_ave, dif_boundary_sca)
@@ -867,10 +867,10 @@ contains
 
          if (rank .eq. 0) time1 = mstm_mpi_wtime()
 
-         call main_calling_program(print_output=.false., set_t_matrix_order=.false., mpi_comm=configcomm)
+         call execute_simulation(print_output=.false., set_t_matrix_order=.false., mpi_comm=configcomm)
 
          if (singleorigin .and. configrank .eq. 0) then
-            call common_origin_csca(t_matrix_order, amnp_0, csca)
+            call common_origin_scattering_cross_section(t_matrix_order, amnp_0, csca)
          end if
 
          if (configrank .eq. 0) then
@@ -908,12 +908,12 @@ contains
          end if
 
          if (singleorigin) then
-!               if(sphere_1_fixed) call subtract_1_from_0()
+!               if(sphere_1_fixed) call subtract_fixed_sphere_from_common_origin()
 !               if(sphere_1_fixed) then
 !                  erase_sphere_1=.true.
 !                  use_previous_configuration=.true.
 !                  sphere_1_fixed=.false.
-!                  call main_calling_program(print_output=.false.,set_t_matrix_order=.false.,mpi_comm=configcomm)
+!                  call execute_simulation(print_output=.false.,set_t_matrix_order=.false.,mpi_comm=configcomm)
 !                  erase_sphere_1=.false.
 !                  use_previous_configuration=.false.
 !                  sphere_1_fixed=.true.
@@ -1078,7 +1078,7 @@ contains
 !               endif
             csca = csca / dble(nconfigave)
             tot_csca = csca(1)
-            call common_origin_csca(t_matrix_order, amnp_0, dif_csca_ratio)
+            call common_origin_scattering_cross_section(t_matrix_order, amnp_0, dif_csca_ratio)
             dif_csca = tot_csca - dif_csca_ratio(1)
             dif_csca_ratio = 1.d0 - dif_csca_ratio / csca
             if (azimuthal_average .and. (.not. numerical_azimuthal_average)) then
@@ -1187,9 +1187,9 @@ contains
          end if
       end do
 
-   end subroutine configuration_average_calling_program
+   end subroutine run_configuration_average
 
-   subroutine random_orientation_configuration_average_calling_program()
+   subroutine run_random_orientation_configuration_average()
       implicit none
       integer :: rank, numprocs, itemp(1), n, &
                  numprocsperconfig, configcolor, configgroup, configcomm, configrank, config0comm, nconfigave, nsend
@@ -1227,7 +1227,7 @@ contains
       random_configuration = .true.
 !singleorigin=.true.
 
-      call main_calling_program(print_output=.false., set_t_matrix_order=.true., dry_run=.true.)
+      call execute_simulation(print_output=.false., set_t_matrix_order=.true., dry_run=.true.)
       call compose_group_filename(tmatchar1, configgroup, tmatchar2, t_matrix_output_file)
 
       if (allocated(q_eff_ave)) deallocate (q_eff_ave, q_eff_tot_ave, q_vabs_ave, sphere_position_ave)
@@ -1267,7 +1267,7 @@ contains
 
          if (rank .eq. 0) time1 = mstm_mpi_wtime()
 
-         call main_calling_program(print_output=.false., set_t_matrix_order=.false., mpi_comm=configcomm)
+         call execute_simulation(print_output=.false., set_t_matrix_order=.false., mpi_comm=configcomm)
 
          if (configrank .eq. 0) then
             if (rank .eq. 0) solution_time = mstm_mpi_wtime() - time1
@@ -1382,9 +1382,9 @@ contains
 !write(*,'(4es12.4)') layer_ref_index(0),sphere_ref_index(1,0)
 !endif
       end do
-   end subroutine random_orientation_configuration_average_calling_program
+   end subroutine run_random_orientation_configuration_average
 
-   subroutine incidence_average_calling_program()
+   subroutine run_incidence_average()
       implicit none
       logical :: singleorigin, prancon, aa, soe, iframe, cuds
       integer :: rank, numprocs, &
@@ -1432,7 +1432,7 @@ contains
       singleorigin = number_plane_boundaries .eq. 0 .and. single_origin_expansion
       incident_beta_specified = .true.
 
-      call main_calling_program(print_output=.false., set_t_matrix_order=.true., dry_run=.true.)
+      call execute_simulation(print_output=.false., set_t_matrix_order=.true., dry_run=.true.)
 
       if (trim(sphere_data_input_file) .eq. 'random_configuration') then
          sphere_data_input_file = 'random_configuration.pos'
@@ -1482,7 +1482,7 @@ contains
 
          if (rank .eq. 0) time1 = mstm_mpi_wtime()
 
-         call main_calling_program(print_output=.false., set_t_matrix_order=.false., mpi_comm=configcomm)
+         call execute_simulation(print_output=.false., set_t_matrix_order=.false., mpi_comm=configcomm)
 
          if (singleorigin) then
             amnp_0_ave = amnp_0_ave + amnp_0
@@ -1638,17 +1638,17 @@ contains
       single_origin_expansion = soe
       incident_frame = iframe
       calculate_up_down_scattering = cuds
-   end subroutine incidence_average_calling_program
+   end subroutine run_incidence_average
 
-   subroutine common_origin_csca(n, a, c)
+   subroutine common_origin_scattering_cross_section(n, a, c)
       implicit none
       integer :: n
       real(8) :: c(1)
       complex(8) :: a(4 * n * (n + 2))
       c(1) = sum(a(:) * conjg(a(:)))
-   end subroutine common_origin_csca
+   end subroutine common_origin_scattering_cross_section
 
-   subroutine subtract_1_from_0()
+   subroutine subtract_fixed_sphere_from_common_origin()
       implicit none
       integer :: i, i1, mnp0, mnp1, n, m, p
       real(8) :: fn
@@ -1677,9 +1677,9 @@ contains
             end do
          end do
       end do
-   end subroutine subtract_1_from_0
+   end subroutine subtract_fixed_sphere_from_common_origin
 
-   subroutine surface_absorptance_calculation()
+   subroutine calculate_surface_absorptance()
       implicit none
       integer :: i
       real(8) :: rsamp, r, asamp
@@ -1698,7 +1698,7 @@ contains
             end if
          end do
       end if
-   end subroutine surface_absorptance_calculation
+   end subroutine calculate_surface_absorptance
 
    subroutine sample_incident_direction(mpi_comm)
       implicit none

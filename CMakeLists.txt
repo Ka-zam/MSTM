@@ -30,7 +30,6 @@ set(mstm_gpfa_sources
 set(mstm_bessel_source src/bessel_functions.f90)
 
 set(mstm_core_sources
-  src/intrinsics.f90
   ${mstm_mpi_source}
   src/numerical_tables.f90
   src/runtime_support.f90

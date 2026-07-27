@@ -1,8 +1,7 @@
-program main
+program mstm
    use inputinterface
    use solver
    use mpidefs
-   use intrinsics
    use specialfuncs
    use spheredata
    implicit none
@@ -18,11 +17,11 @@ program main
 
    do i = 0, numprocs - 1
       if (rank .eq. i) then
-         numargs = mstm_nargs()
+         numargs = command_argument_count()
          if (numargs .eq. 0) then
             inputfile = 'mstm.inp'
          else
-            call mstm_getarg(inputfile)
+            call get_command_argument(1, inputfile)
          end if
          input_file = inputfile
          open (2, file=inputfile)
@@ -84,18 +83,18 @@ program main
          run_number = run_number + 1
          if (configuration_average) then
             if (random_orientation) then
-               call random_orientation_configuration_average_calling_program()
+               call run_random_orientation_configuration_average()
             else
-               call configuration_average_calling_program()
+               call run_configuration_average()
             end if
          elseif (incidence_average) then
-            call incidence_average_calling_program()
+            call run_incidence_average()
          else
-            call main_calling_program()
+            call execute_simulation()
          end if
       else
          looplevel = 1
-         call nested_loop(looplevel, rank)
+         call execute_nested_loop(looplevel, rank)
       end if
       n_nest_loops = 0
    end do
@@ -108,7 +107,7 @@ program main
 
 contains
 
-   recursive subroutine nested_loop(looplevel, rank)
+   recursive subroutine execute_nested_loop(looplevel, rank)
       implicit none
       logical :: continueloop
       integer :: looplevel, varposition, loopindex, rank
@@ -155,17 +154,17 @@ contains
 !               endif
             if (configuration_average) then
                if (random_orientation) then
-                  call random_orientation_configuration_average_calling_program()
+                  call run_random_orientation_configuration_average()
                else
-                  call configuration_average_calling_program()
+                  call run_configuration_average()
                end if
             elseif (incidence_average) then
-               call incidence_average_calling_program()
+               call run_incidence_average()
             else
-               call main_calling_program()
+               call execute_simulation()
             end if
          else
-            call nested_loop(looplevel + 1, rank)
+            call execute_nested_loop(looplevel + 1, rank)
          end if
          if (vartype .eq. 'i') then
             i_loop_var_pointer = i_loop_var_pointer + i_var_step(looplevel)
@@ -180,6 +179,6 @@ contains
 !            if(loopindex.gt.1000) exit
          if (loopdif - maxdif .gt. 1.d-6) continueloop = .false.
       end do
-   end subroutine nested_loop
+   end subroutine execute_nested_loop
 
-end program main
+end program mstm

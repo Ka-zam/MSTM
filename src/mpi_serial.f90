@@ -13,9 +13,8 @@ module mpidefs
 contains
 
    real(8) function mstm_mpi_wtime()
-      use intrinsics
       implicit none
-      mstm_mpi_wtime = mytime()
+      call cpu_time(mstm_mpi_wtime)
    end function mstm_mpi_wtime
 
    subroutine mstm_mpi(mpi_command, mpi_recv_buf_i, mpi_recv_buf_r, mpi_recv_buf_c, mpi_recv_buf_dp, &

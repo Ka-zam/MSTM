@@ -1,7 +1,6 @@
 module scattering_amplitudes
    use constants
    use fft_translation
-   use intrinsics
    use mie
    use mpidefs
    use numerical_tables

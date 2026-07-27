@@ -3,7 +3,6 @@ module fft_translation
    use gpfa_controller, only: cgpfa
    use gpfa_setup, only: setgpfa
    use mpidefs
-   use intrinsics
    use numerical_tables
    use specialfuncs
    use spheredata
