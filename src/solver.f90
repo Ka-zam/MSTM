@@ -148,6 +148,7 @@ contains
                mpi_comm=mpicomm)
          else
             pgroup = 0
+            prank = 0
             pcomm = mpicomm
             pcomm0 = mpicomm
          end if
