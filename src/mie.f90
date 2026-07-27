@@ -153,7 +153,8 @@ contains
 !
    subroutine optically_active_mie_coefficients(x, ri, nodr0, qeps, qext, qsca, qabs, anp_mie, dnp_mie, &
                                                 unp_mie, vnp_mie, cnp_mie, ri_medium, anp_inv_mie, dnp_eff_mie, anp_eff_mie)
-      use special_functions
+      use bessel_functions, only: riccati_bessel, riccati_hankel
+      use wave_functions, only: invert_two_by_two_matrix
       implicit none
       integer :: nstop, n, i, p, q, nodr0, s, t, ss, st
       real(real64) :: x, qeps, qext, qsca, fn1, err, qextt, qabs

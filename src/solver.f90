@@ -11,11 +11,14 @@ module solver
    use parallel_runtime
    use numerical_tables
    use runtime_support, only: open_output_file, runtime_failed, set_runtime_error, synchronize_runtime_status
-   use special_functions
+   use coefficient_indexing, only: polarized_mode_index
    use sphere_data
    use mie
-   use translation, only: general_interaction_matrix
-   use scattering
+   use translation_expansions, only: general_interaction_matrix
+   use random_orientation_scattering, only: random_orientation_scattering_matrix
+   use scattering_efficiencies, only: configuration_efficiency_factors
+   use scattering_interactions, only: distribute_from_common_origin, merge_to_common_origin, &
+                                      phase_shift, sphere_interaction, sphere_plane_wave_coefficients
    implicit none
 
 contains

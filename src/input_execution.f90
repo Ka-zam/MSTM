@@ -1,12 +1,19 @@
 module input_execution
    use, intrinsic :: iso_fortran_env, only: real64
+   use angular_functions, only: cartesian_vectors_to_spherical, estimate_translation_order, &
+                                rotate_expansion_coefficients
    use configuration_data
    use constants
    use effective_medium_analysis
    use input_parser
    use input_reporting
    use runtime_support, only: open_output_file, runtime_failed
+   use random_orientation_scattering, only: evaluate_random_orientation_scattering_matrix
+   use scattering_amplitudes, only: fixed_orientation_scattering_matrix_expansion, periodic_lattice_scattering
+   use scattering_efficiencies, only: boundary_extinction, common_origin_hemispherical_scattering, &
+                                      hemispherical_scattering, total_efficiency_factors
    use scattering_matrix_driver
+   use wave_functions, only: compose_group_filename
    implicit none
 contains
 

@@ -6,11 +6,13 @@ module scattering_interactions
    use parallel_runtime
    use numerical_tables
    use periodic_lattice_operations
-   use special_functions
+   use angular_functions, only: estimate_translation_order, generate_gaussian_beam_coefficients
+   use coefficient_indexing, only: mode_index
    use sphere_data
    use surface
-   use translation, only: external_to_external_expansion, external_to_internal_expansion, &
-                          periodic_lattice_sphere_interaction, sphere_surface_interaction, translation_operator_state
+   use translation_expansions, only: external_to_external_expansion, external_to_internal_expansion
+   use translation_operator, only: translation_operator_state
+   use translation_surface_interactions, only: periodic_lattice_sphere_interaction, sphere_surface_interaction
    implicit none
    private
    public :: distribute_from_common_origin, estimate_sphere_translation_orders, &

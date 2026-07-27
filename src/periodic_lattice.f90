@@ -2,7 +2,12 @@ module periodic_lattice_operations
    use, intrinsic :: iso_fortran_env, only: real64
    use constants
    use numerical_tables
-   use special_functions
+   use angular_functions, only: complex_rotation_coefficients, complex_vector_spherical_harmonics, &
+                                generate_translation_matrix, rotation_coefficients, vector_coupling_coefficients
+   use bessel_functions, only: bessel_integer_complex
+   use coefficient_indexing, only: mode_index, polarized_mode_index
+   use quadrature, only: integrate_gauss_kronrod_adaptive
+   use wave_functions, only: reciprocal_scalar_wave_function, scalar_wave_function
    use surface
    use parallel_runtime
    implicit none

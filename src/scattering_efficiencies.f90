@@ -6,7 +6,9 @@ module scattering_efficiencies
    use parallel_runtime
    use numerical_tables
    use periodic_lattice_operations
-   use special_functions
+   use bessel_functions, only: riccati_bessel, riccati_hankel
+   use quadrature, only: integrate_gauss_kronrod_adaptive
+   use wave_functions, only: left_right_mode_transformation
    use sphere_data
    use surface
    use scattering_amplitudes, only: common_origin_amplitude_matrix, multiple_origin_amplitude_matrix, &

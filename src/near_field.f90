@@ -1,14 +1,14 @@
 module near_field
    use, intrinsic :: iso_fortran_env, only: real32, real64
    use parallel_runtime
-   use special_functions
+   use wave_functions, only: vector_spherical_wave_functions
    use sphere_data
    use mie
    use numerical_tables
    use surface
    use periodic_lattice_operations
-   use scattering
-   use translation, only: translation_operator_state
+   use scattering_interactions, only: layered_gaussian_beam_coefficients
+   use translation_operator, only: translation_operator_state
    implicit none
    type grid_info
       logical :: initialized

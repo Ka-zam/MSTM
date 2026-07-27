@@ -1,6 +1,5 @@
 module sphere_data
    use, intrinsic :: iso_fortran_env, only: real64
-   use special_functions
    use numerical_tables
    use surface
    use periodic_lattice_operations

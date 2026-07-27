@@ -6,7 +6,9 @@ module scattering_amplitudes
    use parallel_runtime
    use numerical_tables
    use periodic_lattice_operations
-   use special_functions
+   use angular_functions, only: azimuthal_phase_factors, rotation_coefficients, &
+                                vector_coupling_coefficients, vector_spherical_harmonics
+   use wave_functions, only: left_right_mode_transformation
    use sphere_data
    use surface
    implicit none

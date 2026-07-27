@@ -83,7 +83,6 @@ set(mstm_core_sources
   src/angular_functions.f90
   src/wave_functions.f90
   src/quadrature.f90
-  src/special_functions.f90
   src/surface.f90
   src/periodic_lattice.f90
   src/sphere_data.f90
@@ -91,13 +90,11 @@ set(mstm_core_sources
   src/translation_operator.f90
   src/translation_surface_interactions.f90
   src/translation_expansions.f90
-  src/translation.f90
   src/fft_translation.f90
   src/scattering_interactions.f90
   src/scattering_amplitudes.f90
   src/scattering_efficiencies.f90
   src/random_orientation_scattering.f90
-  src/scattering.f90
   src/near_field.f90
   src/solver.f90
   src/random_configuration_state.f90
@@ -114,7 +111,6 @@ set(mstm_core_sources
   src/configuration_data.f90
   src/scattering_matrix_driver.f90
   src/input_execution.f90
-  src/input.f90
 )
 
 add_library(mstm_constants STATIC src/constants.f90)

@@ -1,14 +1,18 @@
 program mstm
    use, intrinsic :: iso_fortran_env, only: error_unit, output_unit, real64
-   use input
+   use input_execution, only: execute_simulation, run_configuration_average, run_incidence_average, &
+                              run_random_orientation_configuration_average
+   use input_parser, only: parse_input_data, process_input_variable
+   use input_reporting, only: output_header
+   use input_state, only: append_output_file, c_var_start, c_var_step, c_var_stop, configuration_average, &
+                          first_run, i_var_start, i_var_step, i_var_stop, incidence_average, input_file, &
+                          loop_sphere_number, loop_var_label, loop_var_type, n_nest_loops, output_file, &
+                          random_orientation, r_var_start, r_var_step, r_var_stop, repeat_run, run_number
    use mstm_version_info, only: mstm_version
-   use solver
-   use parallel_runtime
+   use parallel_runtime, only: mstm_mpi
    use runtime_support, only: clear_runtime_status, open_input_file, open_output_file, &
                               report_runtime_error, runtime_failed, set_runtime_error, &
                               synchronize_runtime_status
-   use special_functions
-   use sphere_data
    implicit none
    logical :: input_exists
    integer :: input_unit, looplevel, output_unit_number, rank, numprocs, &

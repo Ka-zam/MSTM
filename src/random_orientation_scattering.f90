@@ -7,7 +7,7 @@ module random_orientation_scattering
    use numerical_tables
    use periodic_lattice_operations
    use runtime_support, only: open_input_file, runtime_failed, synchronize_runtime_status, write_elapsed_time
-   use special_functions
+   use angular_functions, only: rotation_coefficients, vector_coupling_coefficients
    use sphere_data
    use surface
    implicit none

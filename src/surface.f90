@@ -2,7 +2,11 @@ module surface
    use, intrinsic :: iso_fortran_env, only: real64
    use constants
    use numerical_tables
-   use special_functions
+   use angular_functions, only: axial_translation_offset, axial_translation_size, &
+                                complex_vector_spherical_harmonics, generate_plane_wave_coefficients
+   use bessel_functions, only: bessel_integer_complex
+   use coefficient_indexing, only: polarized_mode_index
+   use quadrature, only: integrate_gauss_kronrod_adaptive, sort_unique_real_values
    implicit none
    logical :: source_sum, include_direct_source, &
               pole_integration, plane_surface_present

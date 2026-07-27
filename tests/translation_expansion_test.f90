@@ -2,7 +2,7 @@ program translation_expansion_test
    use iso_fortran_env, only: real64
    use parallel_runtime, only: mstm_mpi
    use numerical_tables, only: initialize_numerical_tables
-   use translation, only: external_to_internal_expansion, nested_sphere_geometry_view
+   use translation_expansions, only: external_to_internal_expansion, nested_sphere_geometry_view
 
    implicit none(type, external)
 

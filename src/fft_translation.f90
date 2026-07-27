@@ -5,10 +5,10 @@ module fft_translation
    use gpfa_setup, only: setgpfa
    use parallel_runtime
    use numerical_tables
-   use special_functions
+   use angular_functions, only: generate_translation_matrix
    use sphere_data
-   use translation, only: clear_stored_translation_matrices, transform_mode_coefficients, &
-                          translation_operator_state
+   use translation_expansions, only: clear_stored_translation_matrices
+   use translation_operator, only: transform_mode_coefficients, translation_operator_state
    use mie
    implicit none
    type node_data

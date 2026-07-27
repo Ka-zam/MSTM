@@ -3,14 +3,12 @@
 
 module input_state
    use, intrinsic :: iso_fortran_env, only: real64
-   use special_functions
    use parallel_runtime
    use solver
    use sphere_data
-   use translation, only: interaction_radius
+   use translation_expansions, only: interaction_radius
    use mie
    use near_field
-   use scattering
    use fft_translation
    use surface
    use periodic_lattice_operations

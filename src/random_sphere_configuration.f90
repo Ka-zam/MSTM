@@ -7,7 +7,7 @@ module random_sphere_configuration
    use random_configuration_sorting
    use random_configuration_state
    use runtime_support, only: open_output_file, runtime_failed
-   use special_functions
+   use angular_functions, only: euler_rotate_cartesian_vectors
    implicit none
    private
    public :: add_sphere_to_cluster, calculate_target_distribution_statistics, calculate_target_volume, &
