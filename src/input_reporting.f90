@@ -4,6 +4,7 @@ module input_reporting
    use constants
    use effective_medium_analysis, only: diffuse_scattering_effective_refractive_index, &
                                         effective_extinction_coefficient_ratio
+   use fft_translation, only: fft_plan, fft_translation_metrics_t
    use input_state
    implicit none
 contains
@@ -27,8 +28,8 @@ contains
 
    subroutine print_run_variables(iunit)
       implicit none
-      integer :: iunit, i, n
-      real(real64) :: cb, r(2), t(2), a(2), tvol, svol
+      integer :: iunit, i, n, fft_cell_dimensions(3), fft_neighbor_count, fft_order
+      real(real64) :: cb, r(2), t(2), a(2), tvol, svol, fft_volume_fraction, fft_cell_size
 
       write (iunit, '(''****************************************************'')')
       write (iunit, '('' input variables for run '',i5)') run_number
@@ -181,11 +182,13 @@ contains
       write (iunit, '('' mean sphere Mie extinction, absorption efficiencies, albedo'')')
       write (iunit, '(3es12.4)') mean_qext_mie, mean_qabs_mie, 1.d0 - mean_qabs_mie / mean_qext_mie
       if (fft_translation_option) then
+         call fft_plan%configuration(fft_cell_dimensions, fft_volume_fraction, fft_cell_size, &
+                                     fft_neighbor_count, fft_order)
          write (iunit, '('' fft translation option implemented'')')
          write (iunit, '('' cell width, cell volume fraction, cell dimension:'')')
-         write (iunit, '(3i8,2es12.4)') cell_dim(1:3), cell_volume_fraction, d_cell
+         write (iunit, '(3i8,2es12.4)') fft_cell_dimensions, fft_volume_fraction, fft_cell_size
          write (iunit, '('' number of neighbor nodes, node order:'')')
-         write (iunit, '(2i5)') number_neighbor_nodes, node_order
+         write (iunit, '(2i5)') fft_neighbor_count, fft_order
       end if
 
       write (iunit, '(''****************************************************'')')
@@ -238,6 +241,7 @@ contains
                       abscoef, absrat, rl(2), al(2), tl(2), tvol, imrieff, qeeff
       character(len=2) :: smlabel(16)
       character(len=256) :: fout, chartemp
+      type(fft_translation_metrics_t) :: fft_metrics
       smvec = (/1, 5, 6, 11, 15, 16/)
       smvec0 = (/1, 5, 9, 13, 2, 6, 10, 14, 3, 7, 11, 15, 4, 8, 12, 16/)
       smlabel = (/'11', '21', '31', '41', '12', '22', '32', '42', '13', '23', '33', '43', '14', '24', '34', '44'/)
@@ -280,13 +284,14 @@ contains
       write (outunit, '('' number iterations, error, solution time '')')
       write (outunit, '(i6,3es12.4)') solution_iterations, solution_error, solution_time
       if (fft_translation_option .and. print_timings) then
+         fft_metrics = fft_plan%performance_metrics()
          write (outunit, '('' FFT interactions, 3-D transforms'')')
-         write (outunit, '(2i12)') fft_interaction_calls, fft_3d_transform_calls
+         write (outunit, '(2i12)') fft_metrics%interaction_calls, fft_metrics%transform_calls
          write (outunit, '('' FFT initialize, sphere-node, node-node, node-sphere, local times'')')
-         write (outunit, '(5es12.4)') fft_initialization_time, fft_sphere_to_node_time, &
-            fft_node_to_node_time, fft_node_to_sphere_time, fft_local_interaction_time
+         write (outunit, '(5es12.4)') fft_metrics%initialization_time, fft_metrics%sphere_to_node_time, &
+            fft_metrics%node_to_node_time, fft_metrics%node_to_sphere_time, fft_metrics%local_interaction_time
          write (outunit, '('' FFT 3-D transform time'')')
-         write (outunit, '(es12.4)') fft_3d_transform_time
+         write (outunit, '(es12.4)') fft_metrics%transform_time
       end if
       if (solution_method(1:1) /= 'i') then
          write (outunit, '('' direct reciprocal condition estimate'')')

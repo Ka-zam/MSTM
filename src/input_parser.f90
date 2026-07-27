@@ -128,7 +128,7 @@ contains
 
       elseif (varlabel .eq. 'neighbor_node_model') then
          vartype = 'i'
-         ivarvalue => neighbor_node_model
+         ivarvalue => input_neighbor_node_model
 
       elseif (varlabel .eq. 'cell_volume_fraction') then
          vartype = 'r'

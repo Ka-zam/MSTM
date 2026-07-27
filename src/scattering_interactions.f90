@@ -1,7 +1,7 @@
 module scattering_interactions
    use, intrinsic :: iso_fortran_env, only: real64
    use constants
-   use fft_translation
+   use fft_translation, only: fft_plan
    use mie
    use parallel_runtime, only: mpi_comm_world, mstm_global_rank, parallel_allreduce_sum, &
                                parallel_allreduce_sum_complex64_sequence, parallel_barrier, parallel_rank, parallel_size
@@ -121,9 +121,9 @@ contains
                flush (6)
             end if
             if (fftopt) then
-               call fft_external_to_external_expansion(neqns, nrhs, ain_t, aout_t, &
-                                                       store_matrix_option=smopt, initial_run=initrun, &
-                                                       rhs_list=rhslist, mpi_comm=mpicomm, con_tran=contran)
+               call fft_plan%apply(neqns, nrhs, ain_t, aout_t, &
+                                   store_matrix_option=smopt, initial_run=initrun, &
+                                   rhs_list=rhslist, mpi_comm=mpicomm, con_tran=contran)
             else
                call external_to_external_expansion(neqns, nrhs, ain_t, aout_t, &
                                                    store_matrix_option=smopt, initial_run=initrun, &

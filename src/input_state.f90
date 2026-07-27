@@ -8,7 +8,6 @@ module input_state
    use translation_expansions, only: interaction_radius
    use mie
    use near_field
-   use fft_translation
    use surface
    use periodic_lattice_operations
    use random_sphere_configuration
@@ -40,7 +39,7 @@ module input_state
                       scattering_map_model, scattering_map_dimension, near_field_calculation_model, &
                       incident_direction, number_configurations, min_fft_nsphere, input_node_order, &
                       number_incident_directions, shifted_sphere, number_excited_spheres, input_number_spheres, &
-                      random_configuration_host_model
+                      random_configuration_host_model, input_neighbor_node_model
    integer, allocatable :: sphere_index(:)
    real(real64) :: r_var_start(5), r_var_stop(5), r_var_step(5), diffuse_scattering_ratio, &
                    coherent_scattering_ratio, hemispherical_sca(2, 2), evan_sca(2), prop_sca(2), &
@@ -123,6 +122,7 @@ module input_state
    data frozen_configuration, reflection_model, random_configuration_number/.false., .false., 1/
    data random_configuration, random_configuration_output_file/.false., 'random_configuration.pos'/
    data min_fft_nsphere, input_fft_translation_option, input_node_order, input_cell_volume_fraction/200, .false., -1, 0.d0/
+   data input_neighbor_node_model/2/
    data d_cell_specified/.false./
    data print_random_configuration, print_timings/.false., .true./
    data input_calculate_up_down_scattering/.true./

@@ -5,6 +5,7 @@ module input_execution
    use configuration_data
    use constants
    use effective_medium_analysis
+   use fft_translation, only: fft_plan
    use input_parser
    use input_reporting
    use parallel_runtime, only: mpi_comm_world, mstm_global_rank, parallel_barrier, parallel_broadcast, &
@@ -332,29 +333,23 @@ contains
       end if
 
       if (fft_translation_option) then
-         cell_volume_fraction = input_cell_volume_fraction
-         if (d_cell_specified) d_cell = input_d_cell
          lochost = 0
          if (random_configuration) then
             tmin = -target_dimensions * length_scale_factor
             tmax = target_dimensions * length_scale_factor
-            if (dryrun) call clear_fft_matrix(clear_h=.true.)
+            if (dryrun) call fft_plan%clear(clear_h=.true.)
             if (target_shape .eq. 2 .and. random_configuration_host) then
                lochost = number_spheres
             end if
          else
             tmin = sphere_min_position
             tmax = sphere_max_position
-            if (.not. averagerun) call clear_fft_matrix(clear_h=.true.)
+            if (.not. averagerun) call fft_plan%clear(clear_h=.true.)
          end if
-         call configure_fft_nodes(cell_volume_fraction, target_min=tmin, target_max=tmax, &
-                                  d_specified=d_cell_specified, local_host=lochost)
-         if (input_node_order .le. 0) then
-            node_order = -input_node_order + ceiling(d_cell)
-         else
-            node_order = input_node_order
-         end if
-!            node_order=max(node_order,max_mie_order)
+         call fft_plan%configure(input_cell_volume_fraction, target_min=tmin, target_max=tmax, &
+                                 d_specified=d_cell_specified, local_host=lochost, &
+                                 requested_cell_size=input_d_cell, requested_node_order=input_node_order, &
+                                 requested_neighbor_model=input_neighbor_node_model)
       end if
 
       sphere_excitation_switch = .true.
@@ -527,7 +522,7 @@ contains
             call set_runtime_error('T-matrix solver failed: '//trim(solver_status_message(istat)), istat)
             return
          end if
-         if (fft_translation_option) call clear_fft_matrix(clear_h=.true.)
+         if (fft_translation_option) call fft_plan%clear(clear_h=.true.)
          if (calculate_scattering_matrix) then
             if (allocated(scat_mat_exp_coef)) deallocate (scat_mat_exp_coef)
             if (allocated(coh_scat_mat_exp_coef)) deallocate (coh_scat_mat_exp_coef)
@@ -586,7 +581,7 @@ contains
             write (run_print_unit, '('' completed, time:'',es12.5,'' s'')') parallel_wall_time() - timet
          end if
          if (fft_translation_option) then
-            call clear_fft_matrix()
+            call fft_plan%clear()
          end if
          if (mstm_global_rank .eq. 0. .and. ((.not. configuration_average) .and. (.not. incidence_average))) then
             write (run_print_unit, '('' solution completed: number iterations='',i5)') solution_iterations
