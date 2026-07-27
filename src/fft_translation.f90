@@ -186,12 +186,12 @@ contains
             p2 = 2
             pcomm = mpicomm
          end if
-!            call node_selection(cell_volume_fraction)
+!            call configure_fft_nodes(cell_volume_fraction)
          if (light_up) then
             write (*, '('' fft1 '',i3)') mstm_global_rank
             flush (6)
          end if
-         call fft_translation_initialization(host_ref_index, node_order, p1, p2)
+         call initialize_fft_translation_matrix(host_ref_index, node_order, p1, p2)
          timedat = 0.d0
       end if
 !  a test to speed up 3/23
@@ -632,7 +632,7 @@ contains
       end if
    end subroutine local_sphere_to_node_translation
 
-   subroutine node_selection(fva, target_min, target_max, d_specified, local_host)
+   subroutine configure_fft_nodes(fva, target_min, target_max, d_specified, local_host)
       implicit none
       logical :: dspec
       logical, optional :: d_specified
@@ -707,7 +707,7 @@ contains
 
       cell_dim = ceiling((targetmax(:) - targetmin(:)) / d_cell)
       do m = 1, 3
-         cell_dim(m) = correctn235(cell_dim(m))
+         cell_dim(m) = next_supported_fft_size(cell_dim(m))
       end do
       d_cell = maxval((targetmax(:) - targetmin(:)) / dble(cell_dim(:)))
 
@@ -803,7 +803,7 @@ contains
          sphere_local_interaction_list(i)%number_elements = n
       end do
 
-   end subroutine node_selection
+   end subroutine configure_fft_nodes
 
    subroutine fft_node_to_node_translation(acoef, tranmat, gcoef, pmode, mpi_comm, tran_op)
       implicit none
@@ -841,7 +841,7 @@ contains
          proc = mod(task, numprocs)
          if (proc .eq. rank) then
             aft = 0.d0
-            call fftmtx(acoef(1:ncells, n, pmode), aft(1:ncells8), 1, cell_dim, celldim2, 1)
+            call transform_3d_fft(acoef(1:ncells, n, pmode), aft(1:ncells8), 1, cell_dim, celldim2, 1)
             if (tranop) then
                do l = 1, nblk
                   gft(1:ncells8, l) = gft(1:ncells8, l) + tranmat(1:ncells8, n, l) * aft(1:ncells8)
@@ -867,7 +867,7 @@ contains
          proc = mod(task, numprocs)
          if (proc .eq. rank) then
             gcoef(1:ncells, n, pmode) = 0.d0
-            call fftmtx(gcoef(1:ncells, n, pmode), gft(1:ncells8, n), 1, cell_dim, celldim2, -1)
+            call transform_3d_fft(gcoef(1:ncells, n, pmode), gft(1:ncells8, n), 1, cell_dim, celldim2, -1)
          end if
       end do
       if (numprocs .gt. 1) then
@@ -879,7 +879,7 @@ contains
       gcoef(1:ncells, 1:nblk, pmode) = gcoef(1:ncells, 1:nblk, pmode) / dble(ncells8)
    end subroutine fft_node_to_node_translation
 
-   subroutine fft_translation_initialization(ri, nodr, p1, p2)
+   subroutine initialize_fft_translation_matrix(ri, nodr, p1, p2)
       implicit none
       logical :: inhole
       integer :: nodr, nx, ny, nz, is, nblk, ncells2(3), isx, isy, isz, nx1, ny1, nz1, &
@@ -946,16 +946,16 @@ contains
          do n = 1, nblk
             do l = 1, nblk
                htemp(:, :, :) = cell_translation_matrix(:, :, :, l, n, p)
-               call fftmtx(htemp, htemp, 1, ncells2, ncells2, 1)
+               call transform_3d_fft(htemp, htemp, 1, ncells2, ncells2, 1)
                cell_translation_matrix(:, :, :, l, n, p) = htemp(:, :, :)
             end do
          end do
       end do
 
-   end subroutine fft_translation_initialization
+   end subroutine initialize_fft_translation_matrix
 
-   subroutine fft1don3d(ain, aout, nblk, ntot1, ntot2, ntot3in, ntot3out, ndimin, &
-                        ndimout, isign, looporder, trig)
+   subroutine apply_fft_axis(ain, aout, nblk, ntot1, ntot2, ntot3in, ntot3out, ndimin, &
+                             ndimout, isign, looporder, trig)
       implicit none
       integer :: nblk, ntot1, ntot2, ntot3in, ntot3out, l, m, n, isign, &
                  looporder(3), &
@@ -991,9 +991,9 @@ contains
             end do
          end do
       end do
-   end subroutine fft1don3d
+   end subroutine apply_fft_axis
 
-   subroutine fftmtx(am, amf, nblk, ntot, ntot2, isign)
+   subroutine transform_3d_fft(am, amf, nblk, ntot, ntot2, isign)
       implicit none
       integer :: nblk, ntot(3), ntot2(3), isign, &
                  ntotxold, ntotyold, ntotzold, &
@@ -1014,23 +1014,23 @@ contains
          call setgpfa(trig(:, 3), ntot2(3))
       end if
       if (isign .eq. 1) then
-         call fft1don3d(am, amf, nblk, ntot(1), ntot(2), ntot(3), ntot2(3), ntot, &
-                        ntot2, 1, (/1, 2, 3/), trig(:, 3))
-         call fft1don3d(amf, amf, nblk, ntot2(3), ntot(1), ntot(2), ntot2(2), ntot2, &
-                        ntot2, 1, (/3, 1, 2/), trig(:, 2))
-         call fft1don3d(amf, amf, nblk, ntot2(3), ntot2(2), ntot(1), ntot2(1), ntot2, &
-                        ntot2, 1, (/3, 2, 1/), trig(:, 1))
+         call apply_fft_axis(am, amf, nblk, ntot(1), ntot(2), ntot(3), ntot2(3), ntot, &
+                             ntot2, 1, (/1, 2, 3/), trig(:, 3))
+         call apply_fft_axis(amf, amf, nblk, ntot2(3), ntot(1), ntot(2), ntot2(2), ntot2, &
+                             ntot2, 1, (/3, 1, 2/), trig(:, 2))
+         call apply_fft_axis(amf, amf, nblk, ntot2(3), ntot2(2), ntot(1), ntot2(1), ntot2, &
+                             ntot2, 1, (/3, 2, 1/), trig(:, 1))
       else
-         call fft1don3d(amf, amf, nblk, ntot2(1), ntot2(2), ntot2(3), ntot(3), ntot2, &
-                        ntot2, -1, (/1, 2, 3/), trig(:, 3))
-         call fft1don3d(amf, amf, nblk, ntot(3), ntot2(1), ntot2(2), ntot(2), ntot2, &
-                        ntot2, -1, (/3, 1, 2/), trig(:, 2))
-         call fft1don3d(amf, am, nblk, ntot(3), ntot(2), ntot2(1), ntot(1), ntot2, &
-                        ntot, -1, (/3, 2, 1/), trig(:, 1))
+         call apply_fft_axis(amf, amf, nblk, ntot2(1), ntot2(2), ntot2(3), ntot(3), ntot2, &
+                             ntot2, -1, (/1, 2, 3/), trig(:, 3))
+         call apply_fft_axis(amf, amf, nblk, ntot(3), ntot2(1), ntot2(2), ntot(2), ntot2, &
+                             ntot2, -1, (/3, 1, 2/), trig(:, 2))
+         call apply_fft_axis(amf, am, nblk, ntot(3), ntot(2), ntot2(1), ntot(1), ntot2, &
+                             ntot, -1, (/3, 2, 1/), trig(:, 1))
       end if
-   end subroutine fftmtx
+   end subroutine transform_3d_fft
 
-   pure logical function checkn235(n)
+   pure logical function is_supported_fft_size(n)
       implicit none
       integer, intent(in) :: n
       integer :: nn, ifac, ll, kk
@@ -1044,18 +1044,18 @@ contains
          end do
          ifac = ifac + ll
       end do
-      checkn235 = nn .eq. 1
-   end function checkn235
+      is_supported_fft_size = nn .eq. 1
+   end function is_supported_fft_size
 
-   pure integer function correctn235(n)
+   pure integer function next_supported_fft_size(n)
       implicit none
       integer, intent(in) :: n
       integer :: n1
       n1 = n
-      do while (.not. checkn235(n1))
+      do while (.not. is_supported_fft_size(n1))
          n1 = n1 + 1
       end do
-      correctn235 = n1
-   end function correctn235
+      next_supported_fft_size = n1
+   end function next_supported_fft_size
 
 end module fft_translation

@@ -107,7 +107,7 @@ contains
                                            (/(1.d0, 0.d0), (1.d0, 0.d0)/), 1, 1, vwf_0, index_model=2)
 
       allocate (gridinfo(griddim(1), griddim(2), griddim(3)))
-      call grid_point_initialize(griddim, gridinfo)
+      call initialize_grid_points(griddim, gridinfo)
 
       if (allocated(internal_field_vector)) then
          l = ubound(internal_field_vector, 1)
@@ -192,25 +192,25 @@ contains
 !endif
                if ((.not. periodic_lattice) .and. fast_near_field) then
 !                  if(host.eq.0.and.(.not.periodic_lattice).and.(number_plane_boundaries.eq.0)) then
-                  call source_field_calculate_fast(rpos, amnp, cellinfo, evec, hvec)
+                  call calculate_source_field_fast(rpos, amnp, cellinfo, evec, hvec)
                else
-                  call source_field_calculate(rpos, amnp, host, layer, evec, hvec)
+                  call calculate_source_field(rpos, amnp, host, layer, evec, hvec)
                end if
 !write(*,*) 'nf 2'
 !flush(6)
                if (host .eq. 0 .and. (number_plane_boundaries .gt. 0 .or. periodic_lattice)) then
-                  call surface_field_calculate(rpos, amnp, cellinfo, evec1, hvec1)
+                  call calculate_surface_field(rpos, amnp, cellinfo, evec1, hvec1)
                   evec(:, :) = evec(:, :) + evec1(:, :)
                   hvec(:, :) = hvec(:, :) + hvec1(:, :)
                end if
 !write(*,*) 'nf 3'
 !flush(6)
                if (incmodel .ne. 2 .and. host .eq. 0) then
-                  call incident_field_calculate(rpos, layer, alpha, sinc, dir, cellinfo, evec1, hvec1)
+                  call calculate_incident_field(rpos, layer, alpha, sinc, dir, cellinfo, evec1, hvec1)
                   evec(:, :) = evec(:, :) + evec1(:, :)
                   hvec(:, :) = hvec(:, :) + hvec1(:, :)
                elseif (incmodel .eq. 2 .and. host .ne. 0) then
-                  call incident_field_calculate(rpos, layer, alpha, sinc, dir, cellinfo, evec1, hvec1)
+                  call calculate_incident_field(rpos, layer, alpha, sinc, dir, cellinfo, evec1, hvec1)
                   evec(:, :) = evec(:, :) - evec1(:, :)
                   hvec(:, :) = hvec(:, :) - hvec1(:, :)
                end if
@@ -268,7 +268,7 @@ contains
 
    end subroutine near_field_calculation
 
-   subroutine source_field_calculate_fast(rpos, sourcevec, cellinfo, evec, hvec)
+   subroutine calculate_source_field_fast(rpos, sourcevec, cellinfo, evec, hvec)
       implicit none
       integer :: nodr, nblk, i, p, j, cellhost, celllayer
       real(8) :: rpos(3), rtran(3)
@@ -280,7 +280,7 @@ contains
       evec = 0.d0
       hvec = 0.d0
       if (.not. associated(cellinfo%reg_source_vector)) then
-         call stored_source_vector_calculate(sourcevec, cellinfo)
+         call calculate_stored_source_vector(sourcevec, cellinfo)
       end if
       cellhost = cellinfo%host
       celllayer = cellinfo%layer
@@ -324,9 +324,9 @@ contains
          end do
          deallocate (vwf)
       end if
-   end subroutine source_field_calculate_fast
+   end subroutine calculate_source_field_fast
 
-   subroutine source_field_calculate(rpos, sourcevec, host, layer, evec, hvec)
+   subroutine calculate_source_field(rpos, sourcevec, host, layer, evec, hvec)
       implicit none
       integer :: layer, host, nodr, nblk, i, p, num, j, np(2), np0(2)
       real(8) :: rpos(3), rtran(3)
@@ -397,9 +397,9 @@ contains
        hvec(:, p) = hvec(:, p) + (matmul(vwf(:, :, 1), svec(:, 1)) - matmul(vwf(:, :, 2), svec(:, 2))) * ri / (0.d0, 1.d0) * pshift0
          end do
       end if
-   end subroutine source_field_calculate
+   end subroutine calculate_source_field
 
-   subroutine surface_field_calculate(rpos, sourcevec, cellinfo, evec, hvec)
+   subroutine calculate_surface_field(rpos, sourcevec, cellinfo, evec, hvec)
       implicit none
       logical :: storecalc
       integer :: layer, nodr, nblk, i, p
@@ -424,7 +424,7 @@ contains
          nblk = nodr * (nodr + 2)
          allocate (vwf(3, nblk, 2))
          if (.not. associated(cellinfo%vector)) then
-            call stored_surface_vector_calculate(nodr, rcell, sourcevec, cellinfo%vector)
+            call calculate_stored_surface_vector(nodr, rcell, sourcevec, cellinfo%vector)
          end if
          rtran(:) = rpos(:) - rcell(:)
          call vector_spherical_wave_functions(rtran, (/ri, ri/), nodr, 1, vwf, index_model=2)
@@ -459,9 +459,9 @@ contains
             end do
          end do
       end if
-   end subroutine surface_field_calculate
+   end subroutine calculate_surface_field
 
-   subroutine incident_field_calculate(rpos, layer, alpha, sinc, dir, cellinfo, evec, hvec)
+   subroutine calculate_incident_field(rpos, layer, alpha, sinc, dir, cellinfo, evec, hvec)
       implicit none
       integer :: p, layer, dir, nodr, nblk
       real(8) :: alpha, sinc, rpos(3), rcell(3), rtran(3)
@@ -507,9 +507,9 @@ contains
             hvec(:, p) = (matmul(vwf_0(:, :, 1), pmnp(:, 1, p)) - matmul(vwf_0(:, :, 2), pmnp(:, 2, p))) * riinc / (0.d0, 1.d0)
          end do
       end if
-   end subroutine incident_field_calculate
+   end subroutine calculate_incident_field
 
-   subroutine stored_surface_vector_calculate(nodr, rc, sourcevec, storedvector)
+   subroutine calculate_stored_surface_vector(nodr, rc, sourcevec, storedvector)
       implicit none
       integer :: nodr, nblk, i, p
       real(8) :: rc(3), rhovec(2)
@@ -543,9 +543,9 @@ contains
          storedvector(1:nblk, 1:2, 1:2) = storedvector(1:nblk, 1:2, 1:2) + vector(1:nblk, 1:2, 1:2)
       end do
       deallocate (vector)
-   end subroutine stored_surface_vector_calculate
+   end subroutine calculate_stored_surface_vector
 
-   subroutine stored_source_vector_calculate(sourcevec, cellinfo)
+   subroutine calculate_stored_source_vector(sourcevec, cellinfo)
       implicit none
       integer :: nodr, nblk, i, p, cellhost, vswf_type
       real(8) :: rc(3), r
@@ -604,9 +604,9 @@ contains
             end if
          end if
       end do
-   end subroutine stored_source_vector_calculate
+   end subroutine calculate_stored_source_vector
 
-   subroutine grid_point_initialize(griddim, gridinfo)
+   subroutine initialize_grid_points(griddim, gridinfo)
       implicit none
       logical :: ingrid
       integer :: depth, i, l, layer, griddim(3), ix, iy, iz, nodr, nbound, zbsign, ncell(3), jy, jx, jlim(2)
@@ -743,7 +743,7 @@ contains
                cellinfo%order = nodr
                cellinfo%host = gridinfo(ix, iy, iz)%host
                cellinfo%layer = gridinfo(ix, iy, iz)%layer
-               call point_at_list_elem(cellinfo, gridinfo(ix, iy, iz)%cellinfo, cell_info_list)
+               call find_or_add_cell_info(cellinfo, gridinfo(ix, iy, iz)%cellinfo, cell_info_list)
                gridinfo(ix, iy, iz)%cellnum = total_cells
 !write(*,'(5i3,10es12.4)') ix,iz,ncell(1),ncell(3),total_cells,rcell(1),rcell(3)
 !flush(6)
@@ -751,7 +751,7 @@ contains
          end do
       end do
 
-   end subroutine grid_point_initialize
+   end subroutine initialize_grid_points
 
    subroutine sphere_to_grid_points(sphere, spos, griddim, gridinfo, ingrid)
       implicit none
@@ -808,14 +808,14 @@ contains
 !                  cellinfo%host=sphere
 !                  cellinfo%order=near_field_expansion_order
 !                  cellinfo%layer=sphere_layer(sphere)
-!                  call point_at_list_elem(cellinfo,gridinfo(ic(1),ic(2),ic(3))%cellinfo,cell_info_list)
+!                  call find_or_add_cell_info(cellinfo,gridinfo(ic(1),ic(2),ic(3))%cellinfo,cell_info_list)
 !                  gridinfo(ic(1),ic(2),ic(3))%cellnum=total_cells
             end do
          end do
       end do
    end subroutine sphere_to_grid_points
 
-   subroutine point_at_list_elem(delem, elem, list)
+   subroutine find_or_add_cell_info(delem, elem, list)
       implicit none
       logical :: inlist
       type(linked_cell_list), pointer :: list, tlist
@@ -861,7 +861,7 @@ contains
          list%cellinfo%order = delem%order
          elem => list%cellinfo
       end if
-   end subroutine point_at_list_elem
+   end subroutine find_or_add_cell_info
 
    subroutine write_output_header(griddim, outputunit, print_intersecting_spheres)
       implicit none

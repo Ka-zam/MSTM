@@ -327,8 +327,8 @@ contains
             tmax = sphere_max_position
             if (.not. averagerun) call clear_fft_matrix(clear_h=.true.)
          end if
-         call node_selection(cell_volume_fraction, target_min=tmin, target_max=tmax, &
-                             d_specified=d_cell_specified, local_host=lochost)
+         call configure_fft_nodes(cell_volume_fraction, target_min=tmin, target_max=tmax, &
+                                  d_specified=d_cell_specified, local_host=lochost)
          if (input_node_order .le. 0) then
             node_order = -input_node_order + ceiling(d_cell)
          else
