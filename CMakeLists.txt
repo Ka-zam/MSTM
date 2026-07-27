@@ -115,6 +115,9 @@ set(mstm_core_sources
   src/configuration_data.f90
   src/scattering_matrix_driver.f90
   src/simulation_execution.f90
+  src/configuration_averaging.f90
+  src/random_orientation_averaging.f90
+  src/incidence_averaging.f90
   src/simulation_averaging.f90
   src/input_execution.f90
 )
