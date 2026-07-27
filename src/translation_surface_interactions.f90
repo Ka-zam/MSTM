@@ -7,7 +7,7 @@ module translation_surface_interactions
    use spheredata, only: host_sphere, number_spheres, one_side_only, recalculate_surface_matrix, &
                          run_print_unit, sphere_block, sphere_layer, sphere_offset, sphere_order, sphere_position, &
                          store_surface_matrix, store_translation_matrix
-   use surface_subroutines, only: layer_ref_index, plane_interaction, plane_surface_present
+   use surface_subroutines, only: layer_ref_index, plane_boundary_interaction, plane_surface_present
    use wave_functions, only: reverse_azimuthal_modes
 
    implicit none(type, external)
@@ -381,11 +381,11 @@ contains
                         call rmat%configure(rmatsymm, rmatdim)
                         loc_rmat => rmat
                      end if
-                     call plane_interaction(sphere_order(i), sphere_order(j), &
-                                            rp(1), rp(2), sphere_position(3, j), sphere_position(3, i), &
-                                            loc_rmat%matrix, &
-                                            index_model=2, lr_transformation=.true., &
-                                            make_symmetric=rmatsymm)
+                     call plane_boundary_interaction(sphere_order(i), sphere_order(j), &
+                                                     rp(1), rp(2), sphere_position(3, j), sphere_position(3, i), &
+                                                     loc_rmat%matrix, &
+                                                     index_model=2, lr_transformation=.true., &
+                                                     make_symmetric=rmatsymm)
                      if (store_surface_matrix .and. rank0 .eq. 0) then
                         time2 = mstm_mpi_wtime()
                         if (time2 - time1 .ge. 15.0_real64) then

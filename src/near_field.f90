@@ -51,8 +51,8 @@ module nearfield
 
 contains
 
-   subroutine near_field_calculation(amnp, alpha, sinc, dir, gridregion, griddim, incident_model, output_unit, &
-                                     e_field_array, h_field_array, e_field_ave_array, output_header, mpi_comm)
+   subroutine compute_near_field(amnp, alpha, sinc, dir, gridregion, griddim, incident_model, output_unit, &
+                                 e_field_array, h_field_array, e_field_ave_array, output_header, mpi_comm)
       implicit none
       logical, optional :: output_header
       integer :: incmodel, i, p, outputunit, nblk, l, griddim(3), ix, iy, iz, &
@@ -136,7 +136,7 @@ contains
       end do
 
       if (present(output_header)) then
-         if (output_header .and. outputunit .ne. 0) call write_output_header(griddim, outputunit)
+         if (output_header .and. outputunit .ne. 0) call write_near_field_output_header(griddim, outputunit)
       end if
       if (local_rank .eq. 0 .and. outputunit .ne. 0) then
          write (run_print_unit, '('' near field calculation'')')
@@ -265,7 +265,7 @@ contains
       end if
       deallocate (gridinfo)
 
-   end subroutine near_field_calculation
+   end subroutine compute_near_field
 
    subroutine calculate_source_field_fast(rpos, sourcevec, cellinfo, evec, hvec)
       implicit none
@@ -448,10 +448,10 @@ contains
                  sphere_position(3, i), rvec, source_vector=sourcevec(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), p), &
                                                           include_source=.false., lr_transformation=.true., index_model=2)
                else
-                  call plane_interaction(1, sphere_order(i), &
-                                         rtran(1), rtran(2), sphere_position(3, i), rpos(3), &
+                  call plane_boundary_interaction(1, sphere_order(i), &
+                                                  rtran(1), rtran(2), sphere_position(3, i), rpos(3), &
                                         rvec, source_vector=sourcevec(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), p), &
-                                         index_model=2, lr_transformation=.true., make_symmetric=.false.)
+                                                  index_model=2, lr_transformation=.true., make_symmetric=.false.)
                end if
                evec(:, p) = evec(:, p) + matmul(vwf_0(:, :, 1), rvec(:, 1)) + matmul(vwf_0(:, :, 2), rvec(:, 2))
              hvec(:, p) = hvec(:, p) + (matmul(vwf_0(:, :, 1), rvec(:, 1)) - matmul(vwf_0(:, :, 2), rvec(:, 2))) * ri / (0.d0, 1.d0)
@@ -531,12 +531,12 @@ contains
                                               source_vector=sourcevec(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), p), &
                                                        include_source=.false., lr_transformation=.true., index_model=2)
             else
-               call plane_interaction(nodr, sphere_order(i), &
-                                      rhovec(1), rhovec(2), sphere_position(3, i), rc(3), &
-                                      vector(:, :, p), &
-                                      source_vector=sourcevec(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), p), &
-                                      index_model=2, lr_transformation=.true., &
-                                      make_symmetric=.false.)
+               call plane_boundary_interaction(nodr, sphere_order(i), &
+                                               rhovec(1), rhovec(2), sphere_position(3, i), rc(3), &
+                                               vector(:, :, p), &
+                                              source_vector=sourcevec(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), p), &
+                                               index_model=2, lr_transformation=.true., &
+                                               make_symmetric=.false.)
             end if
          end do
          storedvector(1:nblk, 1:2, 1:2) = storedvector(1:nblk, 1:2, 1:2) + vector(1:nblk, 1:2, 1:2)
@@ -666,7 +666,7 @@ contains
 
       do iz = 1, griddim(3)
          z = (dble(iz) - 0.5d0) * grid_spacing(3) + grid_region(3, 1)
-         layer = layer_id(z)
+         layer = find_layer_index(z)
          if (plane_surface_present) then
             if (layer .eq. 0) then
                nbound = 1
@@ -862,7 +862,7 @@ contains
       end if
    end subroutine find_or_add_cell_info
 
-   subroutine write_output_header(griddim, outputunit, print_intersecting_spheres)
+   subroutine write_near_field_output_header(griddim, outputunit, print_intersecting_spheres)
       implicit none
       logical :: pis
       logical, optional :: print_intersecting_spheres
@@ -887,8 +887,8 @@ contains
          write (outputunit, '(4es12.4)') slist%position, slist%radius
          if (j .lt. n) slist => slist%next
       end do
-      l1 = layer_id(grid_region(3, 1))
-      l2 = layer_id(grid_region(3, 2))
+      l1 = find_layer_index(grid_region(3, 1))
+      l2 = find_layer_index(grid_region(3, 2))
       write (outputunit, '(i5)') l2 - l1
       do j = l1 + 1, l2
          write (outputunit, '(es12.4)') plane_boundary_position(j)
@@ -896,6 +896,6 @@ contains
       write (outputunit, '(3es12.4)') grid_region(:, 1)
       write (outputunit, '(3es12.4)') grid_region(:, 2)
       write (outputunit, '(3i5)') griddim(:)
-   end subroutine write_output_header
+   end subroutine write_near_field_output_header
 
 end module nearfield

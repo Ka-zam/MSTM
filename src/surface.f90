@@ -343,8 +343,8 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       else
          incdir = .false.
       end if
-      sourcelayer = layer_id(sourcez)
-      targetlayer = layer_id(targetz)
+      sourcelayer = find_layer_index(sourcez)
+      targetlayer = find_layer_index(targetz)
       do n = 0, number_plane_boundaries
          kz(n) = sqrt((layer_ref_index(n) - s) * (layer_ref_index(n) + s)) / layer_ref_index(n)
       end do
@@ -635,23 +635,23 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       mode_vector_norm = sqrt(dble(dot_product(m, m)))
    end function mode_vector_norm
 
-   pure integer function layer_id(z)
+   pure integer function find_layer_index(z)
       implicit none
       integer :: n
       real(8), intent(in) :: z
-      layer_id = 0
+      find_layer_index = 0
       do n = 1, number_plane_boundaries
          if (z .ge. plane_boundary_position(n)) then
-            layer_id = n
+            find_layer_index = n
          else
             return
          end if
       end do
-   end function layer_id
+   end function find_layer_index
 
-   subroutine plane_interaction(ntot, ltot, x, y, sourcez, targetz, &
-                                interactionmatrix, source_vector, &
-                                index_model, lr_transformation, make_symmetric, propagating_directions_only)
+   subroutine plane_boundary_interaction(ntot, ltot, x, y, sourcez, targetz, &
+                                         interactionmatrix, source_vector, &
+                                         index_model, lr_transformation, make_symmetric, propagating_directions_only)
       implicit none
       logical :: lrtran, makesymmetric, propdir
       logical, optional :: lr_transformation, make_symmetric, propagating_directions_only
@@ -729,8 +729,8 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
             rmatdim = 4 * ntot * (ntot + 2) * ltot * (ltot + 2)
          end if
       end if
-      source_layer = layer_id(sourcez)
-      target_layer = layer_id(targetz)
+      source_layer = find_layer_index(sourcez)
+      target_layer = find_layer_index(targetz)
       allocate (real_axis_limits(number_plane_boundaries + 1))
       real_axis_limits(1:number_plane_boundaries + 1) = abs(layer_ref_index(0:number_plane_boundaries))
       call sort_unique_real_values(number_plane_boundaries + 1, real_axis_limits, 1.d-10, number_limits)
@@ -843,7 +843,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
          deallocate (rmat)
       end if
       deallocate (real_axis_limits)
-   end subroutine plane_interaction
+   end subroutine plane_boundary_interaction
 
    subroutine sphere_boundary_scattering(ntot1, rpos1, scoef1, ntot2, rpos2, scoef2, &
                                          targetz, qsca, lr_to_mode)
@@ -885,9 +885,9 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
             source_coefficient_2(:, mn, :) = ctemp(:, :)
          end do
       end do
-      source_layer = layer_id(rpos1(3))
-      source_layer2 = layer_id(rpos2(3))
-      target_layer = layer_id(targetz)
+      source_layer = find_layer_index(rpos1(3))
+      source_layer2 = find_layer_index(rpos2(3))
+      target_layer = find_layer_index(targetz)
       source_order = ntot1
       source_order2 = ntot2
       source_z = rpos1(3)
@@ -1120,7 +1120,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       end if
    end subroutine boundary_energy_transfer
 
-   subroutine incident_field_initialization(alpha, sinc, sdir)
+   subroutine initialize_incident_field(alpha, sinc, sdir)
       implicit none
       integer :: sdir, ssign, p, k, q, klq
       real(8) :: alpha, sinc, targetz, sourcez
@@ -1166,7 +1166,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       end if
       incident_field_scale(:) = maxval(incident_field_scale(1:2))
       incident_field_boundary = sourcez
-   end subroutine incident_field_initialization
+   end subroutine initialize_incident_field
 
    subroutine layer_plane_wave_coefficients(alpha, sinc, sdir, rpos, nodr, pmnp, include_direct)
       implicit none
@@ -1186,7 +1186,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       nblk = 2 * nodr * (nodr + 2)
       ca = cos(alpha)
       sa = sin(alpha)
-      layer = layer_id(rpos(3))
+      layer = find_layer_index(rpos(3))
       if (sdir .eq. 1) then
          riinc = layer_ref_index(0)
          incregion = 0
@@ -1244,8 +1244,8 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       nblk = 2 * nodr * (nodr + 2)
       ca = cos(alpha)
       sa = sin(alpha)
-      slayer = layer_id(rpos(3))
-      tlayer = layer_id(targetz)
+      slayer = find_layer_index(rpos(3))
+      tlayer = find_layer_index(targetz)
       targetri = layer_ref_index(tlayer)
       sourceri = layer_ref_index(slayer)
       sourcez = rpos(3)

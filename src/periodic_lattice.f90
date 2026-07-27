@@ -54,8 +54,8 @@ contains
       else
          imodl = 2
       end if
-      slay = layer_id(zs)
-      tlay = layer_id(zt)
+      slay = find_layer_index(zs)
+      tlay = find_layer_index(zt)
       if (.not. plane_surface_present) then
          if (present(source_vector)) then
             call free_space_lattice_translation_matrix(nodrt, nodrs, (/x0, y0, zt - zs/), &
@@ -372,7 +372,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       np(2) = floor((y0 + cell_width(2) / 2.d0) / cell_width(2))
       x = x0 - cell_width(1) * dble(np(1))
       y = y0 - cell_width(2) * dble(np(2))
-      slay = layer_id(zs)
+      slay = find_layer_index(zs)
       ri = layer_ref_index(slay)
       nodrw = nodrs + nodrt
       nblk = nodrw * (nodrw + 2)
@@ -989,7 +989,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
                     drot(-2:2, 0:nodr * (nodr + 2)), ealpha, ri, c, c2, &
                     kernel(-1:1, 0:nodr * (nodr + 2), tdirs(1):tdirs(2), sdirs(1):sdirs(2))
       if (time_it) time_0 = mstm_mpi_wtime()
-      slay = layer_id(zs)
+      slay = find_layer_index(zs)
       ri = layer_ref_index(slay)
       kr = sqrt(kx * kx + ky * ky)
       if (kr .eq. 0.d0) then
@@ -1042,7 +1042,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       end if
       if (zt .eq. zs) incsrc = .false.
       if (time_it) time_0 = mstm_mpi_wtime()
-      ri = layer_ref_index(layer_id(zs))
+      ri = layer_ref_index(find_layer_index(zs))
       kr = sqrt(kx * kx + ky * ky)
       if (kr .eq. 0.d0) then
          ealpha = 1.d0

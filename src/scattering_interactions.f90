@@ -306,7 +306,7 @@ contains
       else
          incindir = .true.
       end if
-      layer = layer_id(rpos(3))
+      layer = find_layer_index(rpos(3))
       cbinc = dble(sqrt((1.d0 - sinc / riinc) * (1.d0 + sinc / riinc)) * (3 - 2 * sdir))
       pmnp = 0.d0
       rtran = rpos(:) - gaussian_beam_focal_point(:)
@@ -360,11 +360,11 @@ contains
 
          do p = 1, 2
             ptvec = 0.d0
-            call plane_interaction(nodr, nodrgb, &
-                                   rtran(1), rtran(2), zs, rpos(3), &
-                                   ptvec, index_model=2, lr_transformation=.true., &
-                                   make_symmetric=.false., propagating_directions_only=.true., &
-                                   source_vector=pmnp0(:, p))
+            call plane_boundary_interaction(nodr, nodrgb, &
+                                            rtran(1), rtran(2), zs, rpos(3), &
+                                            ptvec, index_model=2, lr_transformation=.true., &
+                                            make_symmetric=.false., propagating_directions_only=.true., &
+                                            source_vector=pmnp0(:, p))
 !               pmnp(:,p)=pmnp(:,p)+0.5d0*matmul(rmat(:,:),pmnp0(:,p))
             pmnp(:, p) = pmnp(:, p) + 0.5d0 * ptvec(:)
          end do

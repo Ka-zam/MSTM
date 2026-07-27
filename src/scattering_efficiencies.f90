@@ -532,7 +532,7 @@ contains
          sourceri = layer_ref_index(number_plane_boundaries)
       end if
       sourcez = incident_field_boundary
-      tlay = layer_id(targetz)
+      tlay = find_layer_index(targetz)
       targetri = layer_ref_index(tlay)
       s = sinc
       call layer_green_function(s, sourcez, targetz, gfs, skz, tkz, include_direct=.true.)

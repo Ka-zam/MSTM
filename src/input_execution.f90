@@ -402,7 +402,7 @@ contains
             qeff_dim = 3
          end if
          alpha = incident_alpha_deg * degrees_to_radians
-         call incident_field_initialization(alpha, incident_sin_beta, incident_direction)
+         call initialize_incident_field(alpha, incident_sin_beta, incident_direction)
          if (calculate_scattering_matrix) then
             if (allocated(scat_mat)) deallocate (scat_mat)
             if (periodic_lattice) then
@@ -709,10 +709,10 @@ contains
                e_field = 0.d0
                h_field = 0.d0
             end if
-            call near_field_calculation(amnp_s, alpha, incident_sin_beta, incident_direction, &
-                                        near_field_plane_vertices, celldim, &
-                                        incident_model=near_field_calculation_model, output_unit=0, &
-                                        e_field_array=e_field, h_field_array=h_field, mpi_comm=mpicomm)
+            call compute_near_field(amnp_s, alpha, incident_sin_beta, incident_direction, &
+                                    near_field_plane_vertices, celldim, &
+                                    incident_model=near_field_calculation_model, output_unit=0, &
+                                    e_field_array=e_field, h_field_array=h_field, mpi_comm=mpicomm)
          else
             if (append_near_field_output_file) then
                open (2, file=near_field_output_file, position='append')
@@ -720,9 +720,9 @@ contains
                open (2, file=near_field_output_file)
             end if
             append_near_field_output_file = .true.
-            call near_field_calculation(amnp_s, alpha, incident_sin_beta, incident_direction, &
-                                        near_field_plane_vertices, celldim, &
-                                        incident_model=near_field_calculation_model, output_unit=2, output_header=.true.)
+            call compute_near_field(amnp_s, alpha, incident_sin_beta, incident_direction, &
+                                    near_field_plane_vertices, celldim, &
+                                    incident_model=near_field_calculation_model, output_unit=2, output_header=.true.)
             close (2)
          end if
          call gather_error_codes(mpicomm)
@@ -1158,7 +1158,7 @@ contains
                h_field = h_field / dble(nconfigave)
                s_field = s_field / dble(nconfigave)
                open (2, file=near_field_output_file)
-               call write_output_header(griddim, 2, print_intersecting_spheres=.false.)
+               call write_near_field_output_header(griddim, 2, print_intersecting_spheres=.false.)
                allocate (edat(griddim(3)))
                edat = 0.d0
                do iz = 1, griddim(3)

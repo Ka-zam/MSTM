@@ -8,7 +8,7 @@ module translation_expansions
    use spheredata, only: host_sphere, number_eqns, number_spheres, sphere_block, sphere_layer, sphere_offset, &
                          sphere_order, sphere_position, sphere_ref_index, store_translation_matrix, &
                          translation_switch_order
-   use surface_subroutines, only: layer_id, plane_interaction, plane_surface_present
+   use surface_subroutines, only: find_layer_index, plane_boundary_interaction, plane_surface_present
    use translation_operator, only: translation_operator_state
 
    implicit none(type, external)
@@ -108,7 +108,7 @@ contains
       task = 0
       do i = 1, number_spheres
          nbi = sphere_order(i) * (sphere_order(i) + 2)
-         ilay = layer_id(sphere_position(3, i))
+         ilay = find_layer_index(sphere_position(3, i))
          do j = 1, number_spheres
             if (host_sphere(i) .ne. host_sphere(j) .and. host_sphere(j) .ne. i .and. host_sphere(i) .ne. j) cycle
             task = task + 1
@@ -116,7 +116,7 @@ contains
             rp = sphere_position(:, i) - sphere_position(:, j)
             rdist = sqrt(sum(rp**2))
             nbj = sphere_order(j) * (sphere_order(j) + 2)
-            jlay = layer_id(sphere_position(3, j))
+            jlay = find_layer_index(sphere_position(3, j))
             allocate (acmat(2 * nbi, 2 * nbj))
             acmat = 0.0_real64
             if (host_sphere(i) .ne. 0 .or. host_sphere(j) .ne. 0) then
@@ -174,10 +174,10 @@ contains
                   end if
                else
                   if (plane_surface_present) then
-                     call plane_interaction(sphere_order(i), sphere_order(j), &
-                                            rp(1), rp(2), sphere_position(3, j), sphere_position(3, i), &
-                                            acmat, index_model=2, lr_transformation=.true., &
-                                            make_symmetric=.false.)
+                     call plane_boundary_interaction(sphere_order(i), sphere_order(j), &
+                                                     rp(1), rp(2), sphere_position(3, j), sphere_position(3, i), &
+                                                     acmat, index_model=2, lr_transformation=.true., &
+                                                     make_symmetric=.false.)
                   end if
                   if (ilay .eq. jlay) then
                      allocate (fsmat(nbi, nbj, 2))
