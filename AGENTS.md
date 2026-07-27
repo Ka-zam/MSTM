@@ -16,6 +16,8 @@ ctest --test-dir build/serial --output-on-failure
 
 Build MPI mode with `-DMSTM_ENABLE_MPI=ON -DCMAKE_Fortran_COMPILER=mpifort`. Run a case as `build/serial/mstm examples/mstm-2022b-fig1.inp`; paths written by the solver are relative to the working directory.
 
+For a diagnostic build, add `-DMSTM_ENABLE_RUNTIME_CHECKS=ON`. Warnings are enabled by default; use `-DMSTM_WARNINGS_AS_ERRORS=ON` when preparing a warning-clean change.
+
 ## Coding Style & Naming Conventions
 
 Use free-form, standard-conforming Fortran 2023 in `.f90` files. Use descriptive lowercase `snake_case` names for project code; reserve single letters for mathematical indices and short loops. Keep canonical GPFA and MINPACK routine names for provenance. Use three-space indentation and `implicit none` in every program unit. Run `fprettify --config-file .fprettify.rc --silent src/*.f90` before review. Clang-format does not support Fortran, and `.clang-format-ignore` protects these sources from its C++ parser. Prefer generic standard intrinsics (`abs`, `conjg`, `cmplx`) and Fortran 2023 degree intrinsics when inputs are degrees. Do not add compiler extensions or restore `-fallow-argument-mismatch`.

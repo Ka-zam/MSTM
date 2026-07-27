@@ -206,6 +206,7 @@ contains
          write (*, '('' s2 '',i3)') mstm_global_rank
          flush (6)
       end if
+      cluster_origin = 0.d0
       call find_host_spheres()
 
       if (configuration_average .and. (target_shape .eq. 2) &
@@ -474,6 +475,7 @@ contains
          flush (6)
       end if
 !call mstm_mpi(mpi_command='barrier')
+      if (rank .eq. 0) time1 = mstm_mpi_wtime()
       if (rank .eq. 0 .and. printout) then
          if (check_positions) call check_sphere_positions()
          call print_run_variables(run_print_unit)
@@ -481,7 +483,6 @@ contains
          if (runtime_failed()) return
          call print_run_variables(file_unit)
          close (file_unit)
-         time1 = mstm_mpi_wtime()
       end if
 
       if (dryrun) return

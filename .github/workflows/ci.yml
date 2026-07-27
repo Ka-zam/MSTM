@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  serial:
+    runs-on: ubuntu-latest
+    container: gcc:15.2
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: release
+            build_type: Release
+            runtime_checks: "OFF"
+          - name: checked
+            build_type: Debug
+            runtime_checks: "ON"
+    name: Serial (${{ matrix.name }})
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install CMake and Ninja
+        run: apt-get update && apt-get install --yes cmake ninja-build
+      - name: Configure
+        run: >-
+          cmake -S . -B build/serial-${{ matrix.name }} -G Ninja
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DMSTM_ENABLE_RUNTIME_CHECKS=${{ matrix.runtime_checks }}
+      - name: Build
+        run: cmake --build build/serial-${{ matrix.name }}
+      - name: Test
+        run: ctest --test-dir build/serial-${{ matrix.name }} --output-on-failure
+
+  mpi:
+    runs-on: ubuntu-latest
+    container: gcc:15.2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install CMake, Ninja, and MPI
+        run: apt-get update && apt-get install --yes cmake ninja-build openmpi-bin libopenmpi-dev
+      - name: Configure
+        run: >-
+          cmake -S . -B build/mpi -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_Fortran_COMPILER=mpifort
+          -DMSTM_ENABLE_MPI=ON
+      - name: Build
+        run: cmake --build build/mpi
+      - name: Test
+        env:
+          OMPI_ALLOW_RUN_AS_ROOT: "1"
+          OMPI_ALLOW_RUN_AS_ROOT_CONFIRM: "1"
+        run: ctest --test-dir build/mpi --output-on-failure

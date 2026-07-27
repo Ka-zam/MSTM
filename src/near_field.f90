@@ -638,7 +638,9 @@ contains
             if (sphere_depth(i) .ne. depth) cycle
             do jy = jlim(1), jlim(2)
                do jx = jlim(1), jlim(2)
-                  spos = sphere_position(:, i) + dble((/jx, jy, 0/)) * (/cell_width(1), cell_width(2), 0.d0/)
+                  spos = sphere_position(:, i)
+                  if (periodic_lattice) &
+                     spos(1:2) = spos(1:2) + dble((/jx, jy/)) * cell_width
                   call sphere_to_grid_points(i, spos, griddim, gridinfo, ingrid)
                   if (ingrid) then
                      slist%sphere = i

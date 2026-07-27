@@ -11,6 +11,9 @@ configure_file(
 )
 
 option(MSTM_ENABLE_MPI "Build the distributed-memory MPI implementation" OFF)
+option(MSTM_ENABLE_WARNINGS "Enable GNU Fortran diagnostics" ON)
+option(MSTM_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
+option(MSTM_ENABLE_RUNTIME_CHECKS "Enable GNU Fortran runtime checks" OFF)
 
 if(NOT CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
   message(FATAL_ERROR "MSTM currently requires GNU Fortran 15.2 or newer")
@@ -19,6 +22,39 @@ endif()
 if(CMAKE_Fortran_COMPILER_VERSION VERSION_LESS 15.2)
   message(FATAL_ERROR "GNU Fortran 15.2 or newer is required for Fortran 2023 mode")
 endif()
+
+add_library(mstm_fortran_options INTERFACE)
+target_compile_options(mstm_fortran_options INTERFACE -std=f2023)
+if(MSTM_ENABLE_WARNINGS)
+  target_compile_options(mstm_fortran_options INTERFACE
+    -Wall
+    -Wextra
+    -Wcharacter-truncation
+    -Wimplicit-interface
+    -Wno-compare-reals
+    -Wno-conversion
+    -Wno-do-subscript
+    -Wno-unused-dummy-argument
+    -Wno-unused-variable
+    -Wsurprising
+  )
+endif()
+if(MSTM_WARNINGS_AS_ERRORS)
+  target_compile_options(mstm_fortran_options INTERFACE -Werror)
+endif()
+if(MSTM_ENABLE_RUNTIME_CHECKS)
+  target_compile_options(mstm_fortran_options INTERFACE
+    -fbacktrace
+    -fcheck=all
+    -ffpe-trap=invalid,zero,overflow
+    -finit-integer=-2147483647
+    -finit-real=snan
+  )
+endif()
+
+function(mstm_apply_fortran_options target_name)
+  target_link_libraries("${target_name}" PRIVATE mstm_fortran_options)
+endfunction()
 
 set(mstm_mpi_source src/mpi_serial.f90)
 if(MSTM_ENABLE_MPI)
@@ -86,7 +122,7 @@ set_target_properties(mstm_constants PROPERTIES
   Fortran_FORMAT FREE
 )
 target_include_directories(mstm_constants PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/constant-modules")
-target_compile_options(mstm_constants PRIVATE -std=f2023)
+mstm_apply_fortran_options(mstm_constants)
 
 add_library(mstm_bessel STATIC ${mstm_bessel_source})
 set_target_properties(mstm_bessel PROPERTIES
@@ -95,7 +131,7 @@ set_target_properties(mstm_bessel PROPERTIES
   Fortran_FORMAT FREE
 )
 target_include_directories(mstm_bessel PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/bessel-modules")
-target_compile_options(mstm_bessel PRIVATE -std=f2023)
+mstm_apply_fortran_options(mstm_bessel)
 target_link_libraries(mstm_bessel PUBLIC mstm_constants)
 
 add_library(mstm_gpfa STATIC ${mstm_gpfa_sources})
@@ -105,7 +141,7 @@ set_target_properties(mstm_gpfa PROPERTIES
   Fortran_FORMAT FREE
 )
 target_include_directories(mstm_gpfa PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/gpfa-modules")
-target_compile_options(mstm_gpfa PRIVATE -std=f2023)
+mstm_apply_fortran_options(mstm_gpfa)
 target_link_libraries(mstm_gpfa PUBLIC mstm_constants)
 
 add_library(mstm_core STATIC ${mstm_core_sources})
@@ -116,7 +152,7 @@ set_target_properties(mstm_core PROPERTIES
   Fortran_FORMAT FREE
 )
 target_include_directories(mstm_core PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/modules")
-target_compile_options(mstm_core PRIVATE -std=f2023)
+mstm_apply_fortran_options(mstm_core)
 target_link_libraries(mstm_core PUBLIC mstm_bessel mstm_gpfa)
 
 if(MSTM_ENABLE_MPI)
@@ -130,7 +166,7 @@ add_executable(mstm
 set_target_properties(mstm PROPERTIES
   Fortran_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/executable-modules"
 )
-target_compile_options(mstm PRIVATE -std=f2023)
+mstm_apply_fortran_options(mstm)
 target_link_libraries(mstm PRIVATE mstm_core)
 
 find_program(FPRETTIFY_EXECUTABLE NAMES fprettify)
@@ -158,27 +194,27 @@ endif()
 include(CTest)
 if(BUILD_TESTING)
   add_executable(bessel_test tests/bessel_test.f90)
-  target_compile_options(bessel_test PRIVATE -std=f2023)
+  mstm_apply_fortran_options(bessel_test)
   target_link_libraries(bessel_test PRIVATE mstm_bessel)
   add_test(NAME bessel_unit COMMAND bessel_test)
 
   add_executable(gpfa_test tests/gpfa_test.f90)
-  target_compile_options(gpfa_test PRIVATE -std=f2023)
+  mstm_apply_fortran_options(gpfa_test)
   target_link_libraries(gpfa_test PRIVATE mstm_gpfa)
   add_test(NAME gpfa_unit COMMAND gpfa_test)
 
   add_executable(translation_expansion_test tests/translation_expansion_test.f90)
-  target_compile_options(translation_expansion_test PRIVATE -std=f2023)
+  mstm_apply_fortran_options(translation_expansion_test)
   target_link_libraries(translation_expansion_test PRIVATE mstm_core)
   add_test(NAME translation_expansion_unit COMMAND translation_expansion_test)
 
   add_executable(concurrent_kernels_test tests/concurrent_kernels_test.f90)
-  target_compile_options(concurrent_kernels_test PRIVATE -std=f2023)
+  mstm_apply_fortran_options(concurrent_kernels_test)
   target_link_libraries(concurrent_kernels_test PRIVATE mstm_core)
   add_test(NAME concurrent_kernels_unit COMMAND concurrent_kernels_test)
 
   add_executable(output_regression_test tests/output_regression_test.f90)
-  target_compile_options(output_regression_test PRIVATE -std=f2023)
+  mstm_apply_fortran_options(output_regression_test)
 
   add_test(NAME cli_help COMMAND $<TARGET_FILE:mstm>)
   set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "Usage:")
