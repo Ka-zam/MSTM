@@ -57,7 +57,7 @@ program main
       readstat = 0
       do i = 0, numprocs - 1
          if (i .eq. rank) then
-            call inputdata(inputfiledata, read_status=readstat(1))
+            call parse_input_data(inputfiledata, read_status=readstat(1))
          end if
          call mstm_mpi(mpi_command='barrier')
       end do
@@ -124,21 +124,21 @@ contains
       varposition = loop_sphere_number(looplevel)
       if (vartype .eq. 'i') then
          maxdif = abs(i_var_stop(looplevel) - i_var_start(looplevel))
-         call variable_list_operation(varlabel, &
-                                      var_position=varposition, &
-                                      i_var_pointer=i_loop_var_pointer)
+         call process_input_variable(varlabel, &
+                                     var_position=varposition, &
+                                     i_var_pointer=i_loop_var_pointer)
          i_loop_var_pointer = i_var_start(looplevel)
       elseif (vartype .eq. 'r') then
          maxdif = abs(r_var_stop(looplevel) - r_var_start(looplevel))
-         call variable_list_operation(varlabel, &
-                                      var_position=varposition, &
-                                      r_var_pointer=r_loop_var_pointer)
+         call process_input_variable(varlabel, &
+                                     var_position=varposition, &
+                                     r_var_pointer=r_loop_var_pointer)
          r_loop_var_pointer = r_var_start(looplevel)
       elseif (vartype .eq. 'c') then
          maxdif = abs(c_var_stop(looplevel) - c_var_start(looplevel))
-         call variable_list_operation(varlabel, &
-                                      var_position=varposition, &
-                                      c_var_pointer=c_loop_var_pointer)
+         call process_input_variable(varlabel, &
+                                     var_position=varposition, &
+                                     c_var_pointer=c_loop_var_pointer)
          c_loop_var_pointer = c_var_start(looplevel)
       end if
 

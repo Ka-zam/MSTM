@@ -119,7 +119,7 @@ contains
       b = (fbar * x2bar - xbar * xfbar) / (x2bar - xbar * xbar)
    end subroutine linear_regression
 
-   subroutine effective_ref_index_fit(anp, rifit, xfit, info)
+   subroutine fit_effective_refractive_index(anp, rifit, xfit, info)
       use levenberg_marquardt
       implicit none
       integer :: info, n0, m0, fitorder
@@ -155,13 +155,13 @@ contains
       if (allocated(effective_fit_coefficients)) deallocate (effective_fit_coefficients)
       allocate (effective_fit_coefficients(2, fitorder))
       effective_fit_coefficients = anp(:, 1:fitorder)
-      call lmdif1(effective_ref_index_residual, m0, n0, parm, vec, 1.d-6, info)
+      call lmdif1(effective_refractive_index_residual, m0, n0, parm, vec, 1.d-6, info)
       deallocate (effective_fit_coefficients)
       rifit = cmplx(parm(1), parm(2), kind=kind(0.0d0))
       xfit = parm(3)
-   end subroutine effective_ref_index_fit
+   end subroutine fit_effective_refractive_index
 
-   subroutine effective_ref_index_residual(ndat, nparm, xparm, fdat, iflag)
+   subroutine effective_refractive_index_residual(ndat, nparm, xparm, fdat, iflag)
       implicit none
       integer :: nparm, ndat, iflag, n, i
       real(8) :: xparm(nparm), fdat(ndat), xsp, qext, qabs, qsca
@@ -193,9 +193,9 @@ contains
          fdat(i + 3) = aimag(effective_fit_coefficients(2, n) - a(2))
          i = i + 4
       end do
-   end subroutine effective_ref_index_residual
+   end subroutine effective_refractive_index_residual
 
-   subroutine diffuse_scattering_effective_ref_index(a, qe, extrat)
+   subroutine diffuse_scattering_effective_refractive_index(a, qe, extrat)
       implicit none
       real(8) :: a, extrat, tvol, rc, ds, dela, qe, delextrat, extrat0
       call calculate_target_volume(target_dimensions, tvol)
@@ -226,5 +226,5 @@ contains
          extrat0 = extrat
       end do
       a = a / 2.d0 / rc
-   end subroutine diffuse_scattering_effective_ref_index
+   end subroutine diffuse_scattering_effective_refractive_index
 end module effective_medium_analysis

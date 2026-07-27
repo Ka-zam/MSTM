@@ -6,10 +6,10 @@ module scattering_matrix_driver
                         numerical_scattering_matrix_azimuthal_average_single_origin, periodic_lattice_scattering
    implicit none
    private
-   public :: scattering_matrix_calculation
+   public :: compute_scattering_matrix
 contains
 
-   subroutine scattering_matrix_calculation(amnp, scatmat, mpi_comm)
+   subroutine compute_scattering_matrix(amnp, scatmat, mpi_comm)
       implicit none
       logical :: singleorigin, iframe
       integer :: i, sy, sx, mpicomm
@@ -118,5 +118,5 @@ contains
             end do
          end do
       end if
-   end subroutine scattering_matrix_calculation
+   end subroutine compute_scattering_matrix
 end module scattering_matrix_driver

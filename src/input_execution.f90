@@ -610,7 +610,7 @@ contains
             end if
 !call mstm_mpi(mpi_command='barrier')
             if (calculate_scattering_matrix) then
-               call scattering_matrix_calculation(amnp_0, scat_mat, mpi_comm=mpicomm)
+               call compute_scattering_matrix(amnp_0, scat_mat, mpi_comm=mpicomm)
             end if
             if (light_up) then
                write (*, '('' s8.3.5 '',i3)') mstm_global_rank
@@ -633,7 +633,7 @@ contains
             end if
 !call mstm_mpi(mpi_command='barrier')
             if (calculate_scattering_matrix) then
-               call scattering_matrix_calculation(amnp_s, scat_mat, mpi_comm=mpicomm)
+               call compute_scattering_matrix(amnp_s, scat_mat, mpi_comm=mpicomm)
             end if
             if (gaussian_beam_constant .eq. 0.d0) then
                call boundary_extinction(amnp_s, alpha, incident_sin_beta, incident_direction, boundary_ext)
@@ -1091,7 +1091,7 @@ contains
                scat_mat_exp_coef = coh_scat_mat_exp_coef
             end if
             if (calculate_scattering_matrix) then
-               call scattering_matrix_calculation(amnp_0, dif_scat_mat, mpi_comm=configcomm)
+               call compute_scattering_matrix(amnp_0, dif_scat_mat, mpi_comm=configcomm)
             end if
             if (azimuthal_average .and. (.not. numerical_azimuthal_average)) then
 !                  scat_mat_exp_coef=texpcoef-scat_mat_exp_coef*diffac
@@ -1123,7 +1123,7 @@ contains
                deallocate (pmnp0)
 !                  effective_ref_index=(1.1d0,0.01d0)
 !                  fit_radius=target_dimensions(1)*length_scale_factor
-               call effective_ref_index_fit(anp0, effective_ref_index, fit_radius, fit_stat)
+               call fit_effective_refractive_index(anp0, effective_ref_index, fit_radius, fit_stat)
                deallocate (anp0)
             end if
          end if
@@ -1368,7 +1368,7 @@ contains
                coh_scat_mat_exp_coef = coh_scat_mat_exp_coef / dble(nconfigave)
             end if
             solution_time = solution_time_ave / dble(random_configuration_number)
-            call effective_ref_index_fit(mean_t, effective_ref_index, fit_radius, fit_stat)
+            call fit_effective_refractive_index(mean_t, effective_ref_index, fit_radius, fit_stat)
             call print_calculation_results(output_file)
          end if
 !            if(random_configuration_host) then
@@ -1600,7 +1600,7 @@ contains
                   scat_mat_exp_coef(:, :, 3), scat_mat_exp_coef(:, :, 4), mpi_comm=configcomm)
             end if
             if (calculate_scattering_matrix) then
-               call scattering_matrix_calculation(amnp_0, dif_scat_mat, mpi_comm=configcomm)
+               call compute_scattering_matrix(amnp_0, dif_scat_mat, mpi_comm=configcomm)
             end if
             if (azimuthal_average .and. (.not. numerical_azimuthal_average)) then
                scat_mat_exp_coef = texpcoef - scat_mat_exp_coef * (dble(number_spheres - 1) / dble(number_spheres))**2

@@ -1,13 +1,13 @@
 module input_value_parsing
    implicit none
    private
-   public :: set_string_to_cmplx_variable, set_string_to_int_variable, &
-             set_string_to_logical_array_variable, set_string_to_logical_variable, &
-             set_string_to_real_array_variable, set_string_to_real_variable
+   public :: apply_complex_input_value, apply_integer_input_value, &
+             apply_logical_array_input_value, apply_logical_input_value, &
+             apply_real_array_input_value, apply_real_input_value
 contains
 
-   subroutine set_string_to_int_variable(sentvarvalue, &
-                                         ivarvalue, var_operation)
+   subroutine apply_integer_input_value(sentvarvalue, &
+                                        ivarvalue, var_operation)
       implicit none
       integer :: itemp
       integer, pointer :: ivarvalue
@@ -25,10 +25,10 @@ contains
       elseif (varop(1:3) .eq. 'add') then
          ivarvalue = ivarvalue + itemp
       end if
-   end subroutine set_string_to_int_variable
+   end subroutine apply_integer_input_value
 
-   subroutine set_string_to_real_variable(sentvarvalue, &
-                                          rvarvalue, var_operation)
+   subroutine apply_real_input_value(sentvarvalue, &
+                                     rvarvalue, var_operation)
       implicit none
       real(8) :: rtemp
       real(8), pointer :: rvarvalue
@@ -46,10 +46,10 @@ contains
       elseif (varop(1:3) .eq. 'add') then
          rvarvalue = rvarvalue + rtemp
       end if
-   end subroutine set_string_to_real_variable
+   end subroutine apply_real_input_value
 
-   subroutine set_string_to_real_array_variable(sentvarvalue, &
-                                                rvarvalue, var_operation, var_len)
+   subroutine apply_real_array_input_value(sentvarvalue, &
+                                           rvarvalue, var_operation, var_len)
       implicit none
       integer :: varlen, i, ierr
       integer, optional :: var_len
@@ -81,10 +81,10 @@ contains
       elseif (varop(1:3) .eq. 'add') then
          rvarvalue = rvarvalue + rtemp
       end if
-   end subroutine set_string_to_real_array_variable
+   end subroutine apply_real_array_input_value
 
-   subroutine set_string_to_cmplx_variable(sentvarvalue, &
-                                           cvarvalue, var_operation)
+   subroutine apply_complex_input_value(sentvarvalue, &
+                                        cvarvalue, var_operation)
       implicit none
       complex(8) :: ctemp
       complex(8), pointer :: cvarvalue
@@ -102,10 +102,10 @@ contains
       elseif (varop(1:3) .eq. 'add') then
          cvarvalue = cvarvalue + ctemp
       end if
-   end subroutine set_string_to_cmplx_variable
+   end subroutine apply_complex_input_value
 
-   subroutine set_string_to_logical_variable(sentvarvalue, &
-                                             lvarvalue, var_operation)
+   subroutine apply_logical_input_value(sentvarvalue, &
+                                        lvarvalue, var_operation)
       implicit none
       logical :: ltemp
       logical, pointer :: lvarvalue
@@ -121,10 +121,10 @@ contains
       if (varop(1:6) .eq. 'assign') then
          lvarvalue = ltemp
       end if
-   end subroutine set_string_to_logical_variable
+   end subroutine apply_logical_input_value
 
-   subroutine set_string_to_logical_array_variable(sentvarvalue, &
-                                                   lvarvalue, var_operation, var_len)
+   subroutine apply_logical_array_input_value(sentvarvalue, &
+                                              lvarvalue, var_operation, var_len)
       implicit none
       logical :: ltemp(5)
       logical, pointer :: lvarvalue(:)
@@ -153,5 +153,5 @@ contains
       if (varop(1:6) .eq. 'assign') then
          lvarvalue = ltemp(1:varlen)
       end if
-   end subroutine set_string_to_logical_array_variable
+   end subroutine apply_logical_array_input_value
 end module input_value_parsing

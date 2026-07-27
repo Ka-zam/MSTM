@@ -4,10 +4,10 @@ module input_parser
    implicit none
 contains
 
-   subroutine variable_list_operation(varlabel, &
-                                      var_value, var_type, &
-                                      var_position, var_operation, var_status, &
-                                      i_var_pointer, r_var_pointer, c_var_pointer)
+   subroutine process_input_variable(varlabel, &
+                                     var_value, var_type, &
+                                     var_position, var_operation, var_status, &
+                                     i_var_pointer, r_var_pointer, c_var_pointer)
       implicit none
       logical :: operate
       logical, pointer :: lvarvalue, lavarvalue(:)
@@ -565,34 +565,34 @@ contains
 
       if (operate) then
          if (vartype .eq. 'i') then
-            call set_string_to_int_variable(sentvarvalue, &
-                                            ivarvalue, var_operation=varop)
+            call apply_integer_input_value(sentvarvalue, &
+                                           ivarvalue, var_operation=varop)
          elseif (vartype .eq. 'r') then
             if (varlen .eq. 1) then
-               call set_string_to_real_variable(sentvarvalue, &
-                                                rvarvalue, var_operation=varop)
+               call apply_real_input_value(sentvarvalue, &
+                                           rvarvalue, var_operation=varop)
             else
-               call set_string_to_real_array_variable(sentvarvalue, &
-                                                      ravarvalue, var_operation=varop, var_len=varlen)
+               call apply_real_array_input_value(sentvarvalue, &
+                                                 ravarvalue, var_operation=varop, var_len=varlen)
             end if
          elseif (vartype .eq. 'c') then
-            call set_string_to_cmplx_variable(sentvarvalue, &
-                                              cvarvalue, var_operation=varop)
+            call apply_complex_input_value(sentvarvalue, &
+                                           cvarvalue, var_operation=varop)
          elseif (vartype .eq. 'l') then
             if (varlen .eq. 1) then
-               call set_string_to_logical_variable(sentvarvalue, &
-                                                   lvarvalue, var_operation=varop)
+               call apply_logical_input_value(sentvarvalue, &
+                                              lvarvalue, var_operation=varop)
             else
-               call set_string_to_logical_array_variable(sentvarvalue, &
-                                                         lavarvalue, var_operation=varop, var_len=varlen)
+               call apply_logical_array_input_value(sentvarvalue, &
+                                                    lavarvalue, var_operation=varop, var_len=varlen)
             end if
          elseif (vartype .eq. 'a') then
             avarvalue = sentvarvalue
          end if
       end if
-   end subroutine variable_list_operation
+   end subroutine process_input_variable
 
-   subroutine inputdata(inputfiledata, read_status)
+   subroutine parse_input_data(inputfiledata, read_status)
       implicit none
       integer :: readok, n, spherenum, varstat, rank, stopit, istat, lines
       integer, save :: inputline
@@ -640,8 +640,8 @@ contains
                spherenum = 1
             end if
             loop_var_label(n) = parmid
-            call variable_list_operation(loop_var_label(n), &
-                                         var_type=loop_var_type(n), var_position=spherenum)
+            call process_input_variable(loop_var_label(n), &
+                                        var_type=loop_var_type(n), var_position=spherenum)
             if (loop_var_type(n) .eq. 'i') then
                read (inputfiledata(inputline), *) i_var_start(n), i_var_stop(n), i_var_step(n)
             elseif (loop_var_type(n) .eq. 'r') then
@@ -743,12 +743,12 @@ contains
             call read_real_list(psd_sigma, number_components)
 
          elseif (trim(parmid) .eq. 'component_ref_index') then
-            call read_cmplx_list(component_ref_index, number_components)
+            call read_complex_list(component_ref_index, number_components)
 
          else
             varstat = 0
-            call variable_list_operation(parmid, &
-                                         var_status=varstat)
+            call process_input_variable(parmid, &
+                                        var_status=varstat)
             if (varstat .ne. 0) then
                if (rank .eq. 0) then
                   write (run_print_unit, '('' unknown input parameter:'',a)') trim(parmid)
@@ -762,9 +762,9 @@ contains
                if (readok .ne. 0) cycle
                parmval = trim(parmval)
                varop = 'assign'
-               call variable_list_operation(parmid, var_value=parmval, &
-                                            var_position=1, var_operation='assign', &
-                                            var_status=varstat)
+               call process_input_variable(parmid, var_value=parmval, &
+                                           var_position=1, var_operation='assign', &
+                                           var_status=varstat)
             end if
          end if
       end do
@@ -781,13 +781,13 @@ contains
          read (parmval, *, iostat=istat) listvar(1:listnum)
       end subroutine read_real_list
 
-      subroutine read_cmplx_list(listvar, listnum)
+      subroutine read_complex_list(listvar, listnum)
          implicit none
          integer :: listnum
          complex(8) :: listvar(*)
          parmval = inputfiledata(inputline)
          inputline = inputline + 1
          read (parmval, *, iostat=istat) listvar(1:listnum)
-      end subroutine read_cmplx_list
-   end subroutine inputdata
+      end subroutine read_complex_list
+   end subroutine parse_input_data
 end module input_parser

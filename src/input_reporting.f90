@@ -1,6 +1,6 @@
 module input_reporting
    use constants
-   use effective_medium_analysis, only: diffuse_scattering_effective_ref_index, &
+   use effective_medium_analysis, only: diffuse_scattering_effective_refractive_index, &
                                         effective_extinction_coefficient_ratio
    use input_state
    implicit none
@@ -359,7 +359,7 @@ contains
          end if
       end if
       if (configuration_average .and. single_origin_expansion .and. .not. random_orientation) then
-         call diffuse_scattering_effective_ref_index(imrieff, qeeff, scarat)
+         call diffuse_scattering_effective_refractive_index(imrieff, qeeff, scarat)
          write (outunit, '('' diffuse/total scattering ratio, extinction coefficient, extinction prob., albedo, RT ratio'')')
          write (outunit, '(6es12.4)') dif_csca_ratio, 2.d0 * imrieff, qeeff, &
             dif_csca_ratio * q_eff_tot(3, 1) / (dif_csca_ratio * q_eff_tot(3, 1) + q_eff_tot(2, 1)), scarat
@@ -395,11 +395,11 @@ contains
          end if
          if (random_orientation) then
             write (outunit, '('' total scattering'')')
-            call print_scat_mat_header()
+            call print_scattering_matrix_header()
             do i = scat_mat_ldim, scat_mat_udim
-               smt = scaled_scat_mat(scat_mat(1:16, i))
+               smt = scaled_scattering_matrix(scat_mat(1:16, i))
                smt(1) = smt(1) * s11scale
-               call print_scat_mat_row(i, smt)
+               call print_scattering_matrix_row(i, smt)
             end do
          else
             if (scattering_map_model .eq. 0) then
@@ -413,37 +413,37 @@ contains
                         write (outunit, '('' scattering matrix in incident plane: 0 deg= z axis'')')
                      end if
                   end if
-                  call print_scat_mat_header()
+                  call print_scattering_matrix_header()
                   do i = scat_mat_ldim, scat_mat_udim
-                     smt = scaled_scat_mat(scat_mat(1:16, i))
+                     smt = scaled_scattering_matrix(scat_mat(1:16, i))
                      smt(1) = smt(1) * s11scale
-                     call print_scat_mat_row(i, smt)
+                     call print_scattering_matrix_row(i, smt)
                   end do
                   if ((configuration_average .or. incidence_average) .and. single_origin_expansion) then
 !write(*,'(es12.4)') s11scale
                      write (outunit, '('' diffuse scattering matrix '')')
-                     call print_scat_mat_header(no_numbers=.true.)
+                     call print_scattering_matrix_header(no_numbers=.true.)
                      do i = scat_mat_ldim, scat_mat_udim
-                        smt = scaled_scat_mat(dif_scat_mat(1:16, i))
+                        smt = scaled_scattering_matrix(dif_scat_mat(1:16, i))
                         smt(1) = smt(1) * s11scale
-                        call print_scat_mat_row(i, smt)
+                        call print_scattering_matrix_row(i, smt)
                      end do
                   end if
                else
                   write (outunit, '('' scattering matrix in incident plane'')')
                   write (outunit, '('' reflection'')')
-                  call print_scat_mat_header()
+                  call print_scattering_matrix_header()
                   do i = scat_mat_ldim, scat_mat_udim
-                     smt = scaled_scat_mat(scat_mat(1:16, i))
+                     smt = scaled_scattering_matrix(scat_mat(1:16, i))
                      smt(1) = smt(1) * s11scale
-                     call print_scat_mat_row(i, smt)
+                     call print_scattering_matrix_row(i, smt)
                   end do
                   write (outunit, '('' transmission'')')
-                  call print_scat_mat_header(no_numbers=.true.)
+                  call print_scattering_matrix_header(no_numbers=.true.)
                   do i = scat_mat_ldim, scat_mat_udim
-                     smt = scaled_scat_mat(scat_mat(17:32, i))
+                     smt = scaled_scattering_matrix(scat_mat(17:32, i))
                      smt(1) = smt(1) * s11scale
-                     call print_scat_mat_row(i, smt)
+                     call print_scattering_matrix_row(i, smt)
                   end do
                end if
             else
@@ -464,7 +464,7 @@ contains
                      kx = dble(sx) / dble(scattering_map_dimension)
                      if (sx * sx + sy * sy .gt. scattering_map_dimension**2) cycle
                      s = s + 1
-                     smt = scaled_scat_mat(scat_mat(1:16, s))
+                     smt = scaled_scattering_matrix(scat_mat(1:16, s))
                      smt(1) = smt(1) * s11scale
                      write (outunit, '(2f9.5)', advance='no') kx, ky
                      do j = 1, 16
@@ -488,7 +488,7 @@ contains
                      if (sx * sx + sy * sy .gt. scattering_map_dimension**2) cycle
                      kx = dble(sx) / dble(scattering_map_dimension)
                      s = s + 1
-                     smt = scaled_scat_mat(scat_mat(17:32, s))
+                     smt = scaled_scattering_matrix(scat_mat(17:32, s))
                      smt(1) = smt(1) * s11scale
                      write (outunit, '(2f9.5)', advance='no') kx, ky
                      do j = 1, 16
@@ -561,7 +561,7 @@ contains
          end do
          write (outunit, *)
          do i = 1, number_rl_dirs(1)
-            smt = scaled_scat_mat(scat_mat(1:16, i))
+            smt = scaled_scattering_matrix(scat_mat(1:16, i))
             write (outunit, '(2f9.5)', advance='no') rl_vec(1:2, i) / dble(layer_ref_index(0))
             do j = 1, 16
                write (outunit, '(es12.4)', advance='no') smt(smvec0(j))
@@ -579,7 +579,7 @@ contains
          end do
          write (outunit, *)
          do i = 1, number_rl_dirs(2)
-            smt = scaled_scat_mat(scat_mat(17:32, i))
+            smt = scaled_scattering_matrix(scat_mat(17:32, i))
             write (outunit, '(2f9.5)', advance='no') &
                rl_vec(1:2, i) / dble(layer_ref_index(number_plane_boundaries))
             do j = 1, 16
@@ -599,7 +599,7 @@ contains
       if (outunit .ne. 6) close (outunit)
 
    contains
-      subroutine print_scat_mat_header(no_numbers)
+      subroutine print_scattering_matrix_header(no_numbers)
          implicit none
          logical, optional :: no_numbers
          if (present(no_numbers)) then
@@ -616,9 +616,9 @@ contains
             write (outunit, '(''     '',a2,''     '')', advance='no') smlabel(smvecp(i))
          end do
          write (outunit, *)
-      end subroutine print_scat_mat_header
+      end subroutine print_scattering_matrix_header
 
-      subroutine print_scat_mat_row(i, smt)
+      subroutine print_scattering_matrix_row(i, smt)
          implicit none
          integer :: i
          real(8) :: smt(16)
@@ -629,22 +629,22 @@ contains
             write (outunit, '(es12.4)', advance='no') smt(smvecp(j))
          end do
          write (outunit, *)
-      end subroutine print_scat_mat_row
+      end subroutine print_scattering_matrix_row
 
    end subroutine print_calculation_results
 
-   pure function scaled_scat_mat(s)
+   pure function scaled_scattering_matrix(s)
       real(8), intent(in) :: s(16)
-      real(8) :: scaled_scat_mat(16)
+      real(8) :: scaled_scattering_matrix(16)
       if (s(1) .eq. 0.d0) then
-         scaled_scat_mat = 0.d0
+         scaled_scattering_matrix = 0.d0
       else
-         scaled_scat_mat(1) = s(1)
-         scaled_scat_mat(2:16) = s(2:16) / s(1)
+         scaled_scattering_matrix(1) = s(1)
+         scaled_scattering_matrix(2:16) = s(2:16) / s(1)
       end if
-   end function scaled_scat_mat
+   end function scaled_scattering_matrix
 
-   pure subroutine scat_mat_to_phase_mat(smat, u, up, phi, smatrot)
+   pure subroutine scattering_matrix_to_phase_matrix(smat, u, up, phi, smatrot)
       implicit none
       real(8), intent(in) :: smat(4, 4), u, up, phi
       real(8), intent(out) :: smatrot(4, 4)
@@ -688,5 +688,5 @@ contains
       mat2(:, 4) = (/0.d0, 0.d0, 0.d0, 1.d0/)
       mat1 = matmul(smat, mat1)
       smatrot = matmul(mat2, mat1)
-   end subroutine scat_mat_to_phase_mat
+   end subroutine scattering_matrix_to_phase_matrix
 end module input_reporting
