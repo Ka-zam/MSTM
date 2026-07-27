@@ -19,9 +19,8 @@ module spheredata
    integer, target :: number_spheres, run_print_unit, translation_switch_order, &
                       max_t_matrix_order
    integer :: max_mie_order, number_host_spheres, number_eqns, t_matrix_order, max_sphere_depth
-   integer, allocatable :: host_sphere(:), sphere_order(:), &
-                           sphere_block(:), sphere_offset(:), translation_order(:), &
-                           number_field_expansions(:), mie_offset(:), &
+   integer, allocatable, target :: host_sphere(:), sphere_order(:), sphere_block(:), sphere_offset(:)
+   integer, allocatable :: translation_order(:), number_field_expansions(:), mie_offset(:), &
                            mie_block_offset(:), sphere_layer(:), sphere_depth(:)
    real(8) :: cluster_origin(3), vol_radius, sphere_mean_position(3), area_mean_radius, &
               sphere_min_position(3), sphere_max_position(3), mean_qext_mie, mean_qabs_mie, &

@@ -1,6 +1,7 @@
 module translation
    use translation_expansions, only: clear_stored_trans_mat, external_to_external_expansion, &
-                                     external_to_internal_expansion, general_interaction_matrix, interaction_radius
+                                     external_to_internal_expansion, general_interaction_matrix, interaction_radius, &
+                                     nested_sphere_geometry_view
    use translation_operator, only: shiftcoefficient, translation_data
    use translation_surface_interactions, only: periodic_lattice_sphere_interaction, spheresurfaceinteraction
 
@@ -16,5 +17,6 @@ module translation
    public :: external_to_external_expansion
    public :: external_to_internal_expansion
    public :: shiftcoefficient
+   public :: nested_sphere_geometry_view
 
 end module translation

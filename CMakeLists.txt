@@ -29,7 +29,7 @@ set(mstm_gpfa_sources
 
 set(mstm_bessel_source src/bessel_functions.f90)
 
-set(mstm_sources
+set(mstm_core_sources
   src/intrinsics.f90
   ${mstm_mpi_source}
   src/numerical_tables.f90
@@ -70,7 +70,6 @@ set(mstm_sources
   src/scattering_matrix_driver.f90
   src/input_execution.f90
   src/input.f90
-  src/main.f90
 )
 
 add_library(mstm_constants STATIC src/constants.f90)
@@ -102,20 +101,24 @@ target_include_directories(mstm_gpfa PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/gpfa-mo
 target_compile_options(mstm_gpfa PRIVATE -std=f2023)
 target_link_libraries(mstm_gpfa PUBLIC mstm_constants)
 
-add_executable(mstm ${mstm_sources})
+add_library(mstm_core STATIC ${mstm_core_sources})
 
-set_target_properties(mstm PROPERTIES
+set_target_properties(mstm_core PROPERTIES
   Fortran_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/modules"
   Fortran_PREPROCESS OFF
   Fortran_FORMAT FREE
 )
-target_include_directories(mstm PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/modules")
-target_compile_options(mstm PRIVATE -std=f2023)
-target_link_libraries(mstm PRIVATE mstm_bessel mstm_gpfa)
+target_include_directories(mstm_core PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/modules")
+target_compile_options(mstm_core PRIVATE -std=f2023)
+target_link_libraries(mstm_core PUBLIC mstm_bessel mstm_gpfa)
 
 if(MSTM_ENABLE_MPI)
-  target_link_libraries(mstm PRIVATE MPI::MPI_Fortran)
+  target_link_libraries(mstm_core PUBLIC MPI::MPI_Fortran)
 endif()
+
+add_executable(mstm src/main.f90)
+target_compile_options(mstm PRIVATE -std=f2023)
+target_link_libraries(mstm PRIVATE mstm_core)
 
 find_program(FPRETTIFY_EXECUTABLE NAMES fprettify)
 if(FPRETTIFY_EXECUTABLE)
@@ -126,9 +129,11 @@ if(FPRETTIFY_EXECUTABLE)
       src/constants.f90
       ${mstm_bessel_source}
       ${mstm_gpfa_sources}
-      ${mstm_sources}
+      ${mstm_core_sources}
+      src/main.f90
       tests/bessel_test.f90
       tests/gpfa_test.f90
+      tests/translation_expansion_test.f90
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     COMMENT "Formatting Fortran sources"
     VERBATIM
@@ -146,6 +151,11 @@ if(BUILD_TESTING)
   target_compile_options(gpfa_test PRIVATE -std=f2023)
   target_link_libraries(gpfa_test PRIVATE mstm_gpfa)
   add_test(NAME gpfa_unit COMMAND gpfa_test)
+
+  add_executable(translation_expansion_test tests/translation_expansion_test.f90)
+  target_compile_options(translation_expansion_test PRIVATE -std=f2023)
+  target_link_libraries(translation_expansion_test PRIVATE mstm_core)
+  add_test(NAME translation_expansion_unit COMMAND translation_expansion_test)
 
   function(add_mstm_example_test test_name input_name expected_outputs)
     set(test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/${test_name}")

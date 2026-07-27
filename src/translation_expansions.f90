@@ -20,10 +20,54 @@ module translation_expansions
    public :: external_to_external_expansion
    public :: external_to_internal_expansion
 
+   ! Non-owning geometry view. Associated arrays must outlive the view.
+   type, public :: nested_sphere_geometry_view
+      private
+      integer :: sphere_count = 0
+      integer, pointer :: hosts(:) => null(), blocks(:) => null(), offsets(:) => null(), orders(:) => null()
+      real(real64), pointer :: positions(:, :) => null()
+      complex(real64), pointer :: refractive_indices(:, :) => null()
+   contains
+      procedure, public :: configure => configure_nested_sphere_geometry_view
+      procedure, public :: clear => clear_nested_sphere_geometry_view
+      final :: finalize_nested_sphere_geometry_view
+   end type nested_sphere_geometry_view
+
    real(real64), target :: interaction_radius = 1.0e10_real64
    type(translation_data), target, allocatable :: stored_trans_mat(:)
 
 contains
+
+   subroutine configure_nested_sphere_geometry_view(self, hosts, blocks, offsets, orders, positions, refractive_indices)
+      class(nested_sphere_geometry_view), intent(inout) :: self
+      integer, target, intent(in) :: hosts(:)
+      integer, target, intent(in) :: blocks(size(hosts)), offsets(size(hosts)), orders(size(hosts))
+      real(real64), target, intent(in) :: positions(3, size(hosts))
+      complex(real64), target, intent(in) :: refractive_indices(2, size(hosts))
+
+      call self%clear()
+      self%sphere_count = size(hosts)
+      self%hosts => hosts
+      self%blocks => blocks
+      self%offsets => offsets
+      self%orders => orders
+      self%positions => positions
+      self%refractive_indices => refractive_indices
+   end subroutine configure_nested_sphere_geometry_view
+
+   subroutine clear_nested_sphere_geometry_view(self)
+      class(nested_sphere_geometry_view), intent(inout) :: self
+
+      nullify (self%hosts, self%blocks, self%offsets, self%orders, self%positions, self%refractive_indices)
+      self%sphere_count = 0
+   end subroutine clear_nested_sphere_geometry_view
+
+   subroutine finalize_nested_sphere_geometry_view(self)
+      type(nested_sphere_geometry_view), intent(inout) :: self
+
+      call self%clear()
+   end subroutine finalize_nested_sphere_geometry_view
+
    subroutine clear_stored_trans_mat(mat)
       implicit none(type, external)
       integer :: n
@@ -309,18 +353,18 @@ contains
 !  the routine does not perform an mpi reduce.
 !
    subroutine external_to_internal_expansion(neqns, nrhs, ain, bout, &
-                                             rhs_list, mpi_comm, con_tran)
+                                             rhs_list, mpi_comm, con_tran, geometry)
       implicit none(type, external)
       integer, intent(in) :: neqns, nrhs
-      integer :: rank, numprocs, nsphere, mpicomm, &
-                 i, j, task, proc, extsurf, intsurf, ext1, ext2, &
-                 int1, int2, noext, noint, rhs
+      integer :: rank, numprocs, mpicomm
       logical :: rhslist(nrhs), contran(nrhs)
       logical, optional, intent(in) :: rhs_list(nrhs), con_tran(nrhs)
       integer, optional, intent(in) :: mpi_comm
       complex(real64), intent(in) :: ain(neqns, nrhs)
       complex(real64), intent(out) :: bout(neqns, nrhs)
-      type(translation_data) :: tranmat
+      type(nested_sphere_geometry_view), optional, intent(in) :: geometry
+      type(nested_sphere_geometry_view) :: global_geometry
+
       if (present(mpi_comm)) then
          mpicomm = mpi_comm
       else
@@ -339,30 +383,48 @@ contains
       call mstm_mpi(mpi_command='size', mpi_size=numprocs, mpi_comm=mpicomm)
       call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
       bout = 0.0_real64
-      nsphere = number_spheres
+
+      if (present(geometry)) then
+         call apply_external_to_internal_expansion(geometry, neqns, nrhs, ain, bout, rhslist, contran, rank, numprocs)
+      else
+         call global_geometry%configure(host_sphere, sphere_block, sphere_offset, sphere_order, &
+                                        sphere_position, sphere_ref_index)
+         call apply_external_to_internal_expansion(global_geometry, neqns, nrhs, ain, bout, rhslist, contran, rank, numprocs)
+      end if
+   end subroutine external_to_internal_expansion
+
+   subroutine apply_external_to_internal_expansion(geometry, neqns, nrhs, ain, bout, rhslist, contran, rank, numprocs)
+      type(nested_sphere_geometry_view), intent(in) :: geometry
+      integer, intent(in) :: neqns, nrhs, rank, numprocs
+      logical, intent(in) :: rhslist(nrhs), contran(nrhs)
+      complex(real64), intent(in) :: ain(neqns, nrhs)
+      complex(real64), intent(inout) :: bout(neqns, nrhs)
+      integer :: i, j, task, proc, extsurf, intsurf, ext1, ext2, int1, int2, noext, noint, rhs
+      type(translation_data) :: tranmat
+
       task = 0
 
-      do i = 1, nsphere - 1
-         do j = i + 1, nsphere
-            if (host_sphere(j) .eq. i .or. host_sphere(i) .eq. j) then
+      do i = 1, geometry%sphere_count - 1
+         do j = i + 1, geometry%sphere_count
+            if (geometry%hosts(j) .eq. i .or. geometry%hosts(i) .eq. j) then
                task = task + 1
                proc = mod(task, numprocs)
                if (proc .eq. rank) then
-                  if (host_sphere(j) .eq. i) then
+                  if (geometry%hosts(j) .eq. i) then
                      extsurf = j
                      intsurf = i
                   else
                      extsurf = i
                      intsurf = j
                   end if
-                  noext = sphere_order(extsurf)
-                  noint = sphere_order(intsurf)
-                  call tranmat%configure(1, sphere_position(:, intsurf) - sphere_position(:, extsurf), &
-                                         sphere_ref_index(:, intsurf), .true.)
-                  ext1 = sphere_offset(extsurf) + 1
-                  ext2 = ext1 - 1 + sphere_block(extsurf)
-                  int1 = sphere_offset(intsurf) + 1 + sphere_block(intsurf)
-                  int2 = int1 - 1 + sphere_block(intsurf)
+                  noext = geometry%orders(extsurf)
+                  noint = geometry%orders(intsurf)
+                  call tranmat%configure(1, geometry%positions(:, intsurf) - geometry%positions(:, extsurf), &
+                                         geometry%refractive_indices(:, intsurf), .true.)
+                  ext1 = geometry%offsets(extsurf) + 1
+                  ext2 = ext1 - 1 + geometry%blocks(extsurf)
+                  int1 = geometry%offsets(intsurf) + 1 + geometry%blocks(intsurf)
+                  int2 = int1 - 1 + geometry%blocks(intsurf)
                   do rhs = 1, nrhs
                      if (.not. rhslist(rhs)) cycle
                      call tranmat%apply(noext, 2, noint, 2, ain(ext1:ext2, rhs), &
@@ -375,6 +437,6 @@ contains
             end if
          end do
       end do
-   end subroutine external_to_internal_expansion
+   end subroutine apply_external_to_internal_expansion
 
 end module translation_expansions
