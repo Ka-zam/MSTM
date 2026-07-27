@@ -39,7 +39,7 @@ Install the development formatter and format all Fortran sources with:
 
 ```sh
 python3 -m pip install -r requirements-dev.txt
-fprettify --config-file .fprettify.rc --silent src/*.f90
+fprettify --config-file .fprettify.rc --silent src/*.f90 tests/*.f90
 ```
 
 The conventional `.f90` suffix identifies free-form source; CMake selects the Fortran 2023 language level independently. Clang-format does not parse Fortran, so `.clang-format` applies only to any supported-language files added later and `.clang-format-ignore` prevents accidental changes to `src/*.f90`.

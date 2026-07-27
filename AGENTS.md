@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-MSTM is a Fortran 2023 multiple-sphere T-matrix solver. `src/` is the only implementation: `main.f90` drives input and execution, `input.f90` owns configuration/reporting, and the remaining files contain numerical, scattering, FFT, random-configuration, and serial/MPI modules. `examples/` contains paper inputs, position data, and plotting assets. The maintained manual is `docs/manual.md`; archived papers and the former PDF manual are in `docs/reference/`. CMake helpers live in `cmake/`.
+MSTM is a Fortran 2023 multiple-sphere T-matrix solver. `src/` is the only implementation. Files are organized by module: `input_state.f90`, `input_parser.f90`, `input_execution.f90`, and `input_reporting.f90` form the input pipeline; focused numerical modules contain Bessel, angular, translation, scattering, near-field, and GPFA code. `input.f90` and `special_functions.f90` are compatibility façades. `tests/` contains focused numerical tests, while `examples/` contains smoke-test inputs, position data, and plotting assets. The maintained manual is `docs/manual.md`; archived material is in `docs/reference/`.
 
 ## Build, Test, and Development Commands
 
@@ -22,7 +22,7 @@ Use free-form, standard-conforming Fortran 2023 in `.f90` files. Match the exist
 
 ## Testing Guidelines
 
-CTest runs the Figure 1 near-field case and the focused December 2023 effective-medium case. Every change must pass both in serial mode; changes to MPI or shared numerical code must also pass an MPI-enabled build. For numerical changes, compare relevant output against a known-good run and document tolerances, compiler flags, and MPI rank count. Add focused example inputs when existing cases do not cover the behavior.
+CTest runs a direct-DFT GPFA unit test, the Figure 1 near-field case, and the focused December 2023 effective-medium case. Every change must pass all three in serial mode; changes to MPI or shared numerical code must also pass an MPI-enabled build. For numerical changes, compare output against a known-good run and document tolerances, compiler flags, and MPI rank count. Add focused tests when existing cases do not cover the behavior.
 
 ## Commit & Pull Request Guidelines
 

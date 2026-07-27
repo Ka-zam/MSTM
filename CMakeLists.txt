@@ -18,18 +18,55 @@ if(MSTM_ENABLE_MPI)
   set(mstm_mpi_source src/mpi_parallel.f90)
 endif()
 
+set(mstm_gpfa_sources
+  src/gpfa_radix2.f90
+  src/gpfa_radix3.f90
+  src/gpfa_radix5.f90
+  src/gpfa_dispatch.f90
+  src/gpfa_controller.f90
+  src/gpfa_setup.f90
+)
+
 set(mstm_sources
   src/intrinsics.f90
   ${mstm_mpi_source}
-  src/core.f90
+  src/numconstants.f90
+  src/runtime_support.f90
+  src/coefficient_indexing.f90
+  src/bessel_functions.f90
+  src/angular_functions.f90
+  src/wave_functions.f90
+  src/quadrature.f90
+  src/special_functions.f90
+  src/surface.f90
+  src/periodic_lattice.f90
+  src/sphere_data.f90
+  src/mie.f90
+  src/translation.f90
   src/fft_translation.f90
   src/scattering.f90
+  src/near_field.f90
   src/solver.f90
   src/random_configuration.f90
   src/lmfit.f90
+  src/input_value_parsing.f90
+  src/input_state.f90
+  src/input_parser.f90
+  src/effective_medium_analysis.f90
+  src/input_reporting.f90
+  src/input_execution.f90
   src/input.f90
   src/main.f90
 )
+
+add_library(mstm_gpfa STATIC ${mstm_gpfa_sources})
+set_target_properties(mstm_gpfa PROPERTIES
+  Fortran_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/gpfa-modules"
+  Fortran_PREPROCESS OFF
+  Fortran_FORMAT FREE
+)
+target_include_directories(mstm_gpfa PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/gpfa-modules")
+target_compile_options(mstm_gpfa PRIVATE -std=f2023)
 
 add_executable(mstm ${mstm_sources})
 
@@ -40,6 +77,7 @@ set_target_properties(mstm PROPERTIES
 )
 target_include_directories(mstm PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/modules")
 target_compile_options(mstm PRIVATE -std=f2023)
+target_link_libraries(mstm PRIVATE mstm_gpfa)
 
 if(MSTM_ENABLE_MPI)
   target_link_libraries(mstm PRIVATE MPI::MPI_Fortran)
@@ -51,7 +89,9 @@ if(FPRETTIFY_EXECUTABLE)
     COMMAND "${FPRETTIFY_EXECUTABLE}"
       --config-file "${CMAKE_CURRENT_SOURCE_DIR}/.fprettify.rc"
       --silent
+      ${mstm_gpfa_sources}
       ${mstm_sources}
+      tests/gpfa_test.f90
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     COMMENT "Formatting Fortran sources"
     VERBATIM
@@ -60,6 +100,11 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+  add_executable(gpfa_test tests/gpfa_test.f90)
+  target_compile_options(gpfa_test PRIVATE -std=f2023)
+  target_link_libraries(gpfa_test PRIVATE mstm_gpfa)
+  add_test(NAME gpfa_unit COMMAND gpfa_test)
+
   function(add_mstm_example_test test_name input_name expected_outputs)
     set(test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/${test_name}")
     file(MAKE_DIRECTORY "${test_work_dir}")

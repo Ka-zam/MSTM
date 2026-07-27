@@ -1,0 +1,45 @@
+program gpfa_test
+   use gpfa_controller, only: cgpfa
+   use gpfa_setup, only: setgpfa
+   implicit none
+
+   integer, parameter :: transform_size = 30
+   integer, parameter :: trig_size = 2 * (2 + 3 + 5)
+   integer :: input_index, output_index
+   ! The inherited GPFA kernels use legacy trigonometric recurrences whose
+   ! observed double-precision error is approximately 1.7e-7 for this case.
+   real(8), parameter :: tolerance = 5.d-7
+   real(8) :: angle, max_error, pi
+   real(8) :: real_data(transform_size), imag_data(transform_size)
+   real(8) :: real_input(transform_size), imag_input(transform_size)
+   real(8) :: trigs(trig_size)
+   complex(8) :: expected, actual
+
+   pi = acos(-1.d0)
+   do input_index = 1, transform_size
+      real_input(input_index) = sin(0.2d0 * input_index) + 0.03d0 * input_index
+      imag_input(input_index) = cos(0.3d0 * input_index) - 0.02d0 * input_index
+   end do
+   real_data = real_input
+   imag_data = imag_input
+
+   call setgpfa(trigs, transform_size)
+   call cgpfa(real_data, imag_data, trigs, 1, transform_size, 1)
+
+   max_error = 0.d0
+   do output_index = 1, transform_size
+      expected = (0.d0, 0.d0)
+      do input_index = 1, transform_size
+         angle = 2.d0 * pi * dble((output_index - 1) * (input_index - 1)) / dble(transform_size)
+         expected = expected + cmplx(real_input(input_index), imag_input(input_index), kind=8) &
+                    * cmplx(cos(angle), sin(angle), kind=8)
+      end do
+      actual = cmplx(real_data(output_index), imag_data(output_index), kind=8)
+      max_error = max(max_error, abs(actual - expected))
+   end do
+
+   if (max_error > tolerance) then
+      write (*, '(a,es12.4)') 'GPFA maximum error: ', max_error
+      error stop 'GPFA result differs from direct DFT'
+   end if
+end program gpfa_test
