@@ -149,7 +149,7 @@ contains
       do i = 1, number_spheres
          if (host_sphere(i) .ne. 0) cycle
          allocate (pmnpi(sphere_block(i), 2), amnpi(sphere_block(i), 2))
-         call layervsh(s, phi, targetz, dir, sphere_position(:, i), sphere_order(i), pmnpi)
+         call layer_vector_spherical_harmonics(s, phi, targetz, dir, sphere_position(:, i), sphere_order(i), pmnpi)
          amnpi(:, :) = amnp(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), :)
          do p = 1, 2
             call left_right_mode_transformation(sphere_order(i), amnpi(:, p), amnpi(:, p))
@@ -168,7 +168,7 @@ contains
       integer :: dir
       real(8) :: phi, targetz
       complex(8) :: amnp(2 * t_matrix_order * (t_matrix_order + 2), 2), sa(4), s, pmnp(2 * t_matrix_order * (t_matrix_order + 2), 2)
-      call layervsh(s, phi, targetz, dir, cluster_origin, t_matrix_order, pmnp)
+      call layer_vector_spherical_harmonics(s, phi, targetz, dir, cluster_origin, t_matrix_order, pmnp)
       sa(1) = 0.5d0 * sum(pmnp(:, 2) * amnp(:, 2))
       sa(2) = 0.5d0 * sum(pmnp(:, 1) * amnp(:, 1))
       sa(3) = -0.5d0 * sum(pmnp(:, 1) * amnp(:, 2))

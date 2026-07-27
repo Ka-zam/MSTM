@@ -501,7 +501,7 @@ contains
             end do
          end if
       else
-         call layerplanewavecoef(alpha, sinc, dir, rpos, 1, pmnp)
+         call layer_plane_wave_coefficients(alpha, sinc, dir, rpos, 1, pmnp)
          do p = 1, 2
             evec(:, p) = matmul(vwf_0(:, :, 1), pmnp(:, 1, p)) + matmul(vwf_0(:, :, 2), pmnp(:, 2, p))
             hvec(:, p) = (matmul(vwf_0(:, :, 1), pmnp(:, 1, p)) - matmul(vwf_0(:, :, 2), pmnp(:, 2, p))) * riinc / (0.d0, 1.d0)

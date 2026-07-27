@@ -215,14 +215,17 @@ contains
       if (periodic_lattice) then
        if (maxval(pl_error_codes) .ne. 0) write (outunit, '('' warning: problems encountered with periodic lattice calculations'')')
          if (pl_error_codes(1) .ne. 0) write (outunit, '('' integration formulas for FS PL DMGF did not converge''&
-         &'' in subroutine swf_lattice_sum'')')
+         &'' in subroutine scalar_wave_function_lattice_sum'')')
          if (pl_error_codes(2) .ne. 0) write (outunit, '('' RS series for PL DMGF did not converge in subroutine''&
-         &'' reciprocal_space_swf_lattice_sum'')')
+         &'' reciprocal_space_scalar_wave_function_lattice_sum'')')
          if (pl_error_codes(3) .ne. 0) write (outunit, '('' reciprocal space series for PL DMGF did not converge''&
              &'' in subroutine plane_boundary_lattice_interaction'')')
-         if (pl_error_codes(4) .ne. 0) write (outunit, '('' integration did not converge in subroutine q2db'')')
-         if (pl_error_codes(5) .ne. 0) write (outunit, '('' integration did not converge in subroutine q1dbnosource'')')
-         if (pl_error_codes(6) .ne. 0) write (outunit, '('' series in s did not converge in subroutine swfyzlatticesum'')')
+         if (pl_error_codes(4) .ne. 0) &
+            write (outunit, '('' integration did not converge in subroutine integrate_lattice_term_2d'')')
+         if (pl_error_codes(5) .ne. 0) &
+            write (outunit, '('' integration did not converge in subroutine integrate_lattice_term_1d_without_source'')')
+         if (pl_error_codes(6) .ne. 0) &
+            write (outunit, '('' series in s did not converge in subroutine scalar_wave_function_yz_lattice_sum'')')
       end if
    end subroutine print_error_codes
 

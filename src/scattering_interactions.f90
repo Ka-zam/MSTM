@@ -243,8 +243,8 @@ contains
 !write(*,'(i2,4es12.4)') n,dnpeff(1,1,n)+dnpeff(2,1,n),dnpeff(1,1,n)-dnpeff(2,1,n)
 !enddo
 !endif
-         call layerplanewavecoef(alpha, sinc, dir, (/0.d0, 0.d0, 0.d0/), t_matrix_order, &
-                                 pmnp0)
+         call layer_plane_wave_coefficients(alpha, sinc, dir, (/0.d0, 0.d0, 0.d0/), t_matrix_order, &
+                                            pmnp0)
          do n = 1, t_matrix_order
             do m = -n, n
                mn = mode_index(m, n, t_matrix_order, 2)
@@ -266,8 +266,8 @@ contains
          if (.not. exsphere(i)) cycle
          allocate (pmnptot(sphere_block(i), 2))
          if (gaussian_beam_constant .eq. 0.d0) then
-            call layerplanewavecoef(alpha, sinc, dir, sphere_position(:, i), sphere_order(i), &
-                                    pmnptot)
+            call layer_plane_wave_coefficients(alpha, sinc, dir, sphere_position(:, i), sphere_order(i), &
+                                               pmnptot)
          else
             call layered_gaussian_beam_coefficients(alpha, sinc, dir, sphere_position(:, i), sphere_order(i), &
                                                     pmnptot)

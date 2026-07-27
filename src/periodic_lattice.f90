@@ -259,15 +259,16 @@ contains
          if (abs(rpos(3)) .lt. wcrit) then
             pl_fs_method = 0
             if (time_it) time_0 = mstm_mpi_wtime()
-            call swf_lattice_sum(wmax, rpos(1), rpos(2), rpos(3), cell_width, incident_lateral_vector, &
-                                 ri, ysum, include_source=incsrc)
+            call scalar_wave_function_lattice_sum(wmax, rpos(1), rpos(2), rpos(3), cell_width, &
+                                                  incident_lateral_vector, &
+                                                  ri, ysum, include_source=incsrc)
             if (time_it) time_count(1) = mstm_mpi_wtime() - time_0 + time_count(1)
             if (pl_max_subdivs .ge. maximum_integration_subdivisions) pl_error_codes(1) = 1
          else
             pl_fs_method = 1
             if (time_it) time_0 = mstm_mpi_wtime()
-            call reciprocal_space_swf_lattice_sum(wmax, rpos(1), rpos(2), rpos(3), cell_width, &
-                                                  incident_lateral_vector, ri, pl_rs_nmax, pl_rs_eps, nterms, ysum)
+            call reciprocal_space_scalar_wave_function_lattice_sum(wmax, rpos(1), rpos(2), rpos(3), cell_width, &
+                                                                   incident_lateral_vector, ri, pl_rs_nmax, pl_rs_eps, nterms, ysum)
             if (time_it) time_count(2) = mstm_mpi_wtime() - time_0 + time_count(2)
             if (.not. incsrc) then
                call scalar_wave_function(wmax, 3, rpos(1), rpos(2), rpos(3), ri, swf)
@@ -523,7 +524,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       deallocate (mat)
    end subroutine common_layer_lattice_translation_matrix
 
-   subroutine swf_lattice_sum(nodr, x, y, z, w, k0, ri, swfsum, include_source)
+   subroutine scalar_wave_function_lattice_sum(nodr, x, y, z, w, k0, ri, swfsum, include_source)
       implicit none
       logical :: addsource
       logical, optional :: include_source
@@ -540,7 +541,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       else
          addsource = .false.
       end if
-      call swfyzlatticesum(nodr, z, -y, x, (/w(2), w(1)/), -k0(2), k0(1), ri, swfsum)
+      call scalar_wave_function_yz_lattice_sum(nodr, z, -y, x, (/w(2), w(1)/), -k0(2), k0(1), ri, swfsum)
       call rotation_coefficients(0.d0, nodr, nodr, drot)
       do n = 0, nodr
          nn1 = n * (n + 1)
@@ -560,9 +561,9 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
          call scalar_wave_function(nodr, 3, x, y, z, ri, swf)
          swfsum = swfsum + swf
       end if
-   end subroutine swf_lattice_sum
+   end subroutine scalar_wave_function_lattice_sum
 
-   subroutine swfyzlatticesum(nodr, x, y, z, w, k0y, k0z, ri, swfyzsum)
+   subroutine scalar_wave_function_yz_lattice_sum(nodr, x, y, z, w, k0y, k0z, ri, swfyzsum)
       implicit none
       logical :: convrg
       integer :: nodr, m, n, s, ntz, l, smaxp, smaxn
@@ -578,7 +579,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       smaxn = -ntz
       swfyzsum = 0.d0
 
-      call q1dbnosource(nodr, x, y, z, w(2), k0z, ri, q1d)
+      call integrate_lattice_term_1d_without_source(nodr, x, y, z, w(2), k0z, ri, q1d)
       do n = 0, nodr
          do m = -n, n
             swfyzsum(m + n * (n + 1)) = q1d(m + n * (n + 1))
@@ -589,7 +590,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       convrg = .false.
       do s = 0, ntz
          kz = k0z + two_pi * dble(s) / w(2)
-         call q2db(nodr, x, y, w(1), k0y, kz, ri, q2d)
+         call integrate_lattice_term_2d(nodr, x, y, w(1), k0y, kz, ri, q2d)
          sum1(:, s) = q2d
          ct = kz / ri
          call complex_rotation_coefficients(ct, 0, nodr, ymn)
@@ -636,7 +637,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
          convrg = .false.
          do s = 1, ntz
             kz = k0z - two_pi * dble(s) / w(2)
-            call q2db(nodr, x, y, w(1), k0y, kz, ri, q2d)
+            call integrate_lattice_term_2d(nodr, x, y, w(1), k0y, kz, ri, q2d)
             sum1(:, s) = q2d
             ct = kz / ri
             call complex_rotation_coefficients(ct, 0, nodr, ymn)
@@ -666,9 +667,9 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
          if (.not. convrg) pl_error_codes(6) = 1
       end if
       deallocate (sum1)
-   end subroutine swfyzlatticesum
+   end subroutine scalar_wave_function_yz_lattice_sum
 
-   subroutine swfyzlatticesum0(nodr, x, y, z, w, k0y, k0z, ri, swfyzsum)
+   subroutine scalar_wave_function_yz_lattice_sum_precomputed(nodr, x, y, z, w, k0y, k0z, ri, swfyzsum)
       implicit none
       logical :: convrg
       integer :: nodr, m, n, s, ntz, l, smaxp, smaxn
@@ -687,7 +688,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       convrg = .false.
       do s = 0, ntz
          kz = k0z + two_pi * dble(s) / w(2)
-         call q2db(nodr, x, y, w(1), k0y, kz, ri, q2d)
+         call integrate_lattice_term_2d(nodr, x, y, w(1), k0y, kz, ri, q2d)
          sum1(:, s) = q2d
          mag = sum(abs(q2d))
          if ((abs(kz) .gt. 1.d0) .and. (mag .lt. 1.d-8)) then
@@ -706,7 +707,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
          convrg = .false.
          do s = 1, ntz
             kz = k0z - two_pi * dble(s) / w(2)
-            call q2db(nodr, x, y, w(1), k0y, kz, ri, q2d)
+            call integrate_lattice_term_2d(nodr, x, y, w(1), k0y, kz, ri, q2d)
             sum1(:, -s) = q2d
             mag = sum(abs(q2d))
             if ((abs(kz) .gt. 1.d0) .and. (mag .lt. 1.d-8)) then
@@ -717,7 +718,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
          end do
          if (.not. convrg) pl_error_codes(6) = 1
       end if
-      call q1dbnosource(nodr, x, y, z, w(2), k0z, ri, q1d)
+      call integrate_lattice_term_1d_without_source(nodr, x, y, z, w(2), k0z, ri, q1d)
       do n = 0, nodr
          do m = -n, n
             swfyzsum(m + n * (n + 1)) = q1d(m + n * (n + 1))
@@ -736,9 +737,9 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
             end do
          end do
       end do
-   end subroutine swfyzlatticesum0
+   end subroutine scalar_wave_function_yz_lattice_sum_precomputed
 
-   subroutine qkernel2d(ntot, t, qfunc)
+   subroutine lattice_integrand_2d(ntot, t, qfunc)
       implicit none
       integer :: ntot, m
       real(8) :: t, tt, dt
@@ -768,9 +769,9 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
          qfunc(m + 1 + qkernel_nodr) = efunc1 * pfunc1**m + efunc2 * pfunc2**m
       end do
       qfunc = qfunc * exp(ci * u * qkernel_x * qkernel_ref_index) * du / v * dt
-   end subroutine qkernel2d
+   end subroutine lattice_integrand_2d
 
-   subroutine q2db(nodr, x, y, w, k0y, kz, ri, qint)
+   subroutine integrate_lattice_term_2d(nodr, x, y, w, k0y, kz, ri, qint)
       implicit none
       integer :: nodr, ntot, subdiv, nseg, ec
       real(8) :: x, y, w, k0y, kz, t0, t1, cerr, dseg
@@ -801,7 +802,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
             t1 = 0.d0
          end if
          ec = 0
-         call gkintegrate(ntot, t0, t1, qkernel2d, qintt, subdiv, ec, &
+         call gkintegrate(ntot, t0, t1, lattice_integrand_2d, qintt, subdiv, ec, &
                           pl_integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
          if (ec .ne. 0) pl_error_codes(4) = 1
          cerr = sum(abs(qintt))
@@ -828,7 +829,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
             t0 = 0.d0
          end if
          ec = 0
-         call gkintegrate(ntot, t0, t1, qkernel2d, qintt, subdiv, ec, &
+         call gkintegrate(ntot, t0, t1, lattice_integrand_2d, qintt, subdiv, ec, &
                           pl_integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
          if (ec .ne. 0) pl_error_codes(4) = 1
          cerr = sum(abs(qintt))
@@ -839,9 +840,9 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       end do
       q2d_number_segments = max(q2d_number_segments, nseg)
       qint = qint + qintp
-   end subroutine q2db
+   end subroutine integrate_lattice_term_2d
 
-   subroutine qkernel1d(ntot, t, qfunc)
+   subroutine lattice_integrand_1d(ntot, t, qfunc)
       implicit none
       integer :: ntot, i, n, m, nodrtemp, mlim
       real(8) :: t, tt, dt, rho
@@ -886,9 +887,9 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
             qfunc(i) = dt * c * ymn1(n * (n + 1) + m) * bfunc(m) * (expzfunc1 + ((-1)**(n + m)) * expzfunc2)
          end do
       end do
-   end subroutine qkernel1d
+   end subroutine lattice_integrand_1d
 
-   subroutine q1dbnosource(nodr, x, y, z, w, kz, ri, qint)
+   subroutine integrate_lattice_term_1d_without_source(nodr, x, y, z, w, kz, ri, qint)
       implicit none
       integer :: nodr, ntot, subdiv, nseg, ec
       real(8) :: x, y, z, w, kz, t0, t1, cerr, dseg
@@ -919,7 +920,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
             t0 = 0.d0
          end if
          ec = 0
-         call gkintegrate(ntot, t0, t1, qkernel1d, qintt, subdiv, ec, &
+         call gkintegrate(ntot, t0, t1, lattice_integrand_1d, qintt, subdiv, ec, &
                           pl_integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
          if (ec .ne. 0) pl_error_codes(5) = 1
          cerr = sum(abs(qintt))
@@ -929,9 +930,9 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
          if (nseg .eq. 2 .and. pl_integration_method .eq. 0) exit
       end do
       q1d_number_segments = nseg
-   end subroutine q1dbnosource
+   end subroutine integrate_lattice_term_1d_without_source
 
-   subroutine reciprocal_space_swf_lattice_sum(nodr, x0, y0, z0, w, k0, ri, nmax, eps, nterms, wf)
+   subroutine reciprocal_space_scalar_wave_function_lattice_sum(nodr, x0, y0, z0, w, k0, ri, nmax, eps, nterms, wf)
       implicit none
       integer :: nodr, i, ix, iy, nmax, nterms, n, p, q
       real(8) :: x0, y0, z0, w(2), wx, wy, k0(2), kconst, kx, ky, eps, cerr(0:nodr * (nodr + 2)), &
@@ -978,7 +979,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
          if (maxval(cerr) .lt. eps) exit
       end do
       nterms = n
-   end subroutine reciprocal_space_swf_lattice_sum
+   end subroutine reciprocal_space_scalar_wave_function_lattice_sum
 
    subroutine common_layer_lattice_kernel(nodr, kx, ky, x, y, zt, zs, tdirs, sdirs, kernel)
       implicit none
@@ -997,7 +998,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
          ealpha = cmplx(kx, ky, kind=kind(0.0d0)) / kr
       end if
       s = kr
-      call layer_gf(s, zs, zt, gfunc, skz, tkz)
+      call layer_green_function(s, zs, zt, gfunc, skz, tkz)
       call complex_rotation_coefficients(skz, 2, nodr, drot)
       c = exp((0.d0, 1.d0) * (kx * x + ky * y)) / ri / ri / skz / sqrt(four_pi)
       do k = -2, 2, 2
@@ -1049,7 +1050,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
          ealpha = cmplx(kx, ky, kind=kind(0.0d0)) / kr
       end if
       s = kr
-      call layer_gf(s, zs, zt, gfunc, skz, tkz, incsrc)
+      call layer_green_function(s, zs, zt, gfunc, skz, tkz, incsrc)
       call complex_vector_spherical_harmonics(skz, nodrs, pivec, 1)
       call complex_vector_spherical_harmonics(tkz, nodrt, picvec, -1)
       c = exp((0.d0, 1.d0) * (kx * x + ky * y)) / ri / ri / skz

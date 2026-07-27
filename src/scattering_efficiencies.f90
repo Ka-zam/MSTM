@@ -536,7 +536,7 @@ contains
       tlay = layer_id(targetz)
       targetri = layer_ref_index(tlay)
       s = sinc
-      call layer_gf(s, sourcez, targetz, gfs, skz, tkz, include_direct=.true.)
+      call layer_green_function(s, sourcez, targetz, gfs, skz, tkz, include_direct=.true.)
       do p = 1, 2
          if (comorg) then
             call common_origin_amplitude_matrix(amnp, s, alpha, targetz, p, sa)

@@ -36,7 +36,7 @@ module surface_subroutines
    data g_cut, g_sing_mag/10.d0, 1.d5/
 
 contains
-   subroutine plane_boundary_initialization()
+   subroutine initialize_plane_boundaries()
       implicit none
       integer :: i
       real(8) :: smax
@@ -50,27 +50,27 @@ contains
       top_boundary = plane_boundary_position(max(1, number_plane_boundaries)) + 1.d-8
       bot_boundary = -1.d-8
       if (number_plane_boundaries .gt. 1) then
-         call gfunc_sing_points(bot_boundary, top_boundary, g_cut, smax, &
-                                number_singular_points, singular_points, singular_point_polarization, &
-                                singular_gf_value)
+         call find_green_function_singular_points(bot_boundary, top_boundary, g_cut, smax, &
+                                                  number_singular_points, singular_points, singular_point_polarization, &
+                                                  singular_gf_value)
       else
          number_singular_points = 0
          singular_gf_value = 1.d0
       end if
-   end subroutine plane_boundary_initialization
+   end subroutine initialize_plane_boundaries
 
-   subroutine gfunc_sing_points(sourcez, targetz, gcut, smax, nsingpoints, singpoints, singpol, singval)
+   subroutine find_green_function_singular_points(sourcez, targetz, gcut, smax, nsingpoints, singpoints, singpol, singval)
       implicit none
       integer :: p, i, nbrack, nsingpoints, singpol(*)
       real(8) :: sourcez, targetz, gcut, smax, singpoints(*), sbrack(2, max_singular_points), s0, s1, s2, fmax, sfmax, singval(*)
       nsingpoints = 0
       do p = 1, 2
-         call sing_point_bracket(sourcez, targetz, p, gcut, smax, nbrack, sbrack)
+         call bracket_green_function_singular_points(sourcez, targetz, p, gcut, smax, nbrack, sbrack)
          do i = 1, nbrack
             s0 = sbrack(1, i)
             s2 = sbrack(2, i)
             s1 = 0.5d0 * (s0 + s2)
-            call maxgfunc(sourcez, targetz, p, s0, s1, s2, 1.d-9, 100, fmax, sfmax)
+            call maximize_green_function(sourcez, targetz, p, s0, s1, s2, 1.d-9, 100, fmax, sfmax)
             if (fmax .lt. g_sing_mag) cycle
             nsingpoints = nsingpoints + 1
             singpoints(nsingpoints) = sfmax
@@ -78,9 +78,9 @@ contains
             singval(nsingpoints) = fmax
          end do
       end do
-   end subroutine gfunc_sing_points
+   end subroutine find_green_function_singular_points
 
-   subroutine sing_point_bracket(sz, tz, p, gcut, smax, nbrack, sbrack)
+   subroutine bracket_green_function_singular_points(sz, tz, p, gcut, smax, nbrack, sbrack)
       implicit none
       logical :: inbrack
       integer :: nbrack, p
@@ -91,7 +91,7 @@ contains
       nbrack = 0
       s = dels * 0.5d0
       do while (dble(s) .lt. smax)
-         call layer_gf(s, sz, tz, gf, skz, tkz)
+         call layer_green_function(s, sz, tz, gf, skz, tkz)
          fm = dble(sum(abs(gf(:, :, p))))
          if (fm .gt. gcut) then
             if (.not. inbrack) then
@@ -111,9 +111,9 @@ contains
          end if
          s = s + dels
       end do
-   end subroutine sing_point_bracket
+   end subroutine bracket_green_function_singular_points
 
-   subroutine maxgfunc(sz, tz, p, ax, bx, cx, tol, maxsteps, gmax, xmax)
+   subroutine maximize_green_function(sz, tz, p, ax, bx, cx, tol, maxsteps, gmax, xmax)
       implicit none
       integer :: n, maxsteps, p
       real(8) :: ax, bx, cx, tol, xmax, r, c, x0, x3, x1, x2, f1, f2, f3, f0, gmax, sz, tz
@@ -129,10 +129,10 @@ contains
          x1 = bx - c * (bx - ax)
       end if
       s = x1
-      call layer_gf(s, sz, tz, gf, skz, tkz)
+      call layer_green_function(s, sz, tz, gf, skz, tkz)
       f1 = dble(sum(abs(gf(:, :, p))))
       s = x2
-      call layer_gf(s, sz, tz, gf, skz, tkz)
+      call layer_green_function(s, sz, tz, gf, skz, tkz)
       f2 = dble(sum(abs(gf(:, :, p))))
       n = 1
       do while (abs(x3 - x0) .gt. tol * (abs(x1) + abs(x2)) .and. n .le. maxsteps)
@@ -144,7 +144,7 @@ contains
             f0 = f1
             f1 = f2
             s = x2
-            call layer_gf(s, sz, tz, gf, skz, tkz)
+            call layer_green_function(s, sz, tz, gf, skz, tkz)
             f2 = dble(sum(abs(gf(:, :, p))))
          else
             x3 = x2
@@ -153,7 +153,7 @@ contains
             f3 = f2
             f2 = f1
             s = x1
-            call layer_gf(s, sz, tz, gf, skz, tkz)
+            call layer_green_function(s, sz, tz, gf, skz, tkz)
             f1 = dble(sum(abs(gf(:, :, p))))
          end if
       end do
@@ -164,9 +164,9 @@ contains
          gmax = f2
          xmax = x2
       end if
-   end subroutine maxgfunc
+   end subroutine maximize_green_function
 
-   subroutine layer_gfos(sourcelayer, targetlayer, sourcez, targetz, kz, omega, tm, gfs)
+   subroutine layer_green_function_series(sourcelayer, targetlayer, sourcez, targetz, kz, omega, tm, gfs)
       implicit none
       integer :: n, sourcelayer, targetlayer, p, sourcedir, iter
       real(8) :: scale, scale0, sourcez, targetz
@@ -244,9 +244,9 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       if (number_gf_iterations .gt. max_gf_iterations) then
          error_codes(1) = 1
       end if
-   end subroutine layer_gfos
+   end subroutine layer_green_function_series
 
-   subroutine layer_gfrec(sourcelayer, targetlayer, sourcez, targetz, kz, omega, tm, gfs)
+   subroutine layer_green_function_recurrence(sourcelayer, targetlayer, sourcez, targetz, kz, omega, tm, gfs)
       implicit none
       integer :: n, sourcelayer, targetlayer, p, sourcedir
       real(8) :: sourcez, targetz
@@ -326,9 +326,9 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
             end if
          end do
       end do
-   end subroutine layer_gfrec
+   end subroutine layer_green_function_recurrence
 
-   subroutine layer_gf(s, sourcez, targetz, gfs, sourcekz, targetkz, include_direct)
+   subroutine layer_green_function(s, sourcez, targetz, gfs, sourcekz, targetkz, include_direct)
       implicit none
       logical :: incdir, prop
       logical, optional :: include_direct
@@ -414,9 +414,9 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
          end do
          if (maxval(abs(omega(1:number_plane_boundaries - 1))) .lt. gf_switch_factor) then
             number_gf_iterations = 0
-            call layer_gfos(sourcelayer, targetlayer, sourcez, targetz, kz, omega, tm, gfs)
+            call layer_green_function_series(sourcelayer, targetlayer, sourcez, targetz, kz, omega, tm, gfs)
          else
-            call layer_gfrec(sourcelayer, targetlayer, sourcez, targetz, kz, omega, tm, gfs)
+            call layer_green_function_recurrence(sourcelayer, targetlayer, sourcez, targetz, kz, omega, tm, gfs)
          end if
       end if
       if (incdir .and. sourcelayer .eq. targetlayer) then
@@ -428,9 +428,9 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
                            + c * exp((0.d0, 1.d0) * layer_ref_index(targetlayer) * sourcekz * (abs(sourcez - targetz)))
          end if
       end if
-   end subroutine layer_gf
+   end subroutine layer_green_function
 
-   subroutine realaxiskernel(ntot, t, kernmat)
+   subroutine real_axis_kernel(ntot, t, kernmat)
       implicit none
       integer :: m, m1, k, k1, mk, n, l, p, q, mn, kl, i, pol, dir, tsign, ssign, mmax, ntot
       integer, save :: count
@@ -448,7 +448,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
              + cmplx(0.d0, -1.d0, kind=kind(0.0d0)) * s_sc2
          dsdt = cmplx(1.d0, -s_sc1, kind=kind(0.0d0))
       end if
-      call layer_gf(s, source_z, target_z, gfunc, sourcekz, targetkz, include_direct_source)
+      call layer_green_function(s, source_z, target_z, gfunc, sourcekz, targetkz, include_direct_source)
       sourceri = layer_ref_index(source_layer)
       targetri = layer_ref_index(target_layer)
       sr = s * radial_distance
@@ -535,9 +535,9 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
             end do
          end do
       end if
-   end subroutine realaxiskernel
+   end subroutine real_axis_kernel
 
-   subroutine energykernel(ntot, t, kernmat)
+   subroutine energy_kernel(ntot, t, kernmat)
       implicit none
       integer :: m, m1, k, k1, mk, n, l, p, q, mn, kl, pol, tsign, ssign, mmax, sourceorder(2), &
                  nmax, spol, tlay, ntot
@@ -564,8 +564,8 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       else
          s = sqrt((1.d0, 0.d0) + t * t) * dble(targetri)
       end if
-      call layer_gf(s, sourcez(1), targetz, gfunc1, sourcekz(1), targetkz, include_direct=.true.)
-      call layer_gf(s, sourcez(2), targetz, gfunc2, sourcekz(2), targetkz, include_direct=.true.)
+      call layer_green_function(s, sourcez(1), targetz, gfunc1, sourcekz(1), targetkz, include_direct=.true.)
+      call layer_green_function(s, sourcez(2), targetz, gfunc2, sourcekz(2), targetkz, include_direct=.true.)
       cscale = t * dble(targetri)**2
       call complex_vector_spherical_harmonics(sourcekz(1), sourceorder(1), pivec1, 1)
       call complex_vector_spherical_harmonics(sourcekz(2), sourceorder(2), pivec2, 1)
@@ -626,14 +626,14 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
                             + const3(3, pol) * aimag(bvec(1, 2) - bvec(2, 1))
          end do
       end do
-   end subroutine energykernel
+   end subroutine energy_kernel
 
-   pure real(8) function mnorm(n, m)
+   pure real(8) function mode_vector_norm(n, m)
       implicit none
       integer, intent(in) :: n
       complex(8), intent(in) :: m(n)
-      mnorm = sqrt(dble(dot_product(m, m)))
-   end function mnorm
+      mode_vector_norm = sqrt(dble(dot_product(m, m)))
+   end function mode_vector_norm
 
    pure integer function layer_id(z)
       implicit none
@@ -764,7 +764,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
          real_axis_integration_limit = dble(layer_ref_index(source_layer)) - 1.d-6
       end if
 
-      call refmatrixrealaxis(qtot, rmat)
+      call integrate_reflection_matrix_real_axis(qtot, rmat)
 
       if (propdir) then
          s_scale_constant = ssc
@@ -928,7 +928,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
          s1 = limits(n)
          subdiv = 0
          ec = 0
-         call gkintegrate(2, s0, s1, energykernel, qmat, subdiv, ec, &
+         call gkintegrate(2, s0, s1, energy_kernel, qmat, subdiv, ec, &
                           integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
          if (ec .eq. 1) error_codes(4) = 1
          if (ec .eq. 2) error_codes(3) = 1
@@ -957,7 +957,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
             s1 = limits(n)
             subdiv = 0
             ec = 0
-            call gkintegrate(2, s0, s1, energykernel, qmat, subdiv, ec, &
+            call gkintegrate(2, s0, s1, energy_kernel, qmat, subdiv, ec, &
                              integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
             if (ec .eq. 1) error_codes(4) = 1
             if (ec .eq. 2) error_codes(3) = 1
@@ -971,7 +971,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
          qmat = 0.d0
          subdiv = 0
          ec = 0
-         call gkintegrate(2, s0, s1, energykernel, qmat, subdiv, ec, &
+         call gkintegrate(2, s0, s1, energy_kernel, qmat, subdiv, ec, &
                           integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
          if (ec .eq. 1) error_codes(4) = 1
          if (ec .eq. 2) error_codes(3) = 1
@@ -981,7 +981,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       deallocate (source_coefficient_1, source_coefficient_2)
    end subroutine sphere_boundary_scattering
 
-   subroutine refmatrixrealaxis(qtot, rmat)
+   subroutine integrate_reflection_matrix_real_axis(qtot, rmat)
       implicit none
       integer :: qtot, n, limit, nseg, seg, n0, subdiv, ec
       real(8) :: t1, t2, delt, dnorm, norm0, r, &
@@ -993,7 +993,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
          subdiv = 0.d0
          rmat = 0.d0
          ec = 0
-         call gkintegrate(qtot, t1, t2, realaxiskernel, rmat, subdiv, ec, &
+         call gkintegrate(qtot, t1, t2, real_axis_kernel, rmat, subdiv, ec, &
                           integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
          return
       end if
@@ -1023,7 +1023,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
             drmat = 0.d0
             subdiv = 0
             ec = 0
-            call gkintegrate(qtot, dt1, dt2, realaxiskernel, drmat, subdiv, ec, &
+            call gkintegrate(qtot, dt1, dt2, real_axis_kernel, drmat, subdiv, ec, &
                              integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
 !if(mstm_global_rank.eq.0) write(*,'('' p1 '',2es12.4,2i6)') dt1,dt2,ec,subdiv
             if (ec .eq. 1) error_codes(4) = 1
@@ -1046,7 +1046,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
             drmat = 0.d0
             subdiv = 0
             ec = 0
-            call gkintegrate(qtot, dt1, dt2, realaxiskernel, drmat, subdiv, ec, &
+            call gkintegrate(qtot, dt1, dt2, real_axis_kernel, drmat, subdiv, ec, &
                              integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
 !if(mstm_global_rank.eq.0) write(*,'('' p2 '',2es12.4,2i6)') dt1,dt2,ec,subdiv
             if (ec .eq. 1) error_codes(4) = 1
@@ -1063,19 +1063,19 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
          t1t = t1
          t2t = t2
          ec = 0
-         call gkintegrate(qtot, t1t, t2t, realaxiskernel, drmat, subdiv, ec, &
+         call gkintegrate(qtot, t1t, t2t, real_axis_kernel, drmat, subdiv, ec, &
                           integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
 !if(mstm_global_rank.eq.0) write(*,'('' p3 '',2es12.4,2i6)') t1t,t2t,ec,subdiv
          if (ec .eq. 1) error_codes(4) = 1
          if (ec .eq. 2) error_codes(3) = 1
          rmat = rmat + drmat
-         dnorm = mnorm(qtot, drmat)
-         norm0 = max(mnorm(qtot, rmat), 0.01 * integration_limit_epsilon)
+         dnorm = mode_vector_norm(qtot, drmat)
+         norm0 = max(mode_vector_norm(qtot, rmat), 0.01 * integration_limit_epsilon)
          errlim = dnorm / norm0
          if (errlim .lt. integration_limit_epsilon) return
       end do
       error_codes(2) = 1
-   end subroutine refmatrixrealaxis
+   end subroutine integrate_reflection_matrix_real_axis
 
    subroutine boundary_energy_transfer(sinc, sdir, r, t, a, fres_r, fres_t)
       implicit none
@@ -1105,8 +1105,8 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
          rkz = 1.d0
          tkz = 1.d0
       else
-         call layer_gf(s, zref, zref, gfr, rkz, tkz)
-         call layer_gf(s, zref, ztra, gft, rkz, tkz)
+         call layer_green_function(s, zref, zref, gfr, rkz, tkz)
+         call layer_green_function(s, zref, ztra, gft, rkz, tkz)
       end if
       r(:) = abs(gfr(rdir, sdir, :))**2
       t(1) = abs(gft(tdir, sdir, 1))**2 * dble(tkz * conjg(ritra / riref) / rkz)
@@ -1144,7 +1144,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
             sourcez = plane_boundary_position(number_plane_boundaries) + 1.d-8
          end if
          targetz = 0.5d0 * plane_boundary_position(number_plane_boundaries)
-         call layer_gf(s, sourcez, targetz, gfs, skz, tkz)
+         call layer_green_function(s, sourcez, targetz, gfs, skz, tkz)
          call generate_plane_wave_coefficients(alpha, tkz, 1, pmnp)
          do p = 1, 2
             do k = -1, 1
@@ -1168,7 +1168,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       incident_field_boundary = sourcez
    end subroutine incident_field_initialization
 
-   subroutine layerplanewavecoef(alpha, sinc, sdir, rpos, nodr, pmnp, include_direct)
+   subroutine layer_plane_wave_coefficients(alpha, sinc, sdir, rpos, nodr, pmnp, include_direct)
       implicit none
       logical, optional :: include_direct
       logical :: incdir, evanescent
@@ -1215,7 +1215,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
          deallocate (pmnpinc)
       end if
       if (number_plane_boundaries .gt. 0) then
-         call layer_gf(s, sourcez, targetz, gfs, skz, tkz)
+         call layer_green_function(s, sourcez, targetz, gfs, skz, tkz)
          allocate (pmnpup(nblk, 2), pmnpdn(nblk, 2))
          call generate_plane_wave_coefficients(alpha, tkz, nodr, pmnpup)
          call generate_plane_wave_coefficients(alpha, -tkz, nodr, pmnpdn)
@@ -1232,9 +1232,9 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
          pmnp(:, p) = pmnptot(:, p) * phasefaclat / incident_field_scale(p)
       end do
       deallocate (pmnptot)
-   end subroutine layerplanewavecoef
+   end subroutine layer_plane_wave_coefficients
 
-   subroutine layervsh(s, alpha, targetz, tdir, rpos, nodr, pmnp)
+   subroutine layer_vector_spherical_harmonics(s, alpha, targetz, tdir, rpos, nodr, pmnp)
       implicit none
       integer :: p, tdir, nodr, nblk, slayer, tlayer, k, l, q, klq, ssign
       real(8) :: alpha, ca, sa, rpos(3), sourcez, targetz
@@ -1250,7 +1250,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       sourceri = layer_ref_index(slayer)
       sourcez = rpos(3)
       phasefaclat = exp(-(0.d0, 1.d0) * s * (ca * rpos(1) + sa * rpos(2)))
-      call layer_gf(s, sourcez, targetz, gfs, skz, tkz, include_direct=.true.)
+      call layer_green_function(s, sourcez, targetz, gfs, skz, tkz, include_direct=.true.)
       call generate_plane_wave_coefficients(alpha, conjg(skz), nodr, pmnp, lr_tran=.false.)
       do p = 1, 2
          do l = 1, nodr
@@ -1264,6 +1264,6 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
          end do
       end do
       pmnp = pmnp * phasefaclat / 4.d0 / sourceri / sourceri / skz
-   end subroutine layervsh
+   end subroutine layer_vector_spherical_harmonics
 
 end module surface_subroutines

@@ -163,7 +163,7 @@ contains
 
       plane_surface_present = number_plane_boundaries .gt. 0
       layer_thickness = input_layer_thickness * length_scale_factor
-      call plane_boundary_initialization()
+      call initialize_plane_boundaries()
 
       if (move_to_front .and. plane_surface_present) then
          zext = maxval(sphere_position(3, :) + sphere_radius(:))
