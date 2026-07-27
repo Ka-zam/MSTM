@@ -1,6 +1,7 @@
 module translation_operator
-   use angular_functions, only: atcdim, axialtrancoefrecurrence, azimuthal_phase_factors, &
-                                cartesian_to_spherical, gentranmatrix, moffset, rotation_coefficients
+   use angular_functions, only: axial_translation_coefficients, axial_translation_offset, &
+                                axial_translation_size, azimuthal_phase_factors, cartesian_to_spherical, &
+                                generate_translation_matrix, rotation_coefficients
    use iso_fortran_env, only: real64
    use wave_functions, only: mtransfer
 
@@ -118,20 +119,20 @@ contains
          end if
          if (.not. tranmat%zero_translation) then
             if (rot) then
-               tdim = atcdim(nodrt, nodrs)
+               tdim = axial_translation_size(nodrt, nodrs)
                allocate (tranmat%rot_mat(-nmin:nmin, 0:nmax * (nmax + 2)))
                allocate (tranmat%phi_mat(-nmax:nmax))
                allocate (tranmat%z_mat(1:tdim))
                call cartesian_to_spherical(rtran, r, ct, ephi)
                call rotation_coefficients(ct, nmin, nmax, tranmat%rot_mat)
-               call axialtrancoefrecurrence(vtype, r, rimed, nodrt, nodrs, &
-                                            tdim, tranmat%z_mat)
+               call axial_translation_coefficients(vtype, r, rimed, nodrt, nodrs, &
+                                                   tdim, tranmat%z_mat)
                call azimuthal_phase_factors(ephi, nmax, tranmat%phi_mat)
             else
                allocate (tranmat%gen_mat(nodrt * (nodrt + 2), nodrs * (nodrs + 2), 2))
-               call gentranmatrix(nodrs, nodrt, translation_vector=rtran, &
-                                  refractive_index=rimed, ac_matrix=tranmat%gen_mat, vswf_type=vtype, &
-                                  mode_s=2, mode_t=2)
+               call generate_translation_matrix(nodrs, nodrt, translation_vector=rtran, &
+                                                refractive_index=rimed, ac_matrix=tranmat%gen_mat, &
+                                                vswf_type=vtype, mode_s=2, mode_t=2)
             end if
          end if
          tranmat%matrix_calculated = .true.
@@ -172,7 +173,7 @@ contains
             do m = -nmin, nmin
                m1 = max(1, abs(m))
                if (sop) then
-                  offset = moffset(m, nodra, nodrg)
+                  offset = axial_translation_offset(m, nodra, nodrg)
                   blocksize = (nodrg - m1 + 1) * (nodra - m1 + 1) * 2
                   atc(m1:nodra, m1:nodrg, 1:2) = &
                      reshape(tranmat%z_mat(offset + 1:offset + blocksize), &
@@ -182,7 +183,7 @@ contains
                         = matmul(a_tt(m, m1:nodra, p), atc(m1:nodra, m1:nodrg, p))
                   end do
                else
-                  offset = moffset(m, nodrg, nodra)
+                  offset = axial_translation_offset(m, nodrg, nodra)
                   blocksize = (nodrg - m1 + 1) * (nodra - m1 + 1) * 2
                   atc(m1:nodrg, m1:nodra, 1:2) = &
                      reshape(tranmat%z_mat(offset + 1:offset + blocksize), &

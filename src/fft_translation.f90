@@ -929,9 +929,9 @@ contains
                      xp(1) = isx * x
                      xp(2) = isy * y
                      xp(3) = isz * z
-                     call gentranmatrix(nodr, nodr, translation_vector=xp, &
-                                        refractive_index=ri, ac_matrix=hij, vswf_type=3, &
-                                        mode_s=2, mode_t=2)
+                     call generate_translation_matrix(nodr, nodr, translation_vector=xp, &
+                                                      refractive_index=ri, ac_matrix=hij, vswf_type=3, &
+                                                      mode_s=2, mode_t=2)
                      cell_translation_matrix(nx1, ny1, nz1, 1:nblk, 1:nblk, p1:p2) &
                         = cell_translation_matrix(nx1, ny1, nz1, 1:nblk, 1:nblk, p1:p2) &
                           + hij(1:nblk, 1:nblk, p1:p2)

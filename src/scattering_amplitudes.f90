@@ -289,7 +289,7 @@ contains
       else
          nelem = 16
       end if
-      call taufunc(ct, nodrt, tau)
+      call vector_spherical_harmonics(ct, nodrt, tau)
       cphi = cos(phi)
       sphi = sin(phi)
       ephi = cmplx(cphi, sphi, kind=kind(0.0d0))
@@ -447,7 +447,7 @@ contains
             c = sqrt(dble((n + n + 1) * (l + l + 1))) &
                 * cmplx(0.d0, 1.d0, kind=kind(0.0d0))**(l - n)
             w2 = min(n + l, nodrg)
-            call vcfunc(-1, l, 1, n, vc2)
+            call vector_coupling_coefficients(-1, l, 1, n, vc2)
             do m = -n, n
                if (m .le. -1) then
                   ma = n + 1
@@ -476,7 +476,7 @@ contains
                      end do
                      w1 = max(abs(n - l), abs(u))
                      w2 = min(n + l, nodrg)
-                     call vcfunc(-k, l, m, n, vc1)
+                     call vector_coupling_coefficients(-k, l, m, n, vc1)
                      do w = w1, w2
                         uw = (w * (w + 1)) / 2 + u
                         do p = 1, 2
@@ -626,22 +626,22 @@ contains
             wmin = abs(n - l)
             wmax = n + l
             fnl = sqrt(dble((n + n + 1) * (l + l + 1))) * ci**(l - n)
-            call vcfunc(-1, n, 1, l, cm1p1)
-            call vcfunc(-1, n, -1, l, cm1m1)
+            call vector_coupling_coefficients(-1, n, 1, l, cm1p1)
+            call vector_coupling_coefficients(-1, n, -1, l, cm1m1)
             do m = -min(n, l + 2), min(n, l + 2)
                m1m = (-1)**m
                if (abs(m) .le. l) then
-                  call vcfunc(-m, n, m, l, cmmpm)
+                  call vector_coupling_coefficients(-m, n, m, l, cmmpm)
                else
                   cmmpm = 0.d0
                end if
                if (abs(-2 + m) .le. l) then
-                  call vcfunc(-m, n, -2 + m, l, cmmm2pm)
+                  call vector_coupling_coefficients(-m, n, -2 + m, l, cmmm2pm)
                else
                   cmmm2pm = 0.d0
                end if
                if (abs(2 + m) .le. l) then
-                  call vcfunc(-m, n, 2 + m, l, cmmp2pm)
+                  call vector_coupling_coefficients(-m, n, 2 + m, l, cmmp2pm)
                else
                   cmmp2pm = 0.d0
                end if

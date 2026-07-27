@@ -198,7 +198,7 @@ contains
          end if
          xi0(:) = sphere_position(:, i) - rpos0(:)
          r = sqrt(dot_product(xi0, xi0))
-         call tranordertest(r, ri0, sphere_order(i), eps, ntran(i))
+         call estimate_translation_order(r, ri0, sphere_order(i), eps, ntran(i))
          if (host .eq. 0) nodrt = max(nodrt, ntran(i), nodrmax)
       end do
    end subroutine tranorders
@@ -310,14 +310,14 @@ contains
       pmnp = 0.d0
       rtran = rpos(:) - gaussian_beam_focal_point(:)
       r = sqrt(sum(rtran**2))
-      call tranordertest(r, riinc, nodr, 1.d-6, nodrgb)
+      call estimate_translation_order(r, riinc, nodr, 1.d-6, nodrgb)
       nodrgb = max(nodrgb, nodr)
 !write(*,'('' gb order:'',i8)') nodrgb
       nodrgb = min(nodrgb, max_t_matrix_order)
       allocate (pmnp0(2 * nodrgb * (nodrgb + 2), 2))
       pmnp = 0.d0
 !write(*,*) 's1'
-      call gaussianbeamcoef(alpha, cbinc, gaussian_beam_constant, nodrgb, pmnp0)
+      call generate_gaussian_beam_coefficients(alpha, cbinc, gaussian_beam_constant, nodrgb, pmnp0)
       if (layer .eq. incregion .and. incdir) then
          call tranmat%configure(1, rtran, (/riinc, riinc/), nodrgb .ge. translation_switch_order)
          do p = 1, 2

@@ -1,5 +1,5 @@
 module translation_surface_interactions
-   use angular_functions, only: atcdim, moffset
+   use angular_functions, only: axial_translation_offset, axial_translation_size
    use coefficient_indexing, only: amnpaddress
    use iso_fortran_env, only: real64
    use mpidefs, only: mpi_comm_world, mstm_mpi, mstm_mpi_wtime
@@ -366,7 +366,7 @@ contains
                      rmatsymm = (abs(rp(1)) .lt. 1.0e-4_real64 .and. abs(rp(2)) .lt. 1.0e-4_real64 &
                                  .and. (.not. periodic_lattice))
                      if (rmatsymm) then
-                        rmatdim = 2 * atcdim(sphere_order(i), sphere_order(j))
+                        rmatdim = 2 * axial_translation_size(sphere_order(i), sphere_order(j))
                      else
                         rmatdim = sphere_block(i) * sphere_block(j)
                      end if
@@ -447,7 +447,7 @@ contains
       if (rmat%symmetrical) then
          do m = -min(nin, nout), min(nin, nout)
             m1 = max(abs(m), 1)
-            moff = 2 * moffset(m, nin, nout)
+            moff = 2 * axial_translation_offset(m, nin, nout)
             do n = m1, nout
                do p = 1, 2
                   mnp = amnpaddress(m, n, p, nout, 2)

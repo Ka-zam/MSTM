@@ -264,8 +264,8 @@ contains
                call exteriorrefindex(i, rimedium)
                rtran = sqrt(sum((sphere_position(:, i) - r0(:))**2))
 !                  if(rtran.gt.scattered_field_sample_length) cycle
-               call tranordertest(rtran, rimedium(1), sphere_order(i), &
-                                  translation_epsilon, translation_order(i))
+               call estimate_translation_order(rtran, rimedium(1), sphere_order(i), &
+                                               translation_epsilon, translation_order(i))
                translation_order(i) = min(translation_order(i), maxt)
                t_matrix_order = max(t_matrix_order, translation_order(i))
             end if
@@ -1102,7 +1102,7 @@ contains
           if (rank .eq. 0 .and. print_timings) write (run_print_unit, '('' completed, '',es12.4,'' sec'')') mstm_mpi_wtime() - timet
             if (rank .eq. 0 .and. target_shape .eq. 2 .and. (.not. random_configuration_host)) then
                allocate (pmnp0(2 * t_matrix_order * (t_matrix_order + 2), 2), anp0(2, t_matrix_order))
-               call genplanewavecoef(0.d0, (1.d0, 0.d0), t_matrix_order, pmnp0, lr_tran=.false.)
+               call generate_plane_wave_coefficients(0.d0, (1.d0, 0.d0), t_matrix_order, pmnp0, lr_tran=.false.)
                open (30, file='anpeff.dat')
                write (30, '(i5)') t_matrix_order
                do n = 1, t_matrix_order

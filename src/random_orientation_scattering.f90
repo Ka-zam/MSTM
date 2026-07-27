@@ -295,7 +295,7 @@ contains
                do t = -n, n
                   tn = nn1 + t
                   lmax = min(nodrrhs, w + n)
-                  call vcfunc(v, w, -t, n, vc)
+                  call vector_coupling_coefficients(v, w, -t, n, vc)
                   do l = max(1, abs(v - t), abs(n - w)), lmax
                      ll1 = l * (l + 1)
                      tvl = ll1 + t - v
@@ -322,7 +322,7 @@ contains
                      u = m - (-3 + 2 * k)
                      if (abs(u) .le. w) then
                         lmax = min(nodrrhs, w + n)
-                        call vcfunc(-u, w, m, n, vc)
+                        call vector_coupling_coefficients(-u, w, m, n, vc)
                         do l = max(1, abs(w - n)), lmax
                            fl = -(-1)**l * vc(l) / dble(l + l + 1)
                            do p = 1, 2
@@ -429,7 +429,7 @@ contains
                   ns = max(1, abs(m))
                   do n = ns, nodr
                      n1max = min(w + n, nodr)
-                     call vcfunc(m, n, 0, w, vc)
+                     call vector_coupling_coefficients(m, n, 0, w, vc)
                      do n1 = ns, nodr
                         if ((n + n1 .lt. w) .or. (abs(n - n1) .gt. w)) cycle
                         fl = -(-1)**n * vc(n1) * fnr(w + w + 1) / fnr(n1 + n1 + 1)
@@ -451,7 +451,7 @@ contains
                n1s = max(1, abs(m1))
                do n = ns, nodr
                   n1max = min(w + n, nodr)
-                  call vcfunc(m, n, -2, w, vc)
+                  call vector_coupling_coefficients(m, n, -2, w, vc)
                   do n1 = n1s, nodr
                      if ((n + n1 .lt. w) .or. (abs(n - n1) .gt. w)) cycle
                      fl = -(-1)**n * vc(n1) * fnr(w + w + 1) / fnr(n1 + n1 + 1)
@@ -471,7 +471,7 @@ contains
                n1e = min(nodr, n + w)
                in = (-1)**n
                n1max = min(w + n, nodr)
-               call vcfunc(1, n, 0, w, vc)
+               call vector_coupling_coefficients(1, n, 0, w, vc)
                do n1 = n1s, n1e
                   fl = 2.d0 * in * vc(n1) * fnr(w + w + 1) / fnr(n1 + n1 + 1)
                   i = mod(n + n1 - w, 2) + 1
@@ -491,7 +491,7 @@ contains
                   end do
                end do
                if (w .lt. 2) cycle
-               call vcfunc(1, n, -2, w, vc)
+               call vector_coupling_coefficients(1, n, -2, w, vc)
                do n1 = n1s, n1e
                   fl = 2.d0 * in * vc(n1) * fnr(w + w + 1) / fnr(n1 + n1 + 1)
                   i = mod(n + n1 - w, 2) + 1

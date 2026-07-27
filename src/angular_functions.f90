@@ -5,7 +5,7 @@ module angular_functions
    implicit none
 contains
 
-   subroutine vcfunc(m, n, k, l, vcn)
+   subroutine vector_coupling_coefficients(m, n, k, l, vcn)
       use numerical_tables
       implicit none
       integer :: m, n, k, l, wmax, wmin, w, mk
@@ -44,16 +44,16 @@ contains
       end do
       if (w - 2 .gt. wmin) then
          wmax = w - 3
-         call vcfuncuprec(m, n, k, l, wmax, vcn)
+         call vector_coupling_coefficients_upward_recurrence(m, n, k, l, wmax, vcn)
       end if
-   end subroutine vcfunc
+   end subroutine vector_coupling_coefficients
 !
 !  upwards VC coefficient recurrence
 !
 !
 !  last revised: 15 January 2011
 !
-   subroutine vcfuncuprec(m, n, k, l, wmax, vcn)
+   subroutine vector_coupling_coefficients_upward_recurrence(m, n, k, l, wmax, vcn)
       use numerical_tables
       implicit none
       integer :: m, n, k, l, wmax, w, mk, nl, m1, n1, l1, k1, w1, w2
@@ -111,7 +111,7 @@ contains
                                                        * fnr(2 * w - 1))
          vcn(w) = t1 * (t2 * vcn(w - 1) - t3 * vcn(w - 2))
       end do
-   end subroutine vcfuncuprec
+   end subroutine vector_coupling_coefficients_upward_recurrence
 !
 !  Normalized associated legendre functions
 !
@@ -310,7 +310,7 @@ contains
 ! april 2012: lr formulation
 ! 2020 : back to nm formulation.   Complex cb
 !
-   subroutine complexpivec(cb, nodr, pivec, icon, lr_model, azimuth_angle, index_model)
+   subroutine complex_vector_spherical_harmonics(cb, nodr, pivec, icon, lr_model, azimuth_angle, index_model)
       use numerical_tables
       implicit none
       logical :: lrmod
@@ -372,14 +372,14 @@ contains
             end if
          end do
       end do
-   end subroutine complexpivec
+   end subroutine complex_vector_spherical_harmonics
 !
 !  tau are the vector spherical harmonic functions, normalized
 !
 !
 !  last revised: 15 January 2011
 !
-   subroutine taufunc(cb, nmax, tau)
+   subroutine vector_spherical_harmonics(cb, nmax, tau)
       use numerical_tables
       implicit none
       integer :: nmax, n, m, nn1, mn
@@ -399,7 +399,7 @@ contains
             tau(m, n, 2) = -fnm * (drot(-1, mn) + drot(1, mn))
          end do
       end do
-   end subroutine taufunc
+   end subroutine vector_spherical_harmonics
 !
 !  rotation of expansion coefficients amn by euler angles alpha,beta,gamma
 !  idir=1: forward rotation, idir=-1, reverse rotation.
@@ -508,7 +508,7 @@ contains
 !
 !  regular vswf expansion coefficients for a plane wave: general case, complex cos beta
 !
-   subroutine genplanewavecoef(alpha, cb, nodr, pmnp0, lr_tran)
+   subroutine generate_plane_wave_coefficients(alpha, cb, nodr, pmnp0, lr_tran)
       use numerical_tables
       implicit none
       logical :: lrtran
@@ -575,9 +575,9 @@ contains
             end do
          end do
       end if
-   end subroutine genplanewavecoef
+   end subroutine generate_plane_wave_coefficients
 
-   subroutine gaussianbeamcoef(alpha, cbeta, cbeam, nodr, pmnp0, lr_tran)
+   subroutine generate_gaussian_beam_coefficients(alpha, cbeta, cbeam, nodr, pmnp0, lr_tran)
       use numerical_tables
       implicit none
       logical :: lrtran
@@ -591,7 +591,7 @@ contains
          lrtran = .true.
       end if
       ccb = cbeta
-      call genplanewavecoef(alpha, ccb, nodr, pmnp0, lr_tran=lrtran)
+      call generate_plane_wave_coefficients(alpha, ccb, nodr, pmnp0, lr_tran=lrtran)
       do n = 1, nodr
          gbn = dexp(-((dble(n) + .5d0) * cbeam)**2.)
          do p = 1, 2
@@ -605,7 +605,7 @@ contains
             end do
          end do
       end do
-   end subroutine gaussianbeamcoef
+   end subroutine generate_gaussian_beam_coefficients
 !
 !  axial translation coefficients calculated by the diamond recurrence formula
 !  new: 10 october 2011
@@ -621,7 +621,7 @@ contains
 !  storage scheme:   for each degree m, with ordering m=0, -1, 1, -2, 2, ..min(nmax,lmax),
 !  the elements for degree m are stored
 !
-   subroutine axialtrancoefrecurrence(itype, r, ri, nmax, lmax, ndim, ac)
+   subroutine axial_translation_coefficients(itype, r, ri, nmax, lmax, ndim, ac)
       use numerical_tables
       implicit none
       integer :: itype, nmax, lmax, n, l, m, p, nlmin, &
@@ -637,7 +637,7 @@ contains
       nlmin = min(nmax, lmax)
       if (nlmax .gt. nlmax0) then
          nlmax0 = nlmax
-         call axialtrancoefinit(nlmax)
+         call initialize_axial_translation_coefficients(nlmax)
       end if
 
       if (r .le. 1.d-12) then
@@ -731,11 +731,11 @@ contains
             iadd0 = iadd1
          end do
       end do
-   end subroutine axialtrancoefrecurrence
+   end subroutine axial_translation_coefficients
 !
 !  constants for translation coefficient calculation
 !
-   subroutine axialtrancoefinit(nmax)
+   subroutine initialize_axial_translation_coefficients(nmax)
       use numerical_tables
       implicit none
       integer :: nmax, m, n, l, w, n21, ml, ll1, wmin, wmax, nlmin, lp1, lm1
@@ -750,14 +750,14 @@ contains
          do l = 1, nmax
             c1 = fnr(n21) * fnr(l + l + 1)
             ll1 = l * (l + 1)
-            call vcfunc(-1, n, 1, l, vc2)
+            call vector_coupling_coefficients(-1, n, 1, l, vc2)
             wmin = abs(n - l)
             wmax = n + l
             nlmin = min(l, n)
             do m = -nlmin, nlmin
                ml = ll1 + m
                c2 = -c1 * (-1)**m
-               call vcfunc(-m, n, m, l, vc1)
+               call vector_coupling_coefficients(-m, n, m, l, vc1)
                do w = wmin, wmax
                   inlw = ci**(n - l + w)
                   vcc_const(n, ml, w) = c2 * vc1(w) * vc2(w) * (dble(inlw) + aimag(inlw))
@@ -777,9 +777,9 @@ contains
             fnp1_const(m, l) = fnr(l) * fnr(l + 2) * fnr(lp1 - m) * fnr(lp1 + m) / fnr(l + lp1) / fnr(l + l + 3) / dble(lp1)
          end do
       end do
-   end subroutine axialtrancoefinit
+   end subroutine initialize_axial_translation_coefficients
 
-   subroutine gentrancoefconstants(nodrmax)
+   subroutine initialize_general_translation_coefficients(nodrmax)
       use numerical_tables
       implicit none
       integer :: nodrmax, v, w, wmax, wmin, n, l, m, k, m1m, mn, kl
@@ -792,7 +792,7 @@ contains
       do l = 1, nodrmax
          do n = 1, nodrmax
             wmax = n + l
-            call vcfunc(-1, n, 1, l, vc2)
+            call vector_coupling_coefficients(-1, n, 1, l, vc2)
             c = -ci**(n - l) * fnr(n + n + 1) * fnr(l + l + 1)
             do k = -l, l
                kl = l * (l + 1) + k
@@ -800,7 +800,7 @@ contains
                   mn = n * (n + 1) + m
                   m1m = (-1)**m
                   v = k - m
-                  call vcfunc(-m, n, k, l, vc1)
+                  call vector_coupling_coefficients(-m, n, k, l, vc1)
                   wmin = max(abs(v), abs(n - l))
                   do w = wmax, wmin, -1
                      a = ci**w * c * m1m * vc1(w) * vc2(w)
@@ -815,11 +815,11 @@ contains
          end do
       end do
       return
-   end subroutine gentrancoefconstants
+   end subroutine initialize_general_translation_coefficients
 
-   subroutine gentranmatrix(nodr_s, nodr_t, translation_vector, &
-                            refractive_index, ac_matrix, vswf_type, &
-                            mode_s, mode_t, index_model)
+   subroutine generate_translation_matrix(nodr_s, nodr_t, translation_vector, &
+                                          refractive_index, ac_matrix, vswf_type, &
+                                          mode_s, mode_t, index_model)
       use numerical_tables
       implicit none
       integer :: nodr_s, nodr_t, nodrmax, wmax, p, n, m, k, l, mn, kl, imodel, &
@@ -865,7 +865,7 @@ contains
       nodrmax = max(nodr_s, nodr_t)
       if (nodrmax .gt. setnodrmax) then
          setnodrmax = nodrmax
-         call gentrancoefconstants(nodrmax)
+         call initialize_general_translation_coefficients(nodrmax)
       end if
       wmax = nodr_s + nodr_t
       r = xp(1) * xp(1) + xp(2) * xp(2) + xp(3) * xp(3)
@@ -943,7 +943,7 @@ contains
             end do
          end do
       end if
-   end subroutine gentranmatrix
+   end subroutine generate_translation_matrix
 !
 !  test to determine convergence of regular vswf addition theorem for max. order lmax
 !  and translation distance r w/ refractive index ri.
@@ -951,7 +951,7 @@ contains
 !
 !  last revised: 15 January 2011
 !
-   subroutine tranordertest(r, ri, lmax, eps, nmax)
+   subroutine estimate_translation_order(r, ri, lmax, eps, nmax)
       use numerical_tables
       implicit none
       integer :: nmax, lmax, n, l, m, w, n21, wmin, wmax
@@ -976,7 +976,7 @@ contains
          n21 = n + n + 1
          l = lmax
          c = fnr(n21) * fnr(l + l + 1) * ci**(n - l)
-         call vcfunc(-1, n, 1, l, vc1)
+         call vector_coupling_coefficients(-1, n, 1, l, vc1)
          wmin = abs(n - l)
          wmax = n + l
          m = 1
@@ -997,7 +997,7 @@ contains
       end do
       nmax = min(n, nlim)
       nmax = max(nmax, lmax)
-   end subroutine tranordertest
+   end subroutine estimate_translation_order
 !
 !  address for axial translation coefficient
 !
@@ -1005,36 +1005,36 @@ contains
 !  last revised: 15 January 2011
 !
 
-   pure integer function atcadd(m, n, ntot)
+   pure integer function axial_translation_index(m, n, ntot)
       implicit none
       integer, intent(in) :: m, n, ntot
-      atcadd = n - ntot + (max(1, m) * (1 + 2 * ntot - max(1, m))) / 2 + ntot * min(1, m)
-   end function atcadd
+      axial_translation_index = n - ntot + (max(1, m) * (1 + 2 * ntot - max(1, m))) / 2 + ntot * min(1, m)
+   end function axial_translation_index
 
-   pure integer function atcdim(ntot, ltot)
+   pure integer function axial_translation_size(ntot, ltot)
       implicit none
       integer, intent(in) :: ntot, ltot
       integer :: nmin, nmax
       nmin = min(ntot, ltot)
       nmax = max(ntot, ltot)
-      atcdim = 2 * (nmin * (1 - nmin * nmin + 3 * nmax * (2 + nmin))) / 3
-   end function atcdim
+      axial_translation_size = 2 * (nmin * (1 - nmin * nmin + 3 * nmax * (2 + nmin))) / 3
+   end function axial_translation_size
 !
 ! the offset (integer) for the ntot X ltot translation matrix for degree m
 !
-   pure integer function moffset(m, ntot, ltot)
+   pure integer function axial_translation_offset(m, ntot, ltot)
       implicit none
       integer, intent(in) :: m, ntot, ltot
       if (m .eq. 0) then
-         moffset = 0
+         axial_translation_offset = 0
       elseif (m .lt. 0) then
-         moffset = 2 * (-((1 + m) * (2 + m) * (3 + 2 * m + 3 * ntot)) &
-                        - 3 * ltot * (2 + ntot + m * (3 + m + 2 * ntot))) / 3
+         axial_translation_offset = 2 * (-((1 + m) * (2 + m) * (3 + 2 * m + 3 * ntot)) &
+                                         - 3 * ltot * (2 + ntot + m * (3 + m + 2 * ntot))) / 3
       else
-         moffset = 2 * (-3 * ltot * (-1 + m)**2 + 6 * ltot * m * ntot &
-                        + (-1 + m) * (m * (-4 + 2 * m - 3 * ntot) + 3 * (1 + ntot))) / 3
+         axial_translation_offset = 2 * (-3 * ltot * (-1 + m)**2 + 6 * ltot * m * ntot &
+                                         + (-1 + m) * (m * (-4 + 2 * m - 3 * ntot) + 3 * (1 + ntot))) / 3
       end if
-   end function moffset
+   end function axial_translation_offset
 !
 ! cartesian_to_spherical takes the Cartesian point (x,y,z) = xp(1), xp(2), xp(3)
 ! and converts to polar form: r: radius, ct: cos(theta), ep = exp(i phi)
@@ -1152,7 +1152,7 @@ contains
 !
 !  last revised: 15 January 2011
 !
-   subroutine planewavetruncationorder(r, rimedium, eps, nodr)
+   subroutine estimate_plane_wave_order(r, rimedium, eps, nodr)
       implicit none
       integer :: nodr, n1, n
       real(8) :: r, eps, err
@@ -1178,5 +1178,5 @@ contains
       end do
       nodr = n1
       deallocate (jn)
-   end subroutine planewavetruncationorder
+   end subroutine estimate_plane_wave_order
 end module angular_functions

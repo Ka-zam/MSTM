@@ -454,8 +454,8 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       sr = s * radial_distance
       sources = s / sourceri
       targets = s / targetri
-      call complexpivec(sourcekz, source_order, pivec, 1)
-      call complexpivec(targetkz, target_order, picvec, -1)
+      call complex_vector_spherical_harmonics(sourcekz, source_order, pivec, 1)
+      call complex_vector_spherical_harmonics(targetkz, target_order, picvec, -1)
       bfunc = 0.d0
       mmax = target_order + source_order
       if (radial_distance .eq. 0.d0) then
@@ -567,8 +567,8 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       call layer_gf(s, sourcez(1), targetz, gfunc1, sourcekz(1), targetkz, include_direct=.true.)
       call layer_gf(s, sourcez(2), targetz, gfunc2, sourcekz(2), targetkz, include_direct=.true.)
       cscale = t * dble(targetri)**2
-      call complexpivec(sourcekz(1), sourceorder(1), pivec1, 1)
-      call complexpivec(sourcekz(2), sourceorder(2), pivec2, 1)
+      call complex_vector_spherical_harmonics(sourcekz(1), sourceorder(1), pivec1, 1)
+      call complex_vector_spherical_harmonics(sourcekz(2), sourceorder(2), pivec2, 1)
       bfunc = 0.d0
       sr = s * radial_distance
       mmax = sum(sourceorder(:))
@@ -724,7 +724,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       if (.not. source_sum) then
          if (makesymmetric) then
             max_azimuth_mode = 0
-            rmatdim = 2 * atcdim(ntot, ltot)
+            rmatdim = 2 * axial_translation_size(ntot, ltot)
          else
             rmatdim = 4 * ntot * (ntot + 2) * ltot * (ltot + 2)
          end if
@@ -815,7 +815,8 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
                      do q = 1, 2
                         do p = 1, 2
                            if (makesymmetric) then
-                          rmataddress = 2 * moffset(m, ntot, ltot) + p + 2 * (n - m1) + 2 * (ntot - m1 + 1) * (q - 1 + 2 * (l - m1))
+                              rmataddress = 2 * axial_translation_offset(m, ntot, ltot) + p &
+                                            + 2 * (n - m1) + 2 * (ntot - m1 + 1) * (q - 1 + 2 * (l - m1))
                            else
                               mn = amnpaddress(m, n, p, ntot, indexmodel)
                               kl = amnpaddress(k, l, q, ltot, indexmodel)
@@ -824,7 +825,8 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
                            interactionmatrix(rmataddress) = c2temp(p, q)
                            if (m .ne. 0) then
                               if (makesymmetric) then
-                         rmataddress = 2 * moffset(-m, ntot, ltot) + p + 2 * (n - m1) + 2 * (ntot - m1 + 1) * (q - 1 + 2 * (l - m1))
+                                 rmataddress = 2 * axial_translation_offset(-m, ntot, ltot) + p &
+                                               + 2 * (n - m1) + 2 * (ntot - m1 + 1) * (q - 1 + 2 * (l - m1))
                               else
                                  mn = amnpaddress(-m, n, p, ntot, indexmodel)
                                  kl = amnpaddress(-k, l, q, ltot, indexmodel)
@@ -1143,7 +1145,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
          end if
          targetz = 0.5d0 * plane_boundary_position(number_plane_boundaries)
          call layer_gf(s, sourcez, targetz, gfs, skz, tkz)
-         call genplanewavecoef(alpha, tkz, 1, pmnp)
+         call generate_plane_wave_coefficients(alpha, tkz, 1, pmnp)
          do p = 1, 2
             do k = -1, 1
                do q = 1, 2
@@ -1208,15 +1210,15 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       pmnptot = 0.d0
       if (layer .eq. incregion .and. incdir) then
          allocate (pmnpinc(nblk, 2))
-         call genplanewavecoef(alpha, cbinc, nodr, pmnpinc)
+         call generate_plane_wave_coefficients(alpha, cbinc, nodr, pmnpinc)
          pmnptot = pmnpinc * exp((0.d0, 1.d0) * riinc * cbinc * (rpos(3) - sourcez))
          deallocate (pmnpinc)
       end if
       if (number_plane_boundaries .gt. 0) then
          call layer_gf(s, sourcez, targetz, gfs, skz, tkz)
          allocate (pmnpup(nblk, 2), pmnpdn(nblk, 2))
-         call genplanewavecoef(alpha, tkz, nodr, pmnpup)
-         call genplanewavecoef(alpha, -tkz, nodr, pmnpdn)
+         call generate_plane_wave_coefficients(alpha, tkz, nodr, pmnpup)
+         call generate_plane_wave_coefficients(alpha, -tkz, nodr, pmnpdn)
          do p = 1, 2
             pmnptot(:, p) = pmnptot(:, p) + pmnpup(:, p) * gfs(1, sdir, p) &
                             + pmnpdn(:, p) * gfs(2, sdir, p)
@@ -1249,7 +1251,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       sourcez = rpos(3)
       phasefaclat = exp(-(0.d0, 1.d0) * s * (ca * rpos(1) + sa * rpos(2)))
       call layer_gf(s, sourcez, targetz, gfs, skz, tkz, include_direct=.true.)
-      call genplanewavecoef(alpha, conjg(skz), nodr, pmnp, lr_tran=.false.)
+      call generate_plane_wave_coefficients(alpha, conjg(skz), nodr, pmnp, lr_tran=.false.)
       do p = 1, 2
          do l = 1, nodr
             do k = -l, l

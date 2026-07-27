@@ -250,9 +250,9 @@ contains
 ! finite lattice uses cell-centered translation matrix H^i-j instead of L.   Included only for testing/expeimentation purposes
 !
       if (finite_lattice) then
-         call gentranmatrix(nodrs, nodrt, translation_vector=rpos, &
-                            refractive_index=(/ri, ri/), ac_matrix=fsmat, vswf_type=3, &
-                            index_model=2)
+         call generate_translation_matrix(nodrs, nodrt, translation_vector=rpos, &
+                                          refractive_index=(/ri, ri/), ac_matrix=fsmat, vswf_type=3, &
+                                          index_model=2)
       else
          wmax = nodrt + nodrs
          ysum = 0.d0
@@ -280,7 +280,7 @@ contains
             do n = 1, nodrt
                nn1 = n * (n + 1)
                wmax = n + l
-               call vcfunc(-1, n, 1, l, vc2)
+               call vector_coupling_coefficients(-1, n, 1, l, vc2)
                c = -sqrt(four_pi) * ci**(n - l) * fnr(n + n + 1) * fnr(l + l + 1)
                do k = -l, l
                   kl = amnaddress(k, l, nodrs, imodl)
@@ -288,7 +288,7 @@ contains
                      m1m = (-1)**m
                      mn = amnaddress(m, n, nodrt, imodl)
                      v = k - m
-                     call vcfunc(-m, n, k, l, vc1)
+                     call vector_coupling_coefficients(-m, n, k, l, vc1)
                      wmin = max(abs(v), abs(n - l))
                      a = 0.
                      b = 0.
@@ -434,15 +434,15 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
          do n = 1, nodrt
             nn1 = n * (n + 1)
             wmax = n + l
-            call vcfunc(1, n, -1, l, vcp1m1)
-            call vcfunc(-1, n, -1, l, vcm1m1)
+            call vector_coupling_coefficients(1, n, -1, l, vcp1m1)
+            call vector_coupling_coefficients(-1, n, -1, l, vcm1m1)
             c = (0.d0, 1.d0)**(n - l) * fnr(n + n + 1) * fnr(l + l + 1)
             do k = -l, l
                kl = ll1 + k
                do m = -n, n
                   mn = nn1 + m
                   v = k - m
-                  call vcfunc(-m, n, k, l, vc1)
+                  call vector_coupling_coefficients(-m, n, k, l, vc1)
                   wmin = max(abs(v), abs(n - l))
                   csum = 0.d0
                   do q = 1, 2
@@ -1050,8 +1050,8 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       end if
       s = kr
       call layer_gf(s, zs, zt, gfunc, skz, tkz, incsrc)
-      call complexpivec(skz, nodrs, pivec, 1)
-      call complexpivec(tkz, nodrt, picvec, -1)
+      call complex_vector_spherical_harmonics(skz, nodrs, pivec, 1)
+      call complex_vector_spherical_harmonics(tkz, nodrt, picvec, -1)
       c = exp((0.d0, 1.d0) * (kx * x + ky * y)) / ri / ri / skz
       do n = 1, nodrt
          do m = -n, n

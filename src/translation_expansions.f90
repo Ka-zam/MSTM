@@ -1,5 +1,5 @@
 module translation_expansions
-   use angular_functions, only: gentranmatrix
+   use angular_functions, only: generate_translation_matrix
    use iso_fortran_env, only: real64
    use mie, only: exteriorrefindex, multmiecoeffmult
    use mpidefs, only: mpi_comm_world, mstm_global_rank, mstm_mpi, mstm_mpi_sum
@@ -146,9 +146,9 @@ contains
                   cycle
                end if
                allocate (fsmat(nbi, nbj, 2))
-               call gentranmatrix(sphere_order(j), sphere_order(i), translation_vector=rp, &
-                                  refractive_index=rimedium, ac_matrix=fsmat, vswf_type=vtype, &
-                                  mode_s=2, mode_t=2, index_model=2)
+               call generate_translation_matrix(sphere_order(j), sphere_order(i), translation_vector=rp, &
+                                                refractive_index=rimedium, ac_matrix=fsmat, vswf_type=vtype, &
+                                                mode_s=2, mode_t=2, index_model=2)
                acmat(1:nbi, 1:nbj) = fsmat(1:nbi, 1:nbj, 1)
                acmat(nbi + 1:2 * nbi, nbj + 1:2 * nbj) = fsmat(1:nbi, 1:nbj, 2)
                deallocate (fsmat)
@@ -182,9 +182,9 @@ contains
                   if (ilay .eq. jlay) then
                      allocate (fsmat(nbi, nbj, 2))
                      call exteriorrefindex(i, rimedium)
-                     call gentranmatrix(sphere_order(j), sphere_order(i), translation_vector=rp, &
-                                        refractive_index=rimedium, ac_matrix=fsmat, vswf_type=3, &
-                                        mode_s=2, mode_t=2, index_model=2)
+                     call generate_translation_matrix(sphere_order(j), sphere_order(i), translation_vector=rp, &
+                                                      refractive_index=rimedium, ac_matrix=fsmat, vswf_type=3, &
+                                                      mode_s=2, mode_t=2, index_model=2)
                      acmat(1:nbi, 1:nbj) = acmat(1:nbi, 1:nbj) + fsmat(1:nbi, 1:nbj, 1)
                      acmat(nbi + 1:2 * nbi, nbj + 1:2 * nbj) = acmat(nbi + 1:2 * nbi, nbj + 1:2 * nbj) + fsmat(1:nbi, 1:nbj, 2)
                      deallocate (fsmat)
