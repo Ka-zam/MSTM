@@ -319,6 +319,12 @@ if(BUILD_TESTING)
     two-sphere-broadside.dat
     two_sphere_broadside
   )
+  add_mstm_regression_test(
+    rigid_transform_invariants
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/rigid-transform-invariants.inp"
+    rigid-transform-invariants.dat
+    rigid_transform_invariants
+  )
 
   if(MSTM_ENABLE_MPI)
     set(mpi_test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/mpi_two_rank_effective_medium")

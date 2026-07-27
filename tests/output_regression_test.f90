@@ -18,6 +18,8 @@ program output_regression_test
       call check_effective_medium(trim(work_directory), failures)
    case ('two_sphere_broadside')
       call check_two_sphere_broadside(trim(work_directory), failures)
+   case ('rigid_transform_invariants')
+      call check_rigid_transform_invariants(trim(work_directory), failures)
    case default
       write (error_unit, '(a)') 'Unknown regression case: '//trim(case_name)
       error stop 2
@@ -109,6 +111,35 @@ contains
       call assert_close('Broadside parallel extinction', efficiency(4), 4.1080e-2_real64, failure_count)
       call assert_close('Broadside perpendicular extinction', efficiency(7), 3.0996e-2_real64, failure_count)
    end subroutine check_two_sphere_broadside
+
+   subroutine check_rigid_transform_invariants(directory, failure_count)
+      character(len=*), intent(in) :: directory
+      integer, intent(inout) :: failure_count
+      real(real64) :: efficiency(9, 4)
+      integer :: component, run, unit
+      character(len=64) :: label
+
+      call open_regression_file(directory//'/rigid-transform-invariants.dat', unit)
+      do run = 1, 4
+         call find_line(unit, 'total extinction, absorption, scattering efficiencies', .true.)
+         read (unit, *) efficiency(:, run)
+      end do
+      close (unit)
+
+      do component = 1, 9
+         write (label, '(a,i0)') 'Translated efficiency component ', component
+         call assert_close(trim(label), efficiency(component, 2), &
+                           efficiency(component, 1), failure_count)
+         write (label, '(a,i0)') 'Z-rotated efficiency component ', component
+         call assert_close(trim(label), efficiency(component, 3), &
+                           efficiency(component, 1), failure_count)
+      end do
+      do component = 1, 3
+         write (label, '(a,i0)') 'Y-rotated unpolarized efficiency component ', component
+         call assert_close(trim(label), efficiency(component, 4), &
+                           efficiency(component, 1), failure_count)
+      end do
+   end subroutine check_rigid_transform_invariants
 
    subroutine open_regression_file(path, unit)
       character(len=*), intent(in) :: path

@@ -1,0 +1,46 @@
+! Reference cluster at an oblique incidence.
+output_file
+rigid-transform-invariants.dat
+number_spheres
+2
+sphere_data
+-0.65d0, 0.15d0,-0.25d0,0.45d0,(1.45d0,0.d0)
+ 0.55d0,-0.10d0, 0.35d0,0.35d0,(1.70d0,0.d0)
+end_of_sphere_data
+incident_beta_deg
+43.d0
+incident_alpha_deg
+17.d0
+solution_epsilon
+1.d-9
+calculate_scattering_matrix
+f
+print_sphere_data
+f
+print_timings
+f
+! Translate every sphere by (1.30,-0.70,0.90).
+new_run
+sphere_data
+0.65d0,-0.55d0,0.65d0,0.45d0,(1.45d0,0.d0)
+1.85d0,-0.80d0,1.25d0,0.35d0,(1.70d0,0.d0)
+end_of_sphere_data
+! Rotate the cluster and incident direction by 61 degrees about z.
+new_run
+sphere_data
+-0.4463192092310285d0,-0.4957813666036566d0,-0.25d0,0.45d0,(1.45d0,0.d0)
+ 0.3541072618494250d0, 0.4325598769020339d0, 0.35d0,0.35d0,(1.70d0,0.d0)
+end_of_sphere_data
+incident_alpha_deg
+78.d0
+! Rotate the reference configuration and wave vector by 37 degrees about y.
+new_run
+sphere_data
+-0.6695668373187524d0, 0.15d0, 0.1915208875370082d0,0.45d0,(1.45d0,0.d0)
+ 0.6498847886292279d0,-0.10d0,-0.0514758342170741d0,0.35d0,(1.70d0,0.d0)
+end_of_sphere_data
+incident_beta_deg
+78.95485920945944d0
+incident_alpha_deg
+11.72182311622079d0
+end_of_options
