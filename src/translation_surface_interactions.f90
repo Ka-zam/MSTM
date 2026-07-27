@@ -14,25 +14,25 @@ module translation_surface_interactions
    private
 
    public :: periodic_lattice_sphere_interaction
-   public :: spheresurfaceinteraction
+   public :: sphere_surface_interaction
 
    type surface_interaction_cache
       private
       logical :: symmetrical = .false.
       complex(real64), allocatable :: matrix(:)
    contains
-      procedure :: configure => configure_surface_ref
-      procedure :: clear => clear_surface_ref
-      final :: finalize_surface_ref
+      procedure :: configure => configure_surface_interaction_cache
+      procedure :: clear => clear_surface_interaction_cache
+      final :: finalize_surface_interaction_cache
    end type surface_interaction_cache
 
    type periodic_lattice_interaction_cache
       private
       complex(real64), allocatable :: matrix(:)
    contains
-      procedure :: configure => configure_pl_translation
-      procedure :: clear => clear_pl_translation
-      final :: finalize_pl_translation
+      procedure :: configure => configure_periodic_lattice_cache
+      procedure :: clear => clear_periodic_lattice_interaction_cache
+      final :: finalize_periodic_lattice_interaction_cache
    end type periodic_lattice_interaction_cache
 
    type(surface_interaction_cache), target, allocatable :: stored_surface_interactions(:)
@@ -40,7 +40,7 @@ module translation_surface_interactions
 
 contains
 
-   subroutine configure_surface_ref(self, symmetrical, matrix_size)
+   subroutine configure_surface_interaction_cache(self, symmetrical, matrix_size)
       class(surface_interaction_cache), intent(inout) :: self
       integer, intent(in) :: matrix_size
       logical, intent(in) :: symmetrical
@@ -48,40 +48,40 @@ contains
       call self%clear()
       self%symmetrical = symmetrical
       allocate (self%matrix(matrix_size))
-   end subroutine configure_surface_ref
+   end subroutine configure_surface_interaction_cache
 
-   subroutine clear_surface_ref(self)
+   subroutine clear_surface_interaction_cache(self)
       class(surface_interaction_cache), intent(inout) :: self
 
       if (allocated(self%matrix)) deallocate (self%matrix)
       self%symmetrical = .false.
-   end subroutine clear_surface_ref
+   end subroutine clear_surface_interaction_cache
 
-   subroutine finalize_surface_ref(self)
+   subroutine finalize_surface_interaction_cache(self)
       type(surface_interaction_cache), intent(inout) :: self
 
       call self%clear()
-   end subroutine finalize_surface_ref
+   end subroutine finalize_surface_interaction_cache
 
-   subroutine configure_pl_translation(self, matrix_size)
+   subroutine configure_periodic_lattice_cache(self, matrix_size)
       class(periodic_lattice_interaction_cache), intent(inout) :: self
       integer, intent(in) :: matrix_size
 
       call self%clear()
       allocate (self%matrix(matrix_size))
-   end subroutine configure_pl_translation
+   end subroutine configure_periodic_lattice_cache
 
-   subroutine clear_pl_translation(self)
+   subroutine clear_periodic_lattice_interaction_cache(self)
       class(periodic_lattice_interaction_cache), intent(inout) :: self
 
       if (allocated(self%matrix)) deallocate (self%matrix)
-   end subroutine clear_pl_translation
+   end subroutine clear_periodic_lattice_interaction_cache
 
-   subroutine finalize_pl_translation(self)
+   subroutine finalize_periodic_lattice_interaction_cache(self)
       type(periodic_lattice_interaction_cache), intent(inout) :: self
 
       call self%clear()
-   end subroutine finalize_pl_translation
+   end subroutine finalize_periodic_lattice_interaction_cache
 
    subroutine clear_surface_cache(mat)
       implicit none(type, external)
@@ -216,19 +216,23 @@ contains
                      if (.not. rhslist(rhs)) cycle
                      if (plane_surface_present) then
                         if (.not. contran(rhs)) then
-                           call pl_matrix_mult(sphere_order(i), sphere_order(j), ain(j1:j2, rhs), aout(i1:i2, rhs), &
-                                               .false., pb_mat=loc_rmat%matrix)
+                           call apply_periodic_lattice_matrix(sphere_order(i), sphere_order(j), &
+                                                              ain(j1:j2, rhs), aout(i1:i2, rhs), &
+                                                              .false., pb_mat=loc_rmat%matrix)
                         else
-                           call pl_matrix_mult(sphere_order(i), sphere_order(j), aout(j1:j2, rhs), ain(i1:i2, rhs), &
-                                               .true., pb_mat=loc_rmat%matrix)
+                           call apply_periodic_lattice_matrix(sphere_order(i), sphere_order(j), &
+                                                              aout(j1:j2, rhs), ain(i1:i2, rhs), &
+                                                              .true., pb_mat=loc_rmat%matrix)
                         end if
                      else
                         if (.not. contran(rhs)) then
-                           call pl_matrix_mult(sphere_order(i), sphere_order(j), ain(j1:j2, rhs), aout(i1:i2, rhs), &
-                                               .false., fs_mat=loc_rmat%matrix)
+                           call apply_periodic_lattice_matrix(sphere_order(i), sphere_order(j), &
+                                                              ain(j1:j2, rhs), aout(i1:i2, rhs), &
+                                                              .false., fs_mat=loc_rmat%matrix)
                         else
-                           call pl_matrix_mult(sphere_order(i), sphere_order(j), aout(j1:j2, rhs), ain(i1:i2, rhs), &
-                                               .true., fs_mat=loc_rmat%matrix)
+                           call apply_periodic_lattice_matrix(sphere_order(i), sphere_order(j), &
+                                                              aout(j1:j2, rhs), ain(i1:i2, rhs), &
+                                                              .true., fs_mat=loc_rmat%matrix)
                         end if
                      end if
                   end do
@@ -240,7 +244,7 @@ contains
       if (store_surface_matrix) recalculate_surface_matrix = .false.
    end subroutine periodic_lattice_sphere_interaction
 
-   subroutine pl_matrix_mult(nodrt, nodrs, as, at, tran, fs_mat, pb_mat)
+   subroutine apply_periodic_lattice_matrix(nodrt, nodrs, as, at, tran, fs_mat, pb_mat)
       implicit none(type, external)
       logical, intent(in) :: tran
       integer, intent(in) :: nodrt, nodrs
@@ -270,10 +274,10 @@ contains
             end do
          end if
       end if
-   end subroutine pl_matrix_mult
+   end subroutine apply_periodic_lattice_matrix
 
-   subroutine spheresurfaceinteraction(neqns, nrhs, ain, aout, &
-                                       initial_run, rhs_list, mpi_comm, con_tran)
+   subroutine sphere_surface_interaction(neqns, nrhs, ain, aout, &
+                                         initial_run, rhs_list, mpi_comm, con_tran)
       implicit none(type, external)
       integer, intent(in) :: neqns, nrhs
       integer :: rank, numprocs, nmat, mpicomm, proc, i, j, rhs, &
@@ -399,17 +403,20 @@ contains
                   do rhs = 1, nrhs
                      if (.not. rhslist(rhs)) cycle
                      if (.not. contran(rhs)) then
-                        call surface_interaction_matrix_mult(sphere_order(j), sphere_order(i), ain(j1:j2, rhs), atempi, loc_rmat, 1)
+                        call apply_surface_interaction_matrix(sphere_order(j), sphere_order(i), &
+                                                              ain(j1:j2, rhs), atempi, loc_rmat, 1)
                         aout(i1:i2, rhs) = aout(i1:i2, rhs) + atempi(1:sphere_block(i))
                      else
-                        call surface_interaction_matrix_mult(sphere_order(i), sphere_order(j), ain(i1:i2, rhs), atempj, loc_rmat, 2)
+                        call apply_surface_interaction_matrix(sphere_order(i), sphere_order(j), &
+                                                              ain(i1:i2, rhs), atempj, loc_rmat, 2)
                         aout(j1:j2, rhs) = aout(j1:j2, rhs) + atempj(1:sphere_block(j))
                      end if
                      if ((j .ne. i) .and. one_side_only) then
                         if (.not. contran(rhs)) then
                            call reverse_azimuthal_modes(sphere_order(i), &
                                                         ain(i1:i2, rhs), atempi)
-                           call surface_interaction_matrix_mult(sphere_order(i), sphere_order(j), atempi, atempj, loc_rmat, 2)
+                           call apply_surface_interaction_matrix(sphere_order(i), sphere_order(j), &
+                                                                 atempi, atempj, loc_rmat, 2)
                            call reverse_azimuthal_modes(sphere_order(j), &
                                                         atempj, atempj2)
                            aout(j1:j2, rhs) = aout(j1:j2, rhs) &
@@ -417,7 +424,8 @@ contains
                         else
                            call reverse_azimuthal_modes(sphere_order(j), &
                                                         ain(j1:j2, rhs), atempj)
-                           call surface_interaction_matrix_mult(sphere_order(j), sphere_order(i), atempj, atempi, loc_rmat, 1)
+                           call apply_surface_interaction_matrix(sphere_order(j), sphere_order(i), &
+                                                                 atempj, atempi, loc_rmat, 1)
                            call reverse_azimuthal_modes(sphere_order(i), &
                                                         atempi, atempi2)
                            aout(i1:i2, rhs) = aout(i1:i2, rhs) + atempi2(1:sphere_block(i))
@@ -432,9 +440,9 @@ contains
          end do
       end do
       if (store_surface_matrix) recalculate_surface_matrix = .false.
-   end subroutine spheresurfaceinteraction
+   end subroutine sphere_surface_interaction
 
-   subroutine surface_interaction_matrix_mult(nin, nout, ain, aout, rmat, dir)
+   subroutine apply_surface_interaction_matrix(nin, nout, ain, aout, rmat, dir)
       implicit none(type, external)
       integer, intent(in) :: nin, nout, dir
       integer :: bin, bout, m, m1, n, l, p, q, mnp, klq, i, moff
@@ -482,6 +490,6 @@ contains
             end do
          end if
       end if
-   end subroutine surface_interaction_matrix_mult
+   end subroutine apply_surface_interaction_matrix
 
 end module translation_surface_interactions

@@ -9,13 +9,13 @@ module translation_expansions
                          sphere_order, sphere_position, sphere_ref_index, store_translation_matrix, &
                          translation_switch_order
    use surface_subroutines, only: layer_id, plane_interaction, plane_surface_present
-   use translation_operator, only: translation_data
+   use translation_operator, only: translation_operator_state
 
    implicit none(type, external)
    private
 
    public :: interaction_radius
-   public :: clear_stored_trans_mat
+   public :: clear_stored_translation_matrices
    public :: general_interaction_matrix
    public :: external_to_external_expansion
    public :: external_to_internal_expansion
@@ -34,7 +34,7 @@ module translation_expansions
    end type nested_sphere_geometry_view
 
    real(real64), target :: interaction_radius = 1.0e10_real64
-   type(translation_data), target, allocatable :: stored_trans_mat(:)
+   type(translation_operator_state), target, allocatable :: stored_trans_mat(:)
 
 contains
 
@@ -68,10 +68,10 @@ contains
       call self%clear()
    end subroutine finalize_nested_sphere_geometry_view
 
-   subroutine clear_stored_trans_mat(mat)
+   subroutine clear_stored_translation_matrices(mat)
       implicit none(type, external)
       integer :: n
-      type(translation_data), allocatable, intent(inout) :: mat(:)
+      type(translation_operator_state), allocatable, intent(inout) :: mat(:)
       if (.not. allocated(mat)) return
       n = size(mat)
       if (light_up) then
@@ -79,7 +79,7 @@ contains
          flush (6)
       end if
       deallocate (mat)
-   end subroutine clear_stored_trans_mat
+   end subroutine clear_stored_translation_matrices
 
    subroutine general_interaction_matrix(matrix, mie_mult, mpi_comm)
       implicit none(type, external)
@@ -237,8 +237,8 @@ contains
       complex(real64), intent(in) :: ain(neqns, nrhs)
       complex(real64), intent(out) :: gout(neqns, nrhs)
       complex(real64) :: rimedium(2)
-      type(translation_data), pointer :: loc_tranmat
-      type(translation_data), target :: tranmat
+      type(translation_operator_state), pointer :: loc_tranmat
+      type(translation_operator_state), target :: tranmat
       if (present(mpi_comm)) then
          mpicomm = mpi_comm
       else
@@ -286,7 +286,7 @@ contains
                end do
             end do
             if (allocated(stored_trans_mat)) then
-               call clear_stored_trans_mat(stored_trans_mat)
+               call clear_stored_translation_matrices(stored_trans_mat)
             end if
             allocate (stored_trans_mat(ndim))
          end if
@@ -400,7 +400,7 @@ contains
       complex(real64), intent(in) :: ain(neqns, nrhs)
       complex(real64), intent(inout) :: bout(neqns, nrhs)
       integer :: i, j, task, proc, extsurf, intsurf, ext1, ext2, int1, int2, noext, noint, rhs
-      type(translation_data) :: tranmat
+      type(translation_operator_state) :: tranmat
 
       task = 0
 

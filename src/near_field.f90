@@ -8,7 +8,7 @@ module nearfield
    use surface_subroutines
    use periodic_lattice_subroutines
    use scatprops
-   use translation, only: translation_data
+   use translation, only: translation_operator_state
    implicit none
    type grid_info
       logical :: initialized
@@ -550,7 +550,7 @@ contains
       complex(8) :: sourcevec(number_eqns, 2), ri2(2)
       type(cell_info), pointer :: cellinfo
       type(linked_sphere_list), pointer :: slist
-      type(translation_data) :: tranmat
+      type(translation_operator_state) :: tranmat
 
       cellhost = cellinfo%host
       if (cellhost .eq. 0) then

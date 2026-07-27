@@ -8,9 +8,9 @@ module translation_operator
    implicit none(type, external)
    private
 
-   public :: shiftcoefficient, translation_data
+   public :: transform_mode_coefficients, translation_operator_state
 
-   type translation_data
+   type translation_operator_state
       private
       logical :: matrix_calculated = .false.
       logical :: rot_op = .false.
@@ -25,12 +25,12 @@ module translation_operator
       procedure, public, pass(tranmat) :: apply => coefficient_translation
       procedure, public :: clear => clear_translation
       final :: finalize_translation
-   end type translation_data
+   end type translation_operator_state
 
 contains
 
    subroutine configure_translation(self, vswf_type, translation_vector, refractive_index, use_rotation)
-      class(translation_data), intent(inout) :: self
+      class(translation_operator_state), intent(inout) :: self
       integer, intent(in) :: vswf_type
       real(real64), intent(in) :: translation_vector(3)
       complex(real64), intent(in) :: refractive_index(2)
@@ -44,7 +44,7 @@ contains
    end subroutine configure_translation
 
    subroutine clear_translation(self)
-      class(translation_data), intent(inout) :: self
+      class(translation_operator_state), intent(inout) :: self
 
       if (allocated(self%rot_mat)) deallocate (self%rot_mat)
       if (allocated(self%phi_mat)) deallocate (self%phi_mat)
@@ -59,7 +59,7 @@ contains
    end subroutine clear_translation
 
    subroutine finalize_translation(self)
-      type(translation_data), intent(inout) :: self
+      type(translation_operator_state), intent(inout) :: self
 
       call self%clear()
    end subroutine finalize_translation
@@ -81,7 +81,7 @@ contains
          a_tt(-nodra:nodra, nodra, 2), g_tt(-nodrg:nodrg, nodrg, 2), &
          atc(max(nodra, nodrg), max(nodra, nodrg), 2), &
          a_t2(nodra * (nodra + 2), 2), g_t2(nodrg * (nodrg + 2), 2), rimed(2), ephi
-      class(translation_data), intent(inout) :: tranmat
+      class(translation_operator_state), intent(inout) :: tranmat
 
       nblka = nodra * (nodra + 2)
       nblkg = nodrg * (nodrg + 2)
@@ -156,8 +156,8 @@ contains
          end if
       else
          if (rot) then
-            call shiftcoefficient(nodra, nmodea, shiftvec(1), shiftvec(2), &
-                                  acoef(1:lengtha), a_t(0:nodra + 1, 1:nodra, 1:2))
+            call transform_mode_coefficients(nodra, nmodea, shiftvec(1), shiftvec(2), &
+                                             acoef(1:lengtha), a_t(0:nodra + 1, 1:nodra, 1:2))
             a_tt(0, 1:nodra, 1:2) = a_t(0, 1:nodra, 1:2)
             do m = 1, nodra
                a_tt(m, m:nodra, 1:2) = a_t(m, m:nodra, 1:2) * tranmat%phi_mat(im * m)
@@ -206,13 +206,13 @@ contains
                g_t(m, m:nodrg, 1:2) = g_tt(m, m:nodrg, 1:2) * tranmat%phi_mat(-im * m)
                g_t(m + 1:nodrg + 1, m, 1:2) = g_tt(-m, m:nodrg, 1:2) * tranmat%phi_mat(im * m)
             end do
-            call shiftcoefficient(nodrg, nmodeg, shiftvec(1), shiftvec(2), &
-                                  g_t, g_shift)
+            call transform_mode_coefficients(nodrg, nmodeg, shiftvec(1), shiftvec(2), &
+                                             g_t, g_shift)
             g_t = g_shift
          else
-            call shiftcoefficient(nodra, nmodea, shiftvec(1), shiftvec(2), &
-                                  acoef(1:lengtha), &
-                                  a_t2(1:nblka, 1:2))
+            call transform_mode_coefficients(nodra, nmodea, shiftvec(1), shiftvec(2), &
+                                             acoef(1:lengtha), &
+                                             a_t2(1:nblka, 1:2))
             if (sop) then
                g_t2(:, 1) = matmul(a_t2(1:nblka, 1), tranmat%gen_mat(1:nblka, 1:nblkg, 1))
             else
@@ -239,8 +239,8 @@ contains
                   g_t2(:, 2) = matmul(tranmat%gen_mat(1:nblkg, 1:nblka, 2), a_t2(1:nblka, 2))
                end if
             end if
-            call shiftcoefficient(nodrg, nmodeg, shiftvec(1), shiftvec(2), &
-                                  g_t2, g_t)
+            call transform_mode_coefficients(nodrg, nmodeg, shiftvec(1), shiftvec(2), &
+                                             g_t2, g_t)
          end if
          gcoef(1:lengthg) &
             = gcoef(1:lengthg) &
@@ -248,8 +248,8 @@ contains
       end if
    end subroutine coefficient_translation
 
-   subroutine shiftcoefficient(nodr, nmode, msign, mflip, &
-                               ain, aout)
+   subroutine transform_mode_coefficients(nodr, nmode, msign, mflip, &
+                                          ain, aout)
       implicit none(type, external)
       integer, intent(in) :: nodr, nmode, msign, mflip
       integer :: m, n, im
@@ -282,6 +282,6 @@ contains
             end do
          end if
       end if
-   end subroutine shiftcoefficient
+   end subroutine transform_mode_coefficients
 
 end module translation_operator

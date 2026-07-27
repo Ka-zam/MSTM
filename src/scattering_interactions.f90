@@ -10,7 +10,7 @@ module scattering_interactions
    use spheredata
    use surface_subroutines
    use translation, only: external_to_external_expansion, external_to_internal_expansion, &
-                          periodic_lattice_sphere_interaction, spheresurfaceinteraction, translation_data
+                          periodic_lattice_sphere_interaction, sphere_surface_interaction, translation_operator_state
    implicit none
    private
    public :: distribute_from_common_origin, layergaussbeamcoef, merge_to_common_origin, &
@@ -138,9 +138,9 @@ contains
 
       if (plane_surface_present .and. (.not. periodic_lattice)) then
          aout_t2 = 0.
-         call spheresurfaceinteraction(neqns, nrhs, ain_t, aout_t2, &
-                                       initial_run=initrun, rhs_list=rhslist, &
-                                       mpi_comm=mpicomm, con_tran=contran)
+         call sphere_surface_interaction(neqns, nrhs, ain_t, aout_t2, &
+                                         initial_run=initrun, rhs_list=rhslist, &
+                                         mpi_comm=mpicomm, con_tran=contran)
          aout_t = aout_t + aout_t2
       end if
 
@@ -287,7 +287,7 @@ contains
       real(8) :: alpha, rpos(3), sinc, cbinc, rtran(3), r, rshft(3), zs
       complex(8) :: pmnp(2 * nodr * (nodr + 2), 2), riinc
       complex(8), allocatable :: pmnp0(:, :), ptvec(:)
-      type(translation_data) :: tranmat
+      type(translation_operator_state) :: tranmat
       if (sdir .eq. 1) then
          riinc = layer_ref_index(0)
          incregion = 0
@@ -420,7 +420,7 @@ contains
       real(8), optional :: origin_position(3), merge_radius
       complex(8) :: amnp(number_eqns, *), amnp0(0:nodrt + 1, nodrt, 2, *), rimedium(2)
       complex(8), allocatable :: amnpt(:, :, :)
-      type(translation_data) :: tranmat
+      type(translation_operator_state) :: tranmat
 
       if (present(mpi_comm)) then
          mpicomm = mpi_comm
@@ -516,7 +516,7 @@ contains
       real(8) :: r0(3)
       real(8), optional :: origin_position(3)
       complex(8) :: amnp(number_eqns, *), amnp0(0:nodrt + 1, nodrt, 2, *), rimedium(2)
-      type(translation_data) :: tranmat
+      type(translation_operator_state) :: tranmat
 
       if (present(mpi_comm)) then
          mpicomm = mpi_comm

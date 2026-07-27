@@ -7,7 +7,8 @@ module fft_translation
    use numerical_tables
    use specialfuncs
    use spheredata
-   use translation, only: clear_stored_trans_mat, shiftcoefficient, translation_data
+   use translation, only: clear_stored_translation_matrices, transform_mode_coefficients, &
+                          translation_operator_state
    use mie
    implicit none
    type node_data
@@ -33,7 +34,7 @@ module fft_translation
    complex(8), private :: host_ref_index(2)
    complex(4), allocatable, private :: cell_translation_matrix(:, :, :, :, :, :)
    type(node_data), allocatable, private :: cell_list(:, :, :), sphere_local_interaction_list(:)
-   type(translation_data), target, allocatable, private :: stored_local_j_mat(:), stored_local_h_mat(:)
+   type(translation_operator_state), target, allocatable, private :: stored_local_j_mat(:), stored_local_h_mat(:)
    data fft_local_host/0/
    data neighbor_node_model/2/
    data node_order/3/
@@ -60,12 +61,12 @@ contains
          write (*, '('' fft cfm 1'',2i10,l)') mstm_global_rank, local_j_matrix_count, allocated(stored_local_j_mat)
          flush (6)
       end if
-      call clear_stored_trans_mat(stored_local_j_mat)
+      call clear_stored_translation_matrices(stored_local_j_mat)
       if (light_up) then
          write (*, '('' fft cfm 2'',2i10,l)') mstm_global_rank, local_h_matrix_count, allocated(stored_local_h_mat)
          flush (6)
       end if
-      call clear_stored_trans_mat(stored_local_h_mat)
+      call clear_stored_translation_matrices(stored_local_h_mat)
       if (clearh) then
          if (allocated(cell_translation_matrix)) deallocate (cell_translation_matrix)
       end if
@@ -212,13 +213,13 @@ contains
          do i = 1, number_spheres
             if (host_sphere(i) .ne. fft_local_host) cycle
             if (contran(rhs)) then
-               call shiftcoefficient(sphere_order(i), 2, -1, -1, &
-                                     ain(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs), &
-                                     ain_t(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs))
+               call transform_mode_coefficients(sphere_order(i), 2, -1, -1, &
+                                                ain(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs), &
+                                                ain_t(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs))
             else
-               call shiftcoefficient(sphere_order(i), 2, 1, 1, &
-                                     ain(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs), &
-                                     ain_t(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs))
+               call transform_mode_coefficients(sphere_order(i), 2, 1, 1, &
+                                                ain(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs), &
+                                                ain_t(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs))
             end if
             noff = noff + 2 * sphere_order(i) * (sphere_order(i) + 2) * number_field_expansions(i)
          end do
@@ -316,13 +317,13 @@ contains
          do i = 1, number_spheres
             if (host_sphere(i) .ne. fft_local_host) cycle
             if (contran(rhs)) then
-               call shiftcoefficient(sphere_order(i), 2, -1, -1, &
-                                     gout_t(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs), &
-                                     gout(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs))
+               call transform_mode_coefficients(sphere_order(i), 2, -1, -1, &
+                                                gout_t(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs), &
+                                                gout(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs))
             else
-               call shiftcoefficient(sphere_order(i), 2, 1, 1, &
-                                     gout_t(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs), &
-                                     gout(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs))
+               call transform_mode_coefficients(sphere_order(i), 2, 1, 1, &
+                                                gout_t(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs), &
+                                                gout(noff + 1:noff + 2 * sphere_order(i) * (sphere_order(i) + 2), rhs))
             end if
             noff = noff + 2 * sphere_order(i) * (sphere_order(i) + 2) * number_field_expansions(i)
          end do
@@ -356,8 +357,8 @@ contains
                            rhs_list(nrhs), con_tran(nrhs), merge_procs
       integer, optional :: mpi_comm, local_host
       complex(8) :: ain(number_eqns, nrhs), gout(number_eqns, nrhs), rimedium(2)
-      type(translation_data), pointer :: loc_tranmat
-      type(translation_data), target :: tranmat
+      type(translation_operator_state), pointer :: loc_tranmat
+      type(translation_operator_state), target :: tranmat
       type(linked_ilist), pointer :: llist
       data firstrun/.true./
       if (present(mpi_comm)) then
@@ -490,8 +491,8 @@ contains
       real(8) :: rtran(3)
   complex(8) :: asphere(number_eqns, nrhs), anode(cell_dim(1), cell_dim(2), cell_dim(3), node_order * (node_order + 2) * 2, nrhs), &
                     rimedium(2), anodet(node_order * (node_order + 2) * 2)
-      type(translation_data), pointer :: loc_tranmat
-      type(translation_data), target :: tranmat
+      type(translation_operator_state), pointer :: loc_tranmat
+      type(translation_operator_state), target :: tranmat
       data firstrun/.true./
       if (present(mpi_comm)) then
          mpicomm = mpi_comm
