@@ -1,7 +1,7 @@
 module translation
    use mpidefs
    use intrinsics
-   use numconstants
+   use numerical_tables
    use specialfuncs
    use surface_subroutines
    use periodic_lattice_subroutines

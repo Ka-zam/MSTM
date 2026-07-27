@@ -1,11 +1,12 @@
 module angular_functions
    use bessel_functions, only: cricbessel, crichankel
    use coefficient_indexing, only: amnaddress, amnpaddress
+   use constants
    implicit none
 contains
 
    subroutine vcfunc(m, n, k, l, vcn)
-      use numconstants
+      use numerical_tables
       implicit none
       integer :: m, n, k, l, wmax, wmin, w, mk
       real(8) :: vcn(0:n + l), t1, t2, t3, vcmax, vctest, rat
@@ -53,7 +54,7 @@ contains
 !  last revised: 15 January 2011
 !
    subroutine vcfuncuprec(m, n, k, l, wmax, vcn)
-      use numconstants
+      use numerical_tables
       implicit none
       integer :: m, n, k, l, wmax, w, mk, nl, m1, n1, l1, k1, w1, w2
       real(8) :: vcn(0:n + l), t1, t2, t3, vc1
@@ -118,7 +119,7 @@ contains
 !  last revised: 15 January 2011
 !
    subroutine normalizedlegendre(cbe, mmax, nmax, dc)
-      use numconstants
+      use numerical_tables
       implicit none
       integer :: nmax, mmax, m, n, im
       real(8) :: dc(-mmax:mmax, 0:nmax), cbe, sbe
@@ -153,7 +154,7 @@ contains
 !  last revised: 15 January 2011
 !
    subroutine rotcoef(cbe, kmax, nmax, dc)
-      use numconstants
+      use numerical_tables
       implicit none
       integer :: kmax, nmax, k, m, sin, n, knmax, nn1, kn, im, m1
       real(8) :: cbe, sbe, dc(-kmax:kmax, 0:nmax * (nmax + 2)), cbe2, sbe2, dk0(-nmax - 1:nmax + 1), &
@@ -242,7 +243,7 @@ contains
 !  New: 08/25/2011
 !
    subroutine crotcoef(cbe, kmax, nmax, dc, sin_beta)
-      use numconstants
+      use numerical_tables
       implicit none
       integer :: kmax, nmax, k, m, in, n, knmax, nn1, kn, im, m1
       real(8) :: fmn
@@ -310,7 +311,7 @@ contains
 ! 2020 : back to nm formulation.   Complex cb
 !
    subroutine complexpivec(cb, nodr, pivec, icon, lr_model, azimuth_angle, index_model)
-      use numconstants
+      use numerical_tables
       implicit none
       logical :: lrmod
       logical, optional :: lr_model
@@ -341,7 +342,7 @@ contains
       else
          lrmod = .false.
       end if
-      const = 0.5d0 / sqrt(2.d0 * pi)
+      const = 0.5d0 / sqrt_two_pi
       call crotcoef(cb, 1, nodr, drot)
       do n = 1, nodr
          nn1 = n * (n + 1)
@@ -379,7 +380,7 @@ contains
 !  last revised: 15 January 2011
 !
    subroutine taufunc(cb, nmax, tau)
-      use numconstants
+      use numerical_tables
       implicit none
       integer :: nmax, n, m, nn1, mn
       real(8) :: drot(-1:1, 0:nmax * (nmax + 2)), tau(0:nmax + 1, nmax, 2), cb, fnm
@@ -407,7 +408,7 @@ contains
 !  last revised: 15 January 2011
 !
    subroutine rotvec(alpha, beta, gamma, nmax, mmax, amn, idir)
-      use numconstants
+      use numerical_tables
       implicit none
       integer :: nmax, mmax, idir, k, n, m, in, kmax, ka, na, im, m1
       real(8) :: dc(-nmax - 1:nmax + 1, -nmax - 1:nmax + 1), dk0(-nmax - 1:nmax + 1), &
@@ -508,7 +509,7 @@ contains
 !  regular vswf expansion coefficients for a plane wave: general case, complex cos beta
 !
    subroutine genplanewavecoef(alpha, cb, nodr, pmnp0, lr_tran)
-      use numconstants
+      use numerical_tables
       implicit none
       logical :: lrtran
       logical, optional :: lr_tran
@@ -577,7 +578,7 @@ contains
    end subroutine genplanewavecoef
 
    subroutine gaussianbeamcoef(alpha, cbeta, cbeam, nodr, pmnp0, lr_tran)
-      use numconstants
+      use numerical_tables
       implicit none
       logical :: lrtran
       logical, optional :: lr_tran
@@ -621,7 +622,7 @@ contains
 !  the elements for degree m are stored
 !
    subroutine axialtrancoefrecurrence(itype, r, ri, nmax, lmax, ndim, ac)
-      use numconstants
+      use numerical_tables
       implicit none
       integer :: itype, nmax, lmax, n, l, m, p, nlmin, &
                  wmin, wmax, ml, m1, np1, nm1, lm1, lp1, sp
@@ -735,7 +736,7 @@ contains
 !  constants for translation coefficient calculation
 !
    subroutine axialtrancoefinit(nmax)
-      use numconstants
+      use numerical_tables
       implicit none
       integer :: nmax, m, n, l, w, n21, ml, ll1, wmin, wmax, nlmin, lp1, lm1
       real(8) :: c1, c2, vc1(0:2 * nmax), vc2(0:2 * nmax)
@@ -779,7 +780,7 @@ contains
    end subroutine axialtrancoefinit
 
    subroutine gentrancoefconstants(nodrmax)
-      use numconstants
+      use numerical_tables
       implicit none
       integer :: nodrmax, v, w, wmax, wmin, n, l, m, k, m1m, mn, kl
       real(8) :: vc1(0:2 * nodrmax), vc2(0:2 * nodrmax)
@@ -819,7 +820,7 @@ contains
    subroutine gentranmatrix(nodr_s, nodr_t, translation_vector, &
                             refractive_index, ac_matrix, vswf_type, &
                             mode_s, mode_t, index_model)
-      use numconstants
+      use numerical_tables
       implicit none
       integer :: nodr_s, nodr_t, nodrmax, wmax, p, n, m, k, l, mn, kl, imodel, &
                  nblks, nblkt, w, v, wmin, itype, nmodes, nmodet, nmode, mna, kla
@@ -951,7 +952,7 @@ contains
 !  last revised: 15 January 2011
 !
    subroutine tranordertest(r, ri, lmax, eps, nmax)
-      use numconstants
+      use numerical_tables
       implicit none
       integer :: nmax, lmax, n, l, m, w, n21, wmin, wmax
       integer, parameter :: nlim = 200

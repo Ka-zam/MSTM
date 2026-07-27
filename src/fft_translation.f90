@@ -1,9 +1,10 @@
 module fft_translation
+   use constants
    use gpfa_controller, only: cgpfa
    use gpfa_setup, only: setgpfa
    use mpidefs
    use intrinsics
-   use numconstants
+   use numerical_tables
    use specialfuncs
    use spheredata
    use translation
@@ -712,14 +713,14 @@ contains
 
       if (.not. dspec) then
          if (fva .le. 0.d0) then
-            fv = 4.d0 * pi / 3.d0 * svol**3 / tvol
+            fv = four_pi_over_three * svol**3 / tvol
             fv = min(fv, 1.d0)
             fv = max(fv, .02d0)
          else
             fv = fva
          end if
          fva = fv
-         d_cell = (4.d0 * pi / 3.d0 / fv / dble(nsphere))**(1.d0 / 3.d0) * svol
+         d_cell = (four_pi_over_three / fv / dble(nsphere))**(1.d0 / 3.d0) * svol
       end if
 
 !write(*,'('' host ri:'',2e13.5)') host_ref_index

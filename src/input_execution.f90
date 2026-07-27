@@ -1,4 +1,5 @@
 module input_execution
+   use constants
    use effective_medium_analysis
    use input_parser
    use input_reporting
@@ -70,9 +71,9 @@ contains
             call target_volume(target_dimensions, targetvol)
             if (number_spheres_specified) then
                number_spheres = input_number_spheres
-               sphere_volume_fraction = dble(input_number_spheres) * 4.d0 * pi / 3.d0 / targetvol
+               sphere_volume_fraction = dble(input_number_spheres) * four_pi_over_three / targetvol
             else
-               number_spheres = ceiling(targetvol * sphere_volume_fraction) / (4.d0 * pi / 3.d0)
+               number_spheres = ceiling(targetvol * sphere_volume_fraction) / (four_pi_over_three)
             end if
          end if
          if (target_shape .eq. 2 .and. random_configuration_host) then
@@ -381,13 +382,13 @@ contains
          end if
       else
          if (incident_beta_specified) then
-            incident_beta = incident_beta_deg * pi / 180.d0
+            incident_beta = incident_beta_deg * degrees_to_radians
             if (incident_beta_deg .le. 90.d0) then
                incident_direction = 1
-               incident_sin_beta = dsin(incident_beta_deg * pi / 180.d0) / dble(layer_ref_index(0))
+               incident_sin_beta = dsin(incident_beta_deg * degrees_to_radians) / dble(layer_ref_index(0))
             else
                incident_direction = 2
-               incident_sin_beta = dsin(incident_beta_deg * pi / 180.d0) &
+               incident_sin_beta = dsin(incident_beta_deg * degrees_to_radians) &
                                    / dble(layer_ref_index(number_plane_boundaries))
             end if
          else
@@ -398,7 +399,7 @@ contains
          else
             qeff_dim = 3
          end if
-         alpha = incident_alpha_deg * pi / 180.d0
+         alpha = incident_alpha_deg * degrees_to_radians
          call incident_field_initialization(alpha, incident_sin_beta, incident_direction)
          if (calculate_scattering_matrix) then
             if (allocated(scat_mat)) deallocate (scat_mat)
@@ -1701,7 +1702,7 @@ contains
       if (rank .eq. 0) then
          call random_number(rnum)
          cbeta = 2.d0 * rnum(1) - 1.d0
-         sbuf(1) = 180.d0 / pi * dacos(cbeta)
+         sbuf(1) = radians_to_degrees * dacos(cbeta)
          sbuf(2) = 360.d0 * rnum(2)
       end if
       if (numprocs .gt. 1) then
@@ -1872,7 +1873,7 @@ contains
       singleorigin = number_plane_boundaries .eq. 0 .and. single_origin_expansion
       iframe = singleorigin .and. incident_frame
       csca = (q_eff_tot(1, 1) - q_eff_tot(2, 1)) * pi * cross_section_radius**2
-      csca = pi * 2.d0
+      csca = two_pi
 
       if (periodic_lattice) then
          call periodic_lattice_scattering(amnp, pl_sca, scat_mat=scatmat, krho_vec=rl_vec)
@@ -1881,14 +1882,14 @@ contains
 
       if (scattering_map_model .eq. 0) then
          do i = scat_mat_ldim, scat_mat_udim
-            costheta = cos(pi / 180.d0 * (scat_mat_amin + (scat_mat_amax - scat_mat_amin) &
-                                          * dble(i - scat_mat_ldim) / dble(scat_mat_udim - scat_mat_ldim)))
+            costheta = cos(degrees_to_radians * (scat_mat_amin + (scat_mat_amax - scat_mat_amin) &
+                                                 * dble(i - scat_mat_ldim) / dble(scat_mat_udim - scat_mat_ldim)))
             if (costheta .eq. 1.d0) costheta = 0.9999999d0
             if (costheta .eq. -1.d0) costheta = -0.9999999d0
             if (i .lt. 0) then
-               phi = incident_alpha_deg * pi / 180.d0 + pi
+               phi = incident_alpha_deg * degrees_to_radians + pi
             else
-               phi = incident_alpha_deg * pi / 180.d0
+               phi = incident_alpha_deg * degrees_to_radians
             end if
             if (number_plane_boundaries .eq. 0) then
                if (singleorigin) then

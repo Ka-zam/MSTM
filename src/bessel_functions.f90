@@ -1,101 +1,8 @@
 module bessel_functions
+   use constants
    implicit none
 contains
 
-   subroutine ricbessel(n, ds, eps, nmax, psi)
-      implicit none
-      integer :: n, nmax, ns, i
-      real(8) :: ds, dns, sn, psi(0:n), psit, ds2, sum, eps, err
-      if (int(ds) .lt. n) then
-         ns = nint(ds + 4.*(ds**.3333d0) + 17)
-         ns = max(n + 10, ns)
-         dns = 0.d0
-         do i = ns - 1, n, -1
-            sn = dble(i + 1) / ds
-            dns = sn - 1.d0 / (dns + sn)
-         end do
-         psi(n) = dns
-         psi(n - 1) = dble(n) / ds - 1.d0 / (dns + dble(n) / ds)
-         do i = n - 2, 1, -1
-            sn = dble(i + 1) / ds
-            psi(i) = sn - 1.d0 / (psi(i + 1) + sn)
-         end do
-         psit = dsin(ds)
-         psi(0) = psit
-         ds2 = ds * ds
-         sum = psit * psit / ds2
-         do i = 1, n
-            psit = psit / (dble(i) / ds + psi(i))
-            sum = sum + dble(i + i + 1) * psit * psit / ds2
-            err = dabs(1.d0 - sum)
-            psi(i) = psit
-            if (err .lt. eps) then
-               nmax = i
-               return
-            end if
-         end do
-         nmax = n
-      else
-         psi(0) = dsin(ds)
-         psi(1) = psi(0) / ds - dcos(ds)
-         do i = 1, n - 1
-            sn = dble(i + i + 1) / ds
-            psi(i + 1) = sn * psi(i) - psi(i - 1)
-         end do
-         nmax = n
-      end if
-   end subroutine ricbessel
-!
-!  ricatti-hankel function xi(n), real argument
-!
-!
-!  last revised: 15 January 2011
-!
-   subroutine richankel(n, ds, xi)
-      implicit none
-      integer :: n, i, ns
-      real(8) :: ds, dns, sn, chi0, chi1, chi2, psi, psi0, psi1
-      complex(8) :: xi(0:n)
-      if (int(ds) .lt. n) then
-         ns = nint(ds + 4.*(ds**.3333) + 17)
-         ns = max(n + 10, ns)
-         dns = 0.d0
-         do i = ns - 1, n, -1
-            sn = dble(i + 1) / ds
-            dns = sn - 1.d0 / (dns + sn)
-         end do
-         xi(n) = dns
-         xi(n - 1) = dble(n) / ds - 1.d0 / (dns + dble(n) / ds)
-         do i = n - 2, 1, -1
-            sn = dble(i + 1) / ds
-            xi(i) = sn - 1.d0 / (xi(i + 1) + sn)
-         end do
-         chi0 = -dcos(ds)
-         psi = dsin(ds)
-         chi1 = chi0 / ds - psi
-         xi(0) = cmplx(psi, chi0, kind=kind(0.0d0))
-         do i = 1, n
-            chi2 = dble(i + i + 1) / ds * chi1 - chi0
-            psi = psi / (dble(i) / ds + xi(i))
-            xi(i) = cmplx(psi, chi1, kind=kind(0.0d0))
-            chi0 = chi1
-            chi1 = chi2
-         end do
-         return
-      else
-         chi0 = -dcos(ds)
-         psi0 = dsin(ds)
-         chi1 = chi0 / ds - psi0
-         psi1 = psi0 / ds + chi0
-         xi(0) = cmplx(psi0, chi0, kind=kind(0.0d0))
-         xi(1) = cmplx(psi1, chi1, kind=kind(0.0d0))
-         do i = 1, n - 1
-            sn = dble(i + i + 1) / ds
-            xi(i + 1) = sn * xi(i) - xi(i - 1)
-         end do
-         return
-      end if
-   end subroutine richankel
 !
 !  ricatti-bessel function psi(n), complex argument
 !
@@ -213,279 +120,16 @@ contains
       end do
    end subroutine cspherebessel
 
-   subroutine ch12n(n, z, nm, chf1)
-      use numconstants
-
-      !*****************************************************************************80
-      !
-         !! CH12N computes Hankel functions of first and second kinds, complex argument.
-      !
-      !  Discussion:
-      !
-      !    Both the Hankel functions and their derivatives are computed.
-      !
-      !  Licensing:
-      !
-      !    This routine is copyrighted by Shanjie Zhang and Jianming Jin.  However,
-      !    they give permission to incorporate this routine into a user program
-      !    provided that the copyright is acknowledged.
-      !
-      !  Modified:
-      !
-      !    26 July 2012
-      !
-      !  Author:
-      !
-      !    Shanjie Zhang, Jianming Jin
-      !
-      !  Reference:
-      !
-      !    Shanjie Zhang, Jianming Jin,
-      !    Computation of Special Functions,
-      !    Wiley, 1996,
-      !    ISBN: 0-471-11963-6,
-      !    LC: QA351.C45.
-      !
-      !  Parameters:
-      !
-      !    Input, integer ( kind = 4 ) N, the order of the functions.
-      !
-      !    Input, complex ( kind = 8 ) Z, the argument.
-      !
-      !    Output, integer ( kind = 4 ) NM, the highest order computed.
-      !
-      !    Output, complex ( kind = 8 ) CHF1(0:n), CHD1(0:n), CHF2(0:n), CHD2(0:n),
-      !    the values of Hn(1)(z), Hn(1)'(z), Hn(2)(z), Hn(2)'(z).
-      !
-      implicit none
-
-      integer(kind=4) n
-
-      complex(kind=8) cbi(0:n + 1)
-      complex(kind=8) cbj(0:n + 1)
-      complex(kind=8) cbk(0:n + 1)
-      complex(kind=8) cby(0:n + 1)
-      complex(kind=8) cdi(0:n + 1)
-      complex(kind=8) cdj(0:n + 1)
-      complex(kind=8) cdk(0:n + 1)
-      complex(kind=8) cdy(0:n + 1)
-      complex(kind=8) cf1
-      complex(kind=8) cfac
-      complex(kind=8) chf1(0:n)
-      complex(kind=8) ci
-      integer(kind=4) k
-      integer(kind=4) nm
-      complex(kind=8) z
-      complex(kind=8) zi
-
-      ci = cmplx(0.0D+00, 1.0D+00, kind=8)
-      if (aimag(z) .le. 0.0D+00) then
-         call cjynb(n, z, nm, cbj, cdj, cby, cdy)
-         nm = min(n, nm)
-         do k = 0, nm
-            chf1(k) = cbj(k) + ci * cby(k)
-         end do
-      else
-         zi = -ci * z
-         call ciknb(n, zi, nm, cbi, cdi, cbk, cdk)
-         cf1 = -ci
-         cfac = 2.0D+00 / (pi * ci)
-         nm = min(n, nm)
-         do k = 0, nm
-            chf1(k) = cfac * cbk(k)
-            cfac = cfac * cf1
-         end do
-      end if
-      return
-   end subroutine ch12n
-
-   subroutine ciknb(n, z, nm, cbi, cdi, cbk, cdk)
-      use numconstants
-
-      !*****************************************************************************80
-      !
-         !! CIKNB computes complex modified Bessel functions In(z) and Kn(z).
-      !
-      !  Discussion:
-      !
-      !    This procedure also evaluates the derivatives.
-      !
-      !  Licensing:
-      !
-      !    This routine is copyrighted by Shanjie Zhang and Jianming Jin.  However,
-      !    they give permission to incorporate this routine into a user program
-      !    provided that the copyright is acknowledged.
-      !
-      !  Modified:
-      !
-      !    30 July 2012
-      !
-      !  Author:
-      !
-      !    Shanjie Zhang, Jianming Jin
-      !
-      !  Reference:
-      !
-      !    Shanjie Zhang, Jianming Jin,
-      !    Computation of Special Functions,
-      !    Wiley, 1996,
-      !    ISBN: 0-471-11963-6,
-      !    LC: QA351.C45.
-      !
-      !  Parameters:
-      !
-      !    Input, integer ( kind = 4 ) N, the order of In(z) and Kn(z).
-      !
-      !    Input, complex ( kind = 8 ) Z, the argument.
-      !
-      !    Output, integer ( kind = 4 ) NM, the highest order computed.
-      !
-      !    Output, complex ( kind = 8 ) CB((0:N), CDI(0:N), CBK(0:N), CDK(0:N),
-      !    the values of In(z), In'(z), Kn(z), Kn'(z).
-      !
-      implicit none
-
-      integer(kind=4) n
-
-      real(kind=8) a0
-      complex(kind=8) ca0
-      complex(kind=8) cbi(0:n + 1)
-      complex(kind=8) cdi(0:n + 1)
-      complex(kind=8) cbkl
-      complex(kind=8) cbs
-      complex(kind=8) cbk(0:n + 1)
-      complex(kind=8) cdk(0:n + 1)
-      complex(kind=8) cf
-      complex(kind=8) cf0
-      complex(kind=8) cf1
-      complex(kind=8) cg
-      complex(kind=8) cg0
-      complex(kind=8) cg1
-      complex(kind=8) ci
-      complex(kind=8) cr
-      complex(kind=8) cs0
-      complex(kind=8) csk0
-      real(kind=8) el
-      real(kind=8) fac
-      integer(kind=4) k
-      integer(kind=4) k0
-      integer(kind=4) l
-      integer(kind=4) m
-!           integer ( kind = 4 ) msta1
-!           integer ( kind = 4 ) msta2
-      integer(kind=4) nm
-      real(kind=8) vt
-      complex(kind=8) z
-      complex(kind=8) z1
-      el = 0.57721566490153D+00
-      a0 = abs(z)
-      nm = n
-      if (a0 < 1.0D-100) then
-         do k = 0, n
-            cbi(k) = cmplx(0.0D+00, 0.0D+00, kind=8)
-            cbk(k) = cmplx(1.0D+30, 0.0D+00, kind=8)
-            cdi(k) = cmplx(0.0D+00, 0.0D+00, kind=8)
-            cdk(k) = -cmplx(1.0D+30, 0.0D+00, kind=8)
-         end do
-         cbi(0) = cmplx(1.0D+00, 0.0D+00, kind=8)
-         cdi(1) = cmplx(0.5D+00, 0.0D+00, kind=8)
-         return
-      end if
-      ci = cmplx(0.0D+00, 1.0D+00, kind=8)
-      if (real(z, kind=8) < 0.0D+00) then
-         z1 = -z
-      else
-         z1 = z
-      end if
-      if (n == 0) then
-         nm = 1
-      end if
-      m = msta1(a0, 200)
-      if (m < nm) then
-         nm = m
-      else
-         m = msta2(a0, nm, 15)
-      end if
-      cbs = 0.0D+00
-      csk0 = 0.0D+00
-      cf0 = 0.0D+00
-      cf1 = 1.0D-100
-      do k = m, 0, -1
-         cf = 2.0D+00 * (k + 1.0D+00) * cf1 / z1 + cf0
-         if (k <= nm) then
-            cbi(k) = cf
-         end if
-         if (k /= 0 .and. k == 2 * int(k / 2)) then
-            csk0 = csk0 + 4.0D+00 * cf / k
-         end if
-         cbs = cbs + 2.0D+00 * cf
-         cf0 = cf1
-         cf1 = cf
-      end do
-      cs0 = exp(z1) / (cbs - cf)
-      do k = 0, nm
-         cbi(k) = cs0 * cbi(k)
-      end do
-      if (a0 <= 9.0D+00) then
-         cbk(0) = -(log(0.5D+00 * z1) + el) * cbi(0) + cs0 * csk0
-         cbk(1) = (1.0D+00 / z1 - cbi(1) * cbk(0)) / cbi(0)
-      else
-         ca0 = sqrt(pi / (2.0D+00 * z1)) * exp(-z1)
-         if (a0 < 25.0D+00) then
-            k0 = 16
-         else if (a0 < 80.0D+00) then
-            k0 = 10
-         else if (a0 < 200.0D+00) then
-            k0 = 8
-         else
-            k0 = 6
-         end if
-         do l = 0, 1
-            cbkl = 1.0D+00
-            vt = 4.0D+00 * l
-            cr = cmplx(1.0D+00, 0.0D+00, kind=8)
-            do k = 1, k0
-               cr = 0.125D+00 * cr &
-                    * (vt - (2.0D+00 * k - 1.0D+00)**2) / (k * z1)
-               cbkl = cbkl + cr
-            end do
-            cbk(l) = ca0 * cbkl
-         end do
-      end if
-      cg0 = cbk(0)
-      cg1 = cbk(1)
-      do k = 2, nm
-         cg = 2.0D+00 * (k - 1.0D+00) / z1 * cg1 + cg0
-         cbk(k) = cg
-         cg0 = cg1
-         cg1 = cg
-      end do
-      if (real(z, kind=8) < 0.0D+00) then
-         fac = 1.0D+00
-         do k = 0, nm
-            if (aimag(z) < 0.0D+00) then
-               cbk(k) = fac * cbk(k) + ci * pi * cbi(k)
-            else
-               cbk(k) = fac * cbk(k) - ci * pi * cbi(k)
-            end if
-            cbi(k) = fac * cbi(k)
-            fac = -fac
-         end do
-      end if
-      cdi(0) = cbi(1)
-      cdk(0) = -cbk(1)
-      do k = 1, nm
-         cdi(k) = cbi(k - 1) - k / z * cbi(k)
-         cdk(k) = -cbk(k - 1) - k / z * cbk(k)
-      end do
-      return
-   end subroutine ciknb
-
    subroutine bessel_integer_complex(n, z, nmax, b)
-      use numconstants
       implicit none
       integer :: n, nmax
       complex(8) :: z, b(0:n), cbj(0:n + 1), cdj(0:n + 1), cby(0:n + 1), cdy(0:n + 1)
+
+      if (aimag(z) .eq. 0.d0) then
+         b = bessel_jn(0, n, real(z, kind=kind(0.d0)))
+         nmax = n
+         return
+      end if
 
       call cjynb(n, z, nmax, cbj, cdj, cby, cdy)
       nmax = min(n, nmax)
@@ -493,8 +137,6 @@ contains
    end subroutine bessel_integer_complex
 
    subroutine cjynb(n, z, nm, cbj, cdj, cby, cdy)
-      use numconstants
-
       !*****************************************************************************80
       !
          !! CJYNB: Bessel functions, derivatives, Jn(z) and Yn(z) of complex argument.
@@ -644,7 +286,7 @@ contains
          cby(1) = r2p * (-cbj(0) / z + (ce - 1.0D+00) * cbj(1) &
                          - 4.0D+00 * csv / cs0)
       else
-         ct1 = z - 0.25D+00 * pi
+         ct1 = z - quarter_pi
          cp0 = cmplx(1.0D+00, 0.0D+00, kind=8)
          do k = 1, 4
             cp0 = cp0 + a(k) * z**(-2 * k)
@@ -658,7 +300,7 @@ contains
          cby0 = cu * (cp0 * sin(ct1) + cq0 * cos(ct1))
          cbj(0) = cbj0
          cby(0) = cby0
-         ct2 = z - 0.75D+00 * pi
+         ct2 = z - three_quarters_pi
          cp1 = cmplx(1.0D+00, 0.0D+00, kind=8)
          do k = 1, 4
             cp1 = cp1 + a1(k) * z**(-2 * k)

@@ -1,5 +1,6 @@
 module surface_subroutines
-   use numconstants
+   use constants
+   use numerical_tables
    use specialfuncs
    implicit none
    logical :: source_sum, include_direct_source, &
@@ -466,7 +467,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
 !         max_pi=max(max_pi,maxval(abs(pivec)))
 !         max_picon=max(max_picon,maxval(abs(picvec)))
 !         max_bf=max(max_bf,maxval(abs(bfunc)))
-      const = 4.d0 * pi * s / sourcekz / sourceri / sourceri * dsdt
+      const = four_pi * s / sourcekz / sourceri / sourceri * dsdt
       i = 0
       if (source_sum) then
          do m = -target_order, target_order
@@ -577,7 +578,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
          call bessel_integer_complex(sum(sourceorder(:)), sr, mmax, bfunc)
       end if
       kernmat = 0.d0
-      const = 4.d0 * pi * cscale / sourcekz(1) / sourceri(1)**2 / conjg(sourcekz(2) * sourceri(2)**2)
+      const = four_pi * cscale / sourcekz(1) / sourceri(1)**2 / conjg(sourcekz(2) * sourceri(2)**2)
       const3(1, 1) = (abs(targetkz)**2 + s * s / abs(targetri)**2) * dble(targetri * targetkz)
       const3(2, 1) = -const3(1, 1)
       const3(3, 1) = (abs(targetkz)**2 - s * s / abs(targetri)**2) * aimag(targetri * targetkz)
@@ -986,7 +987,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       complex(8) :: rmat(qtot), drmat(qtot)
       if (pole_integration) then
          t1 = 0.d0
-         t2 = 2.d0 * pi
+         t2 = two_pi
          subdiv = 0.d0
          rmat = 0.d0
          ec = 0

@@ -1,11 +1,12 @@
 module gpfa_setup
+   use constants, only: two_pi
    implicit none
 contains
 
    subroutine setgpfa(trigs, n)
       implicit none
       integer :: n, nn, ifac, ll, kk, nj(3), ip, iq, ir, ni, irot, kink, k, i
-      real(8) :: trigs(*), twopi, del, angle
+      real(8) :: trigs(*), del, angle
 !
 !     decompose n into factors 2,3,5
 !     ------------------------------
@@ -38,14 +39,13 @@ contains
       nj(2) = 3**iq
       nj(3) = 5**ir
 !
-      twopi = 8.0d0 * datan(1.0d0)
       i = 1
 !
       do ll = 1, 3
          ni = nj(ll)
          if (ni .eq. 1) cycle
 !
-         del = twopi / dble(ni)
+         del = two_pi / dble(ni)
          irot = n / ni
          kink = mod(irot, ni)
          kk = 0

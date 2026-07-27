@@ -9,7 +9,7 @@
 module solver
    use mpidefs
    use intrinsics
-   use numconstants
+   use numerical_tables
    use specialfuncs
    use spheredata
    use mie

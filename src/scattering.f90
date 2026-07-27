@@ -5,9 +5,10 @@
 !  last revised: 15 January 2011
 !
 module scatprops
+   use constants
    use mpidefs
    use intrinsics
-   use numconstants
+   use numerical_tables
    use specialfuncs
    use surface_subroutines
    use periodic_lattice_subroutines
@@ -1225,7 +1226,7 @@ contains
       wy = cell_width(2)
       nmax = ceiling(maxval(cell_width(1:2)) / pi)
       if (present(num_dirs)) num_dirs = 0
-      smscale = 1.d0 / cross_section_radius**2 * 64.d0 * pi / wx / wy
+      smscale = 1.d0 / cross_section_radius**2 * 16.d0 * four_pi / wx / wy
       do dir = 1, 2
          if (dir .eq. 1) then
             istrt = 17
@@ -1283,8 +1284,8 @@ contains
                   ix = -n + p
                   iy = -n
                end if
-               kx = 2.d0 * pi * dble(ix) / wx + k0x
-               ky = 2.d0 * pi * dble(iy) / wy + k0y
+               kx = two_pi * dble(ix) / wx + k0x
+               ky = two_pi * dble(iy) / wy + k0y
                krho = sqrt(kx * kx + ky * ky)
                if (krho .le. abs(ri)) then
 !                  if(krho.le.1.d0) then
@@ -1318,7 +1319,7 @@ contains
          end do
          if (present(num_dirs)) num_dirs(3 - dir) = nang
       end do
-      qsca = qsca / cross_section_radius**2 * 64.d0 * pi / wx / wy
+      qsca = qsca / cross_section_radius**2 * 16.d0 * four_pi / wx / wy
    end subroutine periodic_lattice_scattering
 
    subroutine multiple_origin_amplitude_matrix(amnp, s, phi, targetz, dir, sa)
@@ -1520,7 +1521,7 @@ contains
          call amplitude_to_scattering_matrix(sa, sm)
       end if
 ! patch 10-22
-      sm(1:nelem) = sm(1:nelem) / (4.d0 * pi) / dble(layer_ref_index(0))
+      sm(1:nelem) = sm(1:nelem) / four_pi / dble(layer_ref_index(0))
    end subroutine scatteringmatrix
 
    subroutine numerical_sm_azimuthal_average_so(amn0, nodrt, ct, sm, rotate_plane, normalize_s11, &
@@ -1559,7 +1560,7 @@ contains
       end if
       sm(1:nelem) = 0.
       do i = 1, numang
-         phi = 2.d0 * pi * dble(i - 1) / dble(numang)
+         phi = two_pi * dble(i - 1) / dble(numang)
          call scatteringmatrix(amn0, nodrt, ct, phi, sa, smt, &
                                rotate_plane=rotate, normalize_s11=norms11, s11_only=s11only)
          sm(1:nelem) = sm(1:nelem) + smt(1:nelem)
@@ -1596,9 +1597,9 @@ contains
          nelem = 16
       end if
       sm(1:nelem) = 0.
-      csca = pi * 2.d0
+      csca = two_pi
       do i = 1, numang
-         phi = 2.d0 * pi * dble(i - 1) / dble(numang)
+         phi = two_pi * dble(i - 1) / dble(numang)
          call multiple_origin_scatteringmatrix(amnp, ct, phi, csca, sa, smt, &
                                                rotate_plane=rotate, s11_only=s11only)
          sm(1:nelem) = sm(1:nelem) + smt(1:nelem)
@@ -2455,8 +2456,8 @@ contains
 ! patch 10-22
          sm(:, :, 0:nodrw) = sm(:, :, 0:nodrw) / dble(layer_ref_index(0)) / 2.d0
          smcf(:, :, 0:nodrw) = smcf(:, :, 0:nodrw) / dble(layer_ref_index(0)) / 2.d0
-!            sm(:,:,0:nodrw)=sm(:,:,0:nodrw)*4.d0*pi
-!            smcf(:,:,0:nodrw)=smcf(:,:,0:nodrw)*4.d0*pi
+!            sm(:,:,0:nodrw)=sm(:,:,0:nodrw)*four_pi
+!            smcf(:,:,0:nodrw)=smcf(:,:,0:nodrw)*four_pi
 !
 !  normalization
 !

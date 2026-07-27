@@ -4,18 +4,16 @@
 !
 !  last revised: 15 January 2011
 !
-module numconstants
+module numerical_tables
    use mpidefs
    implicit none
    logical, target :: light_up
    integer :: print_intermediate_results, global_rank
    integer, allocatable :: monen(:)
    integer, private :: nmax = 0
-   real(8) :: pi
    real(8), allocatable :: bcof(:, :), fnr(:), vwh_coef(:, :, :, :)
    real(8), allocatable :: vcc_const(:, :, :), fnm1_const(:, :), fn_const(:, :), fnp1_const(:, :)
    real(8), allocatable :: tran_coef(:, :, :)
-   data pi/3.1415926535897932385/
    data light_up/.false./
 
 contains
@@ -112,4 +110,4 @@ contains
       end do
    end subroutine init
 
-end module numconstants
+end module numerical_tables

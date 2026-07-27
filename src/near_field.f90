@@ -4,7 +4,7 @@ module nearfield
    use specialfuncs
    use spheredata
    use mie
-   use numconstants
+   use numerical_tables
    use surface_subroutines
    use periodic_lattice_subroutines
    use scatprops

@@ -1,5 +1,6 @@
 module periodic_lattice_subroutines
-   use numconstants
+   use constants
+   use numerical_tables
    use specialfuncs
    use surface_subroutines
    use mpidefs
@@ -128,8 +129,8 @@ contains
                ix = -n + p
                iy = -n
             end if
-            kx = 2.d0 * pi * dble(ix) / cell_width(1) + incident_lateral_vector(1)
-            ky = 2.d0 * pi * dble(iy) / cell_width(2) + incident_lateral_vector(2)
+            kx = two_pi * dble(ix) / cell_width(1) + incident_lateral_vector(1)
+            ky = two_pi * dble(iy) / cell_width(2) + incident_lateral_vector(2)
             call plane_boundary_lattice_kernel(nodrt, nodrs, kx, ky, x, y, zt, zs, dkernel, include_source=rsincsrc)
          end do
          kernel = kernel + dkernel
@@ -280,7 +281,7 @@ contains
                nn1 = n * (n + 1)
                wmax = n + l
                call vcfunc(-1, n, 1, l, vc2)
-               c = -sqrt(4.d0 * pi) * ci**(n - l) * fnr(n + n + 1) * fnr(l + l + 1)
+               c = -sqrt(four_pi) * ci**(n - l) * fnr(n + n + 1) * fnr(l + l + 1)
                do k = -l, l
                   kl = amnaddress(k, l, nodrs, imodl)
                   do m = -n, n
@@ -409,8 +410,8 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
                ix = -n + p
                iy = -n
             end if
-            kx = 2.d0 * pi * dble(ix) / cell_width(1) + incident_lateral_vector(1)
-            ky = 2.d0 * pi * dble(iy) / cell_width(2) + incident_lateral_vector(2)
+            kx = two_pi * dble(ix) / cell_width(1) + incident_lateral_vector(1)
+            ky = two_pi * dble(iy) / cell_width(2) + incident_lateral_vector(2)
             call common_layer_lattice_kernel(nodrw, kx, ky, x, y, zt, zs, tdirs, sdirs, dqsum)
          end do
          qsum = qsum + dqsum
@@ -587,7 +588,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       sum1 = 0.d0
       convrg = .false.
       do s = 0, ntz
-         kz = k0z + 2.d0 * pi * dble(s) / w(2)
+         kz = k0z + two_pi * dble(s) / w(2)
          call q2db(nodr, x, y, w(1), k0y, kz, ri, q2d)
          sum1(:, s) = q2d
          ct = kz / ri
@@ -595,7 +596,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
          terr = 0.d0
          derr = abs(swfyzsum(:))
          do n = 0, nodr
-            c = -((0.d0, -1.d0)**n) / w(2) / ri / sqrt(4.d0 * pi / dble(n + n + 1))
+            c = -((0.d0, -1.d0)**n) / w(2) / ri / sqrt(four_pi / dble(n + n + 1))
             do m = -n, n
                l = m + n * (n + 1)
                swfyzsum(l) = swfyzsum(l) &
@@ -619,11 +620,11 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       if (.not. convrg) pl_error_codes(6) = 1
       if (k0z .eq. 0.d0) then
          do s = 1, smaxp
-            kz = -2.d0 * pi * dble(s) / w(2)
+            kz = -two_pi * dble(s) / w(2)
             ct = kz / ri
             call crotcoef(ct, 0, nodr, ymn)
             do n = 0, nodr
-               c = -((0.d0, -1.d0)**n) / w(2) / ri / sqrt(4.d0 * pi / dble(n + n + 1))
+               c = -((0.d0, -1.d0)**n) / w(2) / ri / sqrt(four_pi / dble(n + n + 1))
                do m = -n, n
                   l = m + n * (n + 1)
                   swfyzsum(l) = swfyzsum(l) &
@@ -634,7 +635,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       else
          convrg = .false.
          do s = 1, ntz
-            kz = k0z - 2.d0 * pi * dble(s) / w(2)
+            kz = k0z - two_pi * dble(s) / w(2)
             call q2db(nodr, x, y, w(1), k0y, kz, ri, q2d)
             sum1(:, s) = q2d
             ct = kz / ri
@@ -642,7 +643,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
             terr = 0.d0
             derr = abs(swfyzsum(:))
             do n = 0, nodr
-               c = -((0.d0, -1.d0)**n) / w(2) / ri / sqrt(4.d0 * pi / dble(n + n + 1))
+               c = -((0.d0, -1.d0)**n) / w(2) / ri / sqrt(four_pi / dble(n + n + 1))
                do m = -n, n
                   l = m + n * (n + 1)
                   swfyzsum(l) = swfyzsum(l) &
@@ -685,7 +686,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       sum1 = 0.d0
       convrg = .false.
       do s = 0, ntz
-         kz = k0z + 2.d0 * pi * dble(s) / w(2)
+         kz = k0z + two_pi * dble(s) / w(2)
          call q2db(nodr, x, y, w(1), k0y, kz, ri, q2d)
          sum1(:, s) = q2d
          mag = sum(abs(q2d))
@@ -704,7 +705,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       else
          convrg = .false.
          do s = 1, ntz
-            kz = k0z - 2.d0 * pi * dble(s) / w(2)
+            kz = k0z - two_pi * dble(s) / w(2)
             call q2db(nodr, x, y, w(1), k0y, kz, ri, q2d)
             sum1(:, -s) = q2d
             mag = sum(abs(q2d))
@@ -723,11 +724,11 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
          end do
       end do
       do s = smaxn, smaxp
-         kz = k0z + 2.d0 * pi * dble(s) / w(2)
+         kz = k0z + two_pi * dble(s) / w(2)
          ct = kz / ri
          call crotcoef(ct, 0, nodr, ymn)
          do n = 0, nodr
-            c = -((0.d0, -1.d0)**n) / w(2) / ri / sqrt(4.d0 * pi / dble(n + n + 1))
+            c = -((0.d0, -1.d0)**n) / w(2) / ri / sqrt(four_pi / dble(n + n + 1))
             do m = -n, n
                l = m + n * (n + 1)
                swfyzsum(l) = swfyzsum(l) &
@@ -938,7 +939,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       complex(8) :: ri, wf(0:nodr * (nodr + 2)), kswf(0:nodr * (nodr + 2)), dwf(0:nodr * (nodr + 2))
       wx = w(1)
       wy = w(2)
-      kconst = 2.d0 * pi / wx / wy
+      kconst = two_pi / wx / wy
       kx = k0(1)
       ky = k0(2)
       call reciprocal_scalar_wave_function(nodr, kx, ky, x0, y0, z0, ri, kswf)
@@ -961,8 +962,8 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
                ix = -n + p
                iy = -n
             end if
-            kx = 2.d0 * pi * dble(ix) / wx + k0(1)
-            ky = 2.d0 * pi * dble(iy) / wy + k0(2)
+            kx = two_pi * dble(ix) / wx + k0(1)
+            ky = two_pi * dble(iy) / wy + k0(2)
             call reciprocal_scalar_wave_function(nodr, kx, ky, x0, y0, z0, ri, kswf)
             dwf = dwf + kswf * kconst
          end do
@@ -998,7 +999,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       s = kr
       call layer_gf(s, zs, zt, gfunc, skz, tkz)
       call crotcoef(skz, 2, nodr, drot)
-      c = exp((0.d0, 1.d0) * (kx * x + ky * y)) / ri / ri / skz / sqrt(4.d0 * pi)
+      c = exp((0.d0, 1.d0) * (kx * x + ky * y)) / ri / ri / skz / sqrt(four_pi)
       do k = -2, 2, 2
          i = k / 2
          is = (-1)**i

@@ -27,13 +27,14 @@ set(mstm_gpfa_sources
   src/gpfa_setup.f90
 )
 
+set(mstm_bessel_source src/bessel_functions.f90)
+
 set(mstm_sources
   src/intrinsics.f90
   ${mstm_mpi_source}
-  src/numconstants.f90
+  src/numerical_tables.f90
   src/runtime_support.f90
   src/coefficient_indexing.f90
-  src/bessel_functions.f90
   src/angular_functions.f90
   src/wave_functions.f90
   src/quadrature.f90
@@ -59,6 +60,25 @@ set(mstm_sources
   src/main.f90
 )
 
+add_library(mstm_constants STATIC src/constants.f90)
+set_target_properties(mstm_constants PROPERTIES
+  Fortran_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/constant-modules"
+  Fortran_PREPROCESS OFF
+  Fortran_FORMAT FREE
+)
+target_include_directories(mstm_constants PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/constant-modules")
+target_compile_options(mstm_constants PRIVATE -std=f2023)
+
+add_library(mstm_bessel STATIC ${mstm_bessel_source})
+set_target_properties(mstm_bessel PROPERTIES
+  Fortran_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bessel-modules"
+  Fortran_PREPROCESS OFF
+  Fortran_FORMAT FREE
+)
+target_include_directories(mstm_bessel PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/bessel-modules")
+target_compile_options(mstm_bessel PRIVATE -std=f2023)
+target_link_libraries(mstm_bessel PUBLIC mstm_constants)
+
 add_library(mstm_gpfa STATIC ${mstm_gpfa_sources})
 set_target_properties(mstm_gpfa PROPERTIES
   Fortran_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/gpfa-modules"
@@ -67,6 +87,7 @@ set_target_properties(mstm_gpfa PROPERTIES
 )
 target_include_directories(mstm_gpfa PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/gpfa-modules")
 target_compile_options(mstm_gpfa PRIVATE -std=f2023)
+target_link_libraries(mstm_gpfa PUBLIC mstm_constants)
 
 add_executable(mstm ${mstm_sources})
 
@@ -77,7 +98,7 @@ set_target_properties(mstm PROPERTIES
 )
 target_include_directories(mstm PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/modules")
 target_compile_options(mstm PRIVATE -std=f2023)
-target_link_libraries(mstm PRIVATE mstm_gpfa)
+target_link_libraries(mstm PRIVATE mstm_bessel mstm_gpfa)
 
 if(MSTM_ENABLE_MPI)
   target_link_libraries(mstm PRIVATE MPI::MPI_Fortran)
@@ -89,8 +110,11 @@ if(FPRETTIFY_EXECUTABLE)
     COMMAND "${FPRETTIFY_EXECUTABLE}"
       --config-file "${CMAKE_CURRENT_SOURCE_DIR}/.fprettify.rc"
       --silent
+      src/constants.f90
+      ${mstm_bessel_source}
       ${mstm_gpfa_sources}
       ${mstm_sources}
+      tests/bessel_test.f90
       tests/gpfa_test.f90
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     COMMENT "Formatting Fortran sources"
@@ -100,6 +124,11 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+  add_executable(bessel_test tests/bessel_test.f90)
+  target_compile_options(bessel_test PRIVATE -std=f2023)
+  target_link_libraries(bessel_test PRIVATE mstm_bessel)
+  add_test(NAME bessel_unit COMMAND bessel_test)
+
   add_executable(gpfa_test tests/gpfa_test.f90)
   target_compile_options(gpfa_test PRIVATE -std=f2023)
   target_link_libraries(gpfa_test PRIVATE mstm_gpfa)

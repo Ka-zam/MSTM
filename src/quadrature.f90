@@ -1,4 +1,5 @@
 module quadrature_functions
+   use constants
    implicit none
 contains
 
@@ -231,7 +232,7 @@ contains
       xm = 0.5d0 * (x2 + x1)
       xl = 0.5d0 * (x2 - x1)
       do i = 1, m
-         z = cos(3.141592654d0 * (i - .25d0) / (n + .5d0))
+         z = cos(pi * (i - .25d0) / (n + .5d0))
          z1 = z - 1.d0
          do while (abs(z - z1) .gt. eps)
             p1 = 1.d0

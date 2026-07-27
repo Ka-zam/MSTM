@@ -1,4 +1,5 @@
 module random_sphere_configuration
+   use constants
    use mpidefs
    use specialfuncs
    implicit none
@@ -20,7 +21,7 @@ module random_sphere_configuration
    integer, private :: cell_dim(3)
    integer, allocatable :: sphere_cell(:, :)
    integer, target :: target_shape, wall_boundary_model, max_number_time_steps, number_components
-   real(8), private :: pi, fv_crit, time_step
+   real(8), private :: fv_crit, time_step
    real(8), private :: minimum_gap, d_cell, target_boundaries(3, 2)
    real(8), target :: target_dimensions(3), psd_sigma(4), target_width, target_thickness, max_collisions_per_sphere, &
                       max_diffusion_cpu_time, max_diffusion_simulation_time, component_radii(4), &
@@ -29,7 +30,7 @@ module random_sphere_configuration
    type(c_list), allocatable :: cell_list(:, :, :)
    type(coll_list), allocatable :: coll_data(:)
    character(len=1) :: c_temp
-   data pi, fv_crit, time_step/3.1415926535897932385d0, 0.25d0, .1d0/
+   data fv_crit, time_step/0.25d0, .1d0/
    data minimum_gap, sphere_1_fixed, target_shape/1.0d-3, .false., 0/
    data periodic_bc/.true., .true., .true./
    data wall_boundary_model/1/
@@ -96,7 +97,7 @@ contains
             sphereindex(n) = j
             call psdsamp(psd_sigma(j), 2.5d0, sphereradius(n))
             sphereradius(n) = sphereradius(n) * component_radii(j) / radscale
-            spherevol = spherevol + 4.d0 * pi / 3.d0 * sphereradius(n)**3
+            spherevol = spherevol + four_pi_over_three * sphereradius(n)**3
          end do
          !            if(psd_sigma.gt.0.1d0) then
          !               call sort_radii(numberspheres,sphereradius)
@@ -257,8 +258,8 @@ contains
       end if
       if (random_lattice_configuration) then
          call random_number(rnum(1:3))
-         rnum(1) = 2.d0 * pi * rnum(1)
-         rnum(3) = 2.d0 * pi * rnum(3)
+         rnum(1) = two_pi * rnum(1)
+         rnum(3) = two_pi * rnum(3)
          rnum(2) = dacos(-1.d0 + 2.d0 * rnum(2))
          call eulerrotation(sphereposition(:, 1:numberspheres), rnum, 1, &
                             sphereposition(:, 1:numberspheres), numberspheres)
@@ -309,9 +310,9 @@ contains
       if (target_shape .eq. 0) then
          targetvol = 8.d0 * product(targetdimensions(1:3) - dble(ipbc))
       elseif (target_shape .eq. 1) then
-         targetvol = 2.d0 * pi * ((targetdimensions(1) - wall_boundary_model)**2) * (targetdimensions(3) - ipbc(3))
+         targetvol = two_pi * ((targetdimensions(1) - wall_boundary_model)**2) * (targetdimensions(3) - ipbc(3))
       else
-         targetvol = 4.d0 * pi * (targetdimensions(1) - wall_boundary_model)**3 / 3.d0
+         targetvol = four_pi_over_three * (targetdimensions(1) - wall_boundary_model)**3
       end if
    end subroutine target_volume
 
@@ -347,14 +348,14 @@ contains
             wshift(3) = rad * wall_boundary_model + minimum_gap
          end if
          r = (target_boundaries(1, 2) - wshift(1)) * rannum(1)**0.5d0
-         phi = 2.d0 * pi * rannum(2)
+         phi = two_pi * rannum(2)
          pos(1) = r * cos(phi)
          pos(2) = r * sin(phi)
    pos(3) = target_boundaries(3, 1) + wshift(3) + (target_boundaries(3, 2) - target_boundaries(3, 1) - 2.d0 * wshift(3)) * rannum(3)
       else
          wshift(1) = rad * wall_boundary_model + minimum_gap
          r = (target_boundaries(1, 2) - wshift(1)) * rannum(1)**0.333333d0
-         phi = 2.d0 * pi * rannum(2)
+         phi = two_pi * rannum(2)
          ct = -1.d0 + 2.d0 * rannum(3)
          st = sqrt(1.d0 - ct * ct)
          pos(1) = r * st * cos(phi)
@@ -655,7 +656,7 @@ contains
       if (target_shape .eq. 2) then
          r2 = 0.d0
          vtot = 0.d0
-         delv = 4.d0 * pi * (wallbound(1, 2) - dble(wall_boundary_model) - minimum_gap)**3 / 3.d0 / dble(nsphere)
+         delv = four_pi_over_three * (wallbound(1, 2) - dble(wall_boundary_model) - minimum_gap)**3 / dble(nsphere)
       end if
       nin = 0
       do i = 1, nsphere
@@ -689,7 +690,7 @@ contains
             do m = 1, maxsamp
                call random_number(rannum)
                rho = (wallbound(1, 2) - wdist(1)) * sqrt(rannum(1))
-               phi = 2.d0 * pi * rannum(2)
+               phi = two_pi * rannum(2)
                samp(1) = rho * cos(phi)
                samp(2) = rho * sin(phi)
                samp(3) = z1 + dz * rannum(3)
@@ -705,7 +706,7 @@ contains
          else
             r1 = r2
             vtot = vtot + delv
-            r2 = (3.d0 * vtot / 4.d0 / pi)**(1.d0 / 3.d0)
+            r2 = (vtot / four_pi_over_three)**(1.d0 / 3.d0)
             do m = 1, maxsamp
                if (sphere_1_fixed .and. i .eq. 1) then
                   pos = 0.d0
@@ -716,10 +717,10 @@ contains
                      r2 = wallbound(1, 2) - wdist(1)
                      r2 = max(r2, 0.d0)
                   end if
-                  r = (3.d0 * delv / 4.d0 / pi * rannum(1) + r1**3)**(1.d0 / 3.d0)
+                  r = (delv / four_pi_over_three * rannum(1) + r1**3)**(1.d0 / 3.d0)
                   ct = -1.d0 + 2.d0 * rannum(2)
                   st = sqrt(1.d0 - ct * ct)
-                  phi = 2.d0 * pi * rannum(3)
+                  phi = two_pi * rannum(3)
                   samp(1) = r * st * cos(phi)
                   samp(2) = r * st * sin(phi)
                   samp(3) = r * ct
@@ -1226,7 +1227,7 @@ contains
          call random_number(rannum)
          cb = -1.d0 + 2.d0 * rannum(1)
          sb = sqrt((1.d0 - cb) * (1.d0 + cb))
-         alpha = 6.2831853d0 * rannum(2)
+         alpha = two_pi * rannum(2)
          ca = cos(alpha)
          sa = sin(alpha)
          u(1:3, i) = (/ca * sb, sa * sb, cb/)
@@ -1236,9 +1237,8 @@ contains
    subroutine psdsamp(sigma, maxradius, x)
       implicit none
       integer :: i
-      real(8) :: sigma, maxradius, r2pi, f1, fd, x, fmax, s2, xmax, &
+      real(8) :: sigma, maxradius, f1, fd, x, fmax, s2, xmax, &
                  t1, rannum(2)
-      data r2pi/2.5066282746310002d0/
       if (sigma .eq. 0.d0) then
          x = 1.d0
          return
@@ -1248,7 +1248,7 @@ contains
       fd = 0.d0
       xmax = exp(-2.5d0 * s2)
       t1 = (log(xmax) + 1.5d0 * s2)
-      fmax = exp(-t1 * t1 / (2.d0 * s2)) / r2pi / xmax / sigma
+      fmax = exp(-t1 * t1 / (2.d0 * s2)) / sqrt_two_pi / xmax / sigma
       i = 0
       do while (f1 .gt. fd)
          i = i + 1
@@ -1256,7 +1256,7 @@ contains
          x = maxradius * rannum(1)
          f1 = fmax * rannum(2)
          t1 = (log(x) + 1.5d0 * s2)
-         fd = exp(-t1 * t1 / (2.d0 * s2)) / r2pi / x / sigma
+         fd = exp(-t1 * t1 / (2.d0 * s2)) / sqrt_two_pi / x / sigma
       end do
    end subroutine psdsamp
 

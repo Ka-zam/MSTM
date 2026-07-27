@@ -1,6 +1,6 @@
 module spheredata
    use specialfuncs
-   use numconstants
+   use numerical_tables
    use surface_subroutines
    use periodic_lattice_subroutines
    type linked_sphere_list

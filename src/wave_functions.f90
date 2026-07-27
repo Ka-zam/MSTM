@@ -1,4 +1,5 @@
 module wave_functions
+   use constants
    use angular_functions, only: cartosphere, crotcoef, ephicoef, rotcoef
    use bessel_functions, only: cricbessel, crichankel
    use coefficient_indexing, only: amnpaddress
@@ -6,7 +7,7 @@ module wave_functions
 contains
 
    subroutine vwhcalc(rpos, ri, nodr, itype, vwh, index_model, lr_to_mode)
-      use numconstants
+      use numerical_tables
       implicit none
       logical, optional :: lr_to_mode
       logical :: lrtomode
@@ -119,7 +120,7 @@ contains
    end subroutine vwhcalc
 
    subroutine scalar_wave_function(nodr, itype, x, y, z, ri, swf)
-      use numconstants
+      use numerical_tables
       implicit none
       integer :: nodr, itype, n, m, mn
       real(8) :: x, y, z, r, ct, rho, ymn(0:nodr * (nodr + 2)), c, c0
@@ -152,7 +153,7 @@ contains
          hn = hn / rri
       end if
 
-      c0 = sqrt(1.d0 / 4.d0 / pi)
+      c0 = 1.d0 / sqrt(four_pi)
       do n = 0, nodr
          c = c0 * sqrt(dble(n + n + 1))
          do m = -n, n
@@ -163,7 +164,7 @@ contains
    end subroutine scalar_wave_function
 
    subroutine reciprocal_scalar_wave_function(nodr, kx, ky, x, y, z, ri, swf)
-      use numconstants
+      use numerical_tables
       implicit none
       integer :: nodr, n, m, mn
       real(8) :: kx, ky, x, y, z, k
@@ -181,7 +182,7 @@ contains
          ephi = cmplx(kx, ky, kind=kind(0.0d0)) / k
       end if
       call crotcoef(skz, 0, nodr, ymn)
-      c = exp((0.d0, 1.d0) * (kx * x + ky * y + ri * skz * z)) / ri / ri / kz / sqrt(4.d0 * pi)
+      c = exp((0.d0, 1.d0) * (kx * x + ky * y + ri * skz * z)) / ri / ri / kz / sqrt(four_pi)
       do n = 0, nodr
          cr = ((0.d0, -1.d0))**n * sqrt(dble(n + n + 1))
          do m = -n, n

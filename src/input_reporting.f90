@@ -1,4 +1,5 @@
 module input_reporting
+   use constants
    use effective_medium_analysis, only: diffuse_scattering_effective_ref_index, &
                                         effective_extinction_coefficient_ratio
    use input_state
@@ -68,7 +69,7 @@ contains
          else
             call target_volume(target_dimensions, tvol)
             tvol = tvol * length_scale_factor**3
-            svol = 4.d0 * pi / 3.d0 * sum(sphere_radius(:)**3)
+            svol = four_pi_over_three * sum(sphere_radius(:)**3)
             write (iunit, '(es12.4)') svol / tvol
          end if
          if (ran_config_stat .eq. 0) then
@@ -153,7 +154,7 @@ contains
             write (iunit, '(i3,3es12.4)') i, plane_boundary_position(i), layer_ref_index(i)
          end do
          if (.not. incidence_average) then
-            cb = cos(incident_beta_deg * pi / 180.d0)
+            cb = cos(incident_beta_deg * degrees_to_radians)
             call boundary_energy_transfer(incident_sin_beta, incident_direction, r, t, a)
             write (iunit, '('' Fresnel boundary reflectance, transmittance, absorptance (par, perp)'')')
             write (iunit, '(3es12.4)') r(1), t(1), a(1)
@@ -379,7 +380,7 @@ contains
             s11scale = 1.d0 / ((cross_section_radius**2) * pi * q_eff_tot(3, 1))
          else
 !               s11scale=(cross_section_radius**2)*q_eff_tot(3,1)
-            s11scale = 2.d0 * pi
+            s11scale = two_pi
 !               if(.not.random_orientation) s11scale=pi*s11scale
          end if
          if (((.not. any_optically_active) .and. random_orientation) .or. azimuthal_average) then

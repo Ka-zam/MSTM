@@ -20,9 +20,11 @@ Build MPI mode with `-DMSTM_ENABLE_MPI=ON -DCMAKE_Fortran_COMPILER=mpifort`. Run
 
 Use free-form, standard-conforming Fortran 2023 in `.f90` files. Match the existing lowercase `snake_case` identifiers, three-space indentation, and `implicit none` in every program unit. Run `fprettify --config-file .fprettify.rc --silent src/*.f90` before review. Clang-format does not support Fortran, and `.clang-format-ignore` protects these sources from its C++ parser. Prefer generic standard intrinsics (`abs`, `conjg`, `cmplx`) and standard I/O specifiers. Do not add compiler extensions or restore `-fallow-argument-mismatch`.
 
+Define shared mathematical constants only in `src/constants.f90`; runtime coefficient tables belong in `src/numerical_tables.f90`. Use standard Fortran intrinsics where their argument domains match the algorithm, but retain the complex-argument Bessel implementations because the standard intrinsics accept real arguments only.
+
 ## Testing Guidelines
 
-CTest runs a direct-DFT GPFA unit test, the Figure 1 near-field case, and the focused December 2023 effective-medium case. Every change must pass all three in serial mode; changes to MPI or shared numerical code must also pass an MPI-enabled build. For numerical changes, compare output against a known-good run and document tolerances, compiler flags, and MPI rank count. Add focused tests when existing cases do not cover the behavior.
+CTest runs focused Bessel and GPFA unit tests, the Figure 1 near-field case, and the December 2023 effective-medium case. Every change must pass all four in serial mode; changes to MPI or shared numerical code must also pass an MPI-enabled build. For numerical changes, compare output against a known-good run and document tolerances, compiler flags, and MPI rank count. Add focused tests when existing cases do not cover the behavior.
 
 ## Commit & Pull Request Guidelines
 

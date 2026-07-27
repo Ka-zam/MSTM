@@ -1,4 +1,5 @@
 module effective_medium_analysis
+   use constants
    use input_state
    implicit none
 contains
@@ -22,7 +23,7 @@ contains
          elseif (target_shape .eq. 1) then
             across = pi * (target_dimensions(1) * length_scale_factor)**2
          end if
-         h = 4.d0 * pi * dble(number_spheres) * length_scale_factor**3 / (3.d0 * across * sphere_volume_fraction)
+         h = four_pi_over_three * dble(number_spheres) * length_scale_factor**3 / (across * sphere_volume_fraction)
          scacoef = -dlog(scaq) / h
          if (abs(mieabs) .lt. 1.d-7) then
             abscoef = 0.d0
@@ -88,9 +89,9 @@ contains
          newphase = phase(i)
          do while (abs(newphase - oldphase) .gt. pi)
             if (newphase .gt. oldphase) then
-               newphase = newphase - 2 * pi
+               newphase = newphase - two_pi
             else
-               newphase = newphase + 2 * pi
+               newphase = newphase + two_pi
             end if
          end do
          phase(i) = newphase
