@@ -30,6 +30,10 @@ module solver
    integer, parameter :: solver_breakdown = 2
    integer, parameter :: solver_singular = 3
    integer, parameter :: solver_non_finite = 4
+   real(real64) :: direct_matrix_assembly_time = 0.0_real64
+   real(real64) :: direct_factorization_time = 0.0_real64
+   real(real64) :: direct_condition_estimation_time = 0.0_real64
+   real(real64) :: direct_backsolve_time = 0.0_real64
 
    interface
       subroutine zgetrf(m, n, a, lda, ipiv, info)
@@ -713,7 +717,7 @@ contains
       integer, allocatable, save :: pivot(:)
       integer, optional, intent(out) :: number_iterations, solution_status
       integer, optional, intent(in) :: mpi_comm, max_refinements
-      real(real64) :: matrix_norm, residual, seps
+      real(real64) :: matrix_norm, residual, seps, phase_start
       real(real64) :: real_buffer(2)
       real(real64), save :: direct_reciprocal_condition = 0.0_real64
       real(real64), optional, intent(out) :: solution_error, reciprocal_condition
@@ -741,11 +745,17 @@ contains
       anp = 0.0_real64
 
       if (initialize) then
+         direct_matrix_assembly_time = 0.0_real64
+         direct_factorization_time = 0.0_real64
+         direct_condition_estimation_time = 0.0_real64
+         direct_backsolve_time = 0.0_real64
          if (allocated(interaction_matrix)) deallocate (interaction_matrix, factored_matrix, pivot)
          allocate (interaction_matrix(number_eqns, number_eqns))
          allocate (factored_matrix(number_eqns, number_eqns), pivot(number_eqns))
          pl_error_codes = 0
+         phase_start = parallel_wall_time()
          call general_interaction_matrix(interaction_matrix, mie_mult=.true., mpi_comm=mpicomm)
+         if (rank == 0) direct_matrix_assembly_time = parallel_wall_time() - phase_start
          call parallel_reduce_sum(mpi_rank=0, &
                                   receive_buffer=pl_error_codes, mpi_number=6, mpi_comm=mpicomm)
          ierr = 0
@@ -756,16 +766,23 @@ contains
             end if
             allocate (norm_work(number_eqns), condition_work(2 * number_eqns), &
                       condition_real_work(2 * number_eqns))
+            phase_start = parallel_wall_time()
             matrix_norm = zlange('1', number_eqns, number_eqns, interaction_matrix, number_eqns, norm_work)
+            direct_condition_estimation_time = direct_condition_estimation_time + parallel_wall_time() - phase_start
             factored_matrix = interaction_matrix
+            phase_start = parallel_wall_time()
             call zgetrf(number_eqns, number_eqns, factored_matrix, number_eqns, pivot, ierr)
+            direct_factorization_time = parallel_wall_time() - phase_start
             if (ierr > 0) then
                status = solver_singular
             elseif (ierr < 0) then
                status = solver_breakdown
             else
+               phase_start = parallel_wall_time()
                call zgecon('1', number_eqns, factored_matrix, number_eqns, matrix_norm, &
                            direct_reciprocal_condition, condition_work, condition_real_work, ierr)
+               direct_condition_estimation_time = direct_condition_estimation_time + &
+                                                  parallel_wall_time() - phase_start
                if (ierr /= 0) then
                   status = solver_breakdown
                elseif (.not. ieee_is_finite(direct_reciprocal_condition) .or. &
@@ -783,7 +800,9 @@ contains
 
       if (status == solver_converged .and. rank .eq. 0) then
          anp = pnp
+         phase_start = parallel_wall_time()
          call zgetrs('N', number_eqns, 1, factored_matrix, number_eqns, pivot, anp, number_eqns, ierr)
+         direct_backsolve_time = direct_backsolve_time + parallel_wall_time() - phase_start
          if (ierr /= 0) status = solver_breakdown
          if (status == solver_converged) then
             residual_vector = pnp - matmul(interaction_matrix, anp)
@@ -791,7 +810,9 @@ contains
          end if
          do while (status == solver_converged .and. residual > seps .and. refinement < refinement_limit)
             correction = residual_vector
+            phase_start = parallel_wall_time()
             call zgetrs('N', number_eqns, 1, factored_matrix, number_eqns, pivot, correction, number_eqns, ierr)
+            direct_backsolve_time = direct_backsolve_time + parallel_wall_time() - phase_start
             if (ierr /= 0) then
                status = solver_breakdown
                exit

@@ -344,6 +344,12 @@ if(BUILD_TESTING)
     solver-reciprocity.dat
     solver_reciprocity
   )
+  add_mstm_regression_test(
+    fft_translation_validation
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/fft-translation-validation.inp"
+    fft-translation-validation.dat
+    fft_translation_validation
+  )
 
   if(MSTM_ENABLE_MPI)
     set(mpi_test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/mpi_two_rank_effective_medium")
@@ -374,6 +380,23 @@ if(BUILD_TESTING)
         "-DMSTM_EXPECTED_OUTPUTS=solver-validation.dat"
         "-DMSTM_REGRESSION_EXECUTABLE=$<TARGET_FILE:output_regression_test>"
         "-DMSTM_REGRESSION_CASE=solver_validation"
+        "-DMSTM_MPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMSTM_MPI_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMSTM_MPI_RANKS=2"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunSmokeTest.cmake"
+    )
+
+    set(mpi_fft_test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/mpi_two_rank_fft_validation")
+    file(MAKE_DIRECTORY "${mpi_fft_test_work_dir}")
+    add_test(
+      NAME mpi_two_rank_fft_validation
+      COMMAND "${CMAKE_COMMAND}"
+        "-DMSTM_EXECUTABLE=$<TARGET_FILE:mstm>"
+        "-DMSTM_INPUT=${CMAKE_CURRENT_SOURCE_DIR}/tests/fft-translation-validation.inp"
+        "-DMSTM_WORK_DIR=${mpi_fft_test_work_dir}"
+        "-DMSTM_EXPECTED_OUTPUTS=fft-translation-validation.dat"
+        "-DMSTM_REGRESSION_EXECUTABLE=$<TARGET_FILE:output_regression_test>"
+        "-DMSTM_REGRESSION_CASE=fft_translation_validation"
         "-DMSTM_MPIEXEC=${MPIEXEC_EXECUTABLE}"
         "-DMSTM_MPI_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
         "-DMSTM_MPI_RANKS=2"

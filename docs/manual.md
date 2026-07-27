@@ -287,6 +287,8 @@ The executable returns an error instead of writing derived results when the solv
 | `neighbor_node_model` | Select treatment of near-node interactions. |
 | `interaction_radius` | Limit for explicitly stored/interacted neighboring spheres. |
 
+FFT translation batches repeated 3-D transforms and reports phase timings when `print_timings=t`. It is an approximation: compare against pairwise translation or increase `node_order` until observables stabilize. See [Performance Notes](performance.md) for representative scaling and accuracy measurements.
+
 ### 6.4 Files and reporting
 
 | Option | Meaning |

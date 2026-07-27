@@ -31,8 +31,14 @@ module fft_translation
    integer, allocatable, private :: sphere_node(:, :)
 !      real(real64) :: d_cell
    real(real64), private :: cell_origin(3), cell_boundary(3)
-   real(real64), private :: timedat(10)
    real(real64), target :: cell_volume_fraction, d_cell
+   real(real64) :: fft_initialization_time = 0.0_real64
+   real(real64) :: fft_sphere_to_node_time = 0.0_real64
+   real(real64) :: fft_node_to_node_time = 0.0_real64
+   real(real64) :: fft_node_to_sphere_time = 0.0_real64
+   real(real64) :: fft_local_interaction_time = 0.0_real64
+   real(real64) :: fft_3d_transform_time = 0.0_real64
+   integer :: fft_interaction_calls = 0, fft_3d_transform_calls = 0
    complex(real64), private :: host_ref_index(2)
    complex(real32), allocatable, private :: cell_translation_matrix(:, :, :, :, :, :)
    type(node_data), allocatable, private :: cell_list(:, :, :), sphere_local_interaction_list(:)
@@ -86,7 +92,8 @@ contains
       implicit none
       integer :: neqns, rank, numprocs, nsphere, nrhs, mpicomm, p, nsend, &
                  i, rhs, noff, groupsize, mpigroup, syncgroup, oddnumproc
-      logical :: smopt, rhslist(nrhs), contran(nrhs)
+      real(real64) :: phase_start
+      logical :: smopt, rhslist(nrhs), contran(nrhs), resize_work_arrays
       logical, save :: firstrun, inp1, inp2
       logical, optional :: store_matrix_option, initial_run, &
                            rhs_list(nrhs), con_tran(nrhs)
@@ -125,6 +132,14 @@ contains
       gout = 0.
 
       if (firstrun) then
+         fft_initialization_time = 0.0_real64
+         fft_sphere_to_node_time = 0.0_real64
+         fft_node_to_node_time = 0.0_real64
+         fft_node_to_sphere_time = 0.0_real64
+         fft_local_interaction_time = 0.0_real64
+         fft_3d_transform_time = 0.0_real64
+         fft_interaction_calls = 0
+         fft_3d_transform_calls = 0
          if (numprocs .gt. 1) then
             oddnumproc = mod(numprocs, 2)
             pgroup = floor(dble(2 * rank) / dble(numprocs)) + 1
@@ -193,12 +208,22 @@ contains
             write (*, '('' fft1 '',i3)') mstm_global_rank
             flush (6)
          end if
+         phase_start = parallel_wall_time()
          call initialize_fft_translation_matrix(host_ref_index, node_order, p1, p2)
-         timedat = 0.d0
+         fft_initialization_time = parallel_wall_time() - phase_start
       end if
+      fft_interaction_calls = fft_interaction_calls + 1
 !  a test to speed up 3/23
 
-      if (firstrun) then
+      resize_work_arrays = .not. allocated(anode)
+      if (allocated(anode)) then
+         resize_work_arrays = size(anode, 1) /= cell_dim(1) .or. &
+                              size(anode, 2) /= cell_dim(2) .or. &
+                              size(anode, 3) /= cell_dim(3) .or. &
+                              size(anode, 4) /= node_order * (node_order + 2) * 2 .or. &
+                              size(anode, 5) /= nrhs .or. size(gout_loc, 1) /= number_eqns
+      end if
+      if (resize_work_arrays) then
          if (allocated(anode)) deallocate (anode, gnode, gout_loc, ain_t, gout_t)
          allocate (anode(cell_dim(1), cell_dim(2), cell_dim(3), node_order * (node_order + 2) * 2, nrhs), &
                    gnode(cell_dim(1), cell_dim(2), cell_dim(3), node_order * (node_order + 2) * 2, nrhs), &
@@ -236,19 +261,19 @@ contains
          flush (6)
       end if
 
-!timedat(1)=parallel_wall_time()
+      phase_start = parallel_wall_time()
       call local_sphere_to_node_translation(nrhs, ain_t, anode, &
                                             store_matrix_option=smopt, initial_run=firstrun, &
                                             mpi_comm=mpicomm, local_host=fft_local_host, sphere_to_node=.true., &
                                             merge_procs=.true.)
-!timedat(1)=parallel_wall_time()-timedat(1)
+      fft_sphere_to_node_time = fft_sphere_to_node_time + parallel_wall_time() - phase_start
 
       if (light_up) then
          write (*, '('' fft4 '',i3)') mstm_global_rank
          flush (6)
       end if
 
-!timedat(2)=parallel_wall_time()
+      phase_start = parallel_wall_time()
       do p = p1, p2
          do rhs = 1, nrhs
             call fft_node_to_node_translation(anode(:, :, :, :, rhs), &
@@ -256,7 +281,7 @@ contains
                                               gnode(:, :, :, :, rhs), p, mpi_comm=pcomm)
          end do
       end do
-!timedat(2)=parallel_wall_time()-timedat(2)
+      fft_node_to_node_time = fft_node_to_node_time + parallel_wall_time() - phase_start
 
       call parallel_barrier(mpi_comm=mpicomm)
       if (numprocs .gt. 1) then
@@ -291,21 +316,19 @@ contains
          flush (6)
       end if
 
-!timedat(3)=parallel_wall_time()
-
+      phase_start = parallel_wall_time()
       call local_sphere_to_node_translation(nrhs, gout_t, gnode, &
                                             store_matrix_option=smopt, &
                                             mpi_comm=mpicomm, local_host=fft_local_host, sphere_to_node=.false., &
                                             merge_procs=.false.)
 
-!timedat(3)=parallel_wall_time()-timedat(3)
-!timedat(4)=parallel_wall_time()
-
+      fft_node_to_sphere_time = fft_node_to_sphere_time + parallel_wall_time() - phase_start
+      phase_start = parallel_wall_time()
       call local_sphere_to_sphere_expansion(nrhs, ain_t, gout_loc, &
                                             store_matrix_option=smopt, initial_run=firstrun, &
                                             mpi_comm=mpicomm, merge_procs=.false., &
                                             local_host=fft_local_host)
-!timedat(4)=parallel_wall_time()-timedat(4)
+      fft_local_interaction_time = fft_local_interaction_time + parallel_wall_time() - phase_start
 
       gout_t = gout_t + gout_loc
 
@@ -339,10 +362,6 @@ contains
 
 !         deallocate(anode,gnode,gout_loc,ain_t,gout_t)
       firstrun = .false.
-
-!if(mstm_global_rank.eq.mstm_global_numprocs-1.or.mstm_global_rank.eq.0.or..true.) then
-!write(*,'(i5,4es13.5)') mstm_global_rank,timedat(1:4)
-!endif
 
    end subroutine fft_external_to_external_expansion
 
@@ -835,6 +854,10 @@ contains
       celldim2 = 2 * cell_dim
       ncells = cell_dim(1) * cell_dim(2) * cell_dim(3)
       ncells8 = ncells * 8
+      if (numprocs == 1) then
+         call fft_node_to_node_translation_batched(acoef, tranmat, gcoef, pmode, tranop)
+         return
+      end if
       gft = 0.d0
       task = 0
 
@@ -880,6 +903,53 @@ contains
       end if
       gcoef(1:ncells, 1:nblk, pmode) = gcoef(1:ncells, 1:nblk, pmode) / dble(ncells8)
    end subroutine fft_node_to_node_translation
+
+   subroutine fft_node_to_node_translation_batched(acoef, tranmat, gcoef, pmode, tranop)
+      logical, intent(in) :: tranop
+      integer, intent(in) :: pmode
+      integer :: cell_count, doubled_cell_count, doubled_dimensions(3), input_mode, output_mode, mode_count
+      complex(real32), intent(in) :: &
+         tranmat(8 * cell_dim(1) * cell_dim(2) * cell_dim(3), &
+                 node_order * (node_order + 2), node_order * (node_order + 2))
+      complex(real64), intent(in) :: &
+         acoef(cell_dim(1) * cell_dim(2) * cell_dim(3), node_order * (node_order + 2), 2)
+      complex(real64), intent(inout) :: &
+         gcoef(cell_dim(1) * cell_dim(2) * cell_dim(3), node_order * (node_order + 2), 2)
+      complex(real64), allocatable :: spatial_input(:, :), frequency_input(:, :), &
+                                      frequency_output(:, :), spatial_output(:, :)
+
+      mode_count = node_order * (node_order + 2)
+      doubled_dimensions = 2 * cell_dim
+      cell_count = product(cell_dim)
+      doubled_cell_count = product(doubled_dimensions)
+      allocate (spatial_input(mode_count, cell_count), frequency_input(mode_count, doubled_cell_count), &
+                frequency_output(mode_count, doubled_cell_count), spatial_output(mode_count, cell_count))
+
+      do input_mode = 1, mode_count
+         spatial_input(input_mode, :) = acoef(:, input_mode, pmode)
+      end do
+      frequency_input = 0.0_real64
+      call transform_3d_fft(spatial_input, frequency_input, mode_count, cell_dim, doubled_dimensions, 1)
+
+      frequency_output = 0.0_real64
+      do input_mode = 1, mode_count
+         do output_mode = 1, mode_count
+            if (tranop) then
+               frequency_output(output_mode, :) = frequency_output(output_mode, :) + &
+                                                  tranmat(:, input_mode, output_mode) * frequency_input(input_mode, :)
+            else
+               frequency_output(output_mode, :) = frequency_output(output_mode, :) + &
+                                                  tranmat(:, output_mode, input_mode) * frequency_input(input_mode, :)
+            end if
+         end do
+      end do
+
+      spatial_output = 0.0_real64
+      call transform_3d_fft(spatial_output, frequency_output, mode_count, cell_dim, doubled_dimensions, -1)
+      do output_mode = 1, mode_count
+         gcoef(:, output_mode, pmode) = spatial_output(output_mode, :) / real(doubled_cell_count, real64)
+      end do
+   end subroutine fft_node_to_node_translation_batched
 
    subroutine initialize_fft_translation_matrix(ri, nodr, p1, p2)
       implicit none
@@ -1001,11 +1071,13 @@ contains
                  ntotxold, ntotyold, ntotzold, &
                  nblkold
       integer, parameter :: mxtrig = 1000
-      real(real64) :: trig(mxtrig, 3)
+      real(real64) :: trig(mxtrig, 3), transform_start
       save :: trig, ntotxold, ntotyold, ntotzold, nblkold
       complex(real64) :: amf(nblk, ntot2(1), ntot2(2), ntot2(3)), &
                          am(nblk, ntot(1), ntot(2), ntot(3))
       data ntotxold, ntotyold, ntotzold, nblkold/0, 0, 0, 0/
+      fft_3d_transform_calls = fft_3d_transform_calls + 1
+      transform_start = parallel_wall_time()
       if (ntot2(1) .ne. ntotxold .or. ntot2(2) .ne. ntotyold &
           .or. ntot2(3) .ne. ntotzold) then
          ntotxold = ntot2(1)
@@ -1030,6 +1102,7 @@ contains
          call apply_fft_axis(amf, am, nblk, ntot(3), ntot(2), ntot2(1), ntot(1), ntot2, &
                              ntot, -1, (/3, 2, 1/), trig(:, 1))
       end if
+      fft_3d_transform_time = fft_3d_transform_time + parallel_wall_time() - transform_start
    end subroutine transform_3d_fft
 
    pure logical function is_supported_fft_size(n)

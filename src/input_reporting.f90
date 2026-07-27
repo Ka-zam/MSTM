@@ -279,9 +279,23 @@ contains
 
       write (outunit, '('' number iterations, error, solution time '')')
       write (outunit, '(i6,3es12.4)') solution_iterations, solution_error, solution_time
+      if (fft_translation_option .and. print_timings) then
+         write (outunit, '('' FFT interactions, 3-D transforms'')')
+         write (outunit, '(2i12)') fft_interaction_calls, fft_3d_transform_calls
+         write (outunit, '('' FFT initialize, sphere-node, node-node, node-sphere, local times'')')
+         write (outunit, '(5es12.4)') fft_initialization_time, fft_sphere_to_node_time, &
+            fft_node_to_node_time, fft_node_to_sphere_time, fft_local_interaction_time
+         write (outunit, '('' FFT 3-D transform time'')')
+         write (outunit, '(es12.4)') fft_3d_transform_time
+      end if
       if (solution_method(1:1) /= 'i') then
          write (outunit, '('' direct reciprocal condition estimate'')')
          write (outunit, '(es12.4)') solution_reciprocal_condition
+         if (print_timings) then
+            write (outunit, '('' direct matrix, factorization, condition, backsolve times'')')
+            write (outunit, '(4es12.4)') direct_matrix_assembly_time, direct_factorization_time, &
+               direct_condition_estimation_time, direct_backsolve_time
+         end if
       end if
       call print_error_codes(outunit)
       if (number_plane_boundaries .gt. 0) then

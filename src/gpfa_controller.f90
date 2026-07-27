@@ -7,7 +7,7 @@ contains
    subroutine cgpfa(cr, ci, trig, nblk, m, isign)
 !      use iso_c_binding
       implicit none
-      integer :: m, isign, nblk, n, i, inc
+      integer :: m, isign, nblk, inc
       real(real64) :: trig(*), cr(nblk * m), ci(nblk * m)
 !      real(real64), pointer :: cr(:)
 !      real(real64) :: cr(2*nblk*m)
@@ -17,11 +17,7 @@ contains
 !      cr(2:2*nblk*m:2)=aimag(c(1:nblk*m))
 !      inc=2*nblk
       inc = nblk
-      do n = 1, nblk
-!         i=2*n-1
-         i = n
-         call gpfa(cr(i:), ci(i:), trig, inc, 1, m, 1, isign)
-      end do
+      call gpfa(cr, ci, trig, inc, 1, m, nblk, isign)
 !      c(1:nblk*m)=cmplx(cr(1:2*nblk*m-1:2),cr(2:2*nblk*m:2),kind=real64)
    end subroutine cgpfa
 

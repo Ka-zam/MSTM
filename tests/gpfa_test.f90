@@ -43,4 +43,44 @@ program gpfa_test
       write (*, '(a,es12.4)') 'GPFA maximum error: ', max_error
       error stop 'GPFA result differs from direct DFT'
    end if
+
+   call check_batched_transforms()
+
+contains
+
+   subroutine check_batched_transforms()
+      integer, parameter :: batch_size = 3
+      integer :: batch
+      real(real64) :: batch_real(batch_size, transform_size), batch_imag(batch_size, transform_size)
+      real(real64) :: batch_real_input(batch_size, transform_size), batch_imag_input(batch_size, transform_size)
+
+      do batch = 1, batch_size
+         do input_index = 1, transform_size
+            batch_real_input(batch, input_index) = sin(0.1d0 * batch * input_index) + 0.02d0 * input_index
+            batch_imag_input(batch, input_index) = cos(0.15d0 * batch * input_index) - 0.01d0 * input_index
+         end do
+      end do
+      batch_real = batch_real_input
+      batch_imag = batch_imag_input
+      call cgpfa(batch_real, batch_imag, trigs, batch_size, transform_size, 1)
+
+      max_error = 0.0_real64
+      do batch = 1, batch_size
+         do output_index = 1, transform_size
+            expected = (0.0_real64, 0.0_real64)
+            do input_index = 1, transform_size
+               angle = two_pi * dble((output_index - 1) * (input_index - 1)) / dble(transform_size)
+               expected = expected + cmplx(batch_real_input(batch, input_index), &
+                                           batch_imag_input(batch, input_index), kind=real64) &
+                          * cmplx(cos(angle), sin(angle), kind=real64)
+            end do
+            actual = cmplx(batch_real(batch, output_index), batch_imag(batch, output_index), kind=real64)
+            max_error = max(max_error, abs(actual - expected))
+         end do
+      end do
+      if (max_error > tolerance) then
+         write (*, '(a,es12.4)') 'Batched GPFA maximum error: ', max_error
+         error stop 'Batched GPFA result differs from direct DFT'
+      end if
+   end subroutine check_batched_transforms
 end program gpfa_test

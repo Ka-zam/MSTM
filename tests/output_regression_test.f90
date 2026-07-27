@@ -24,6 +24,8 @@ program output_regression_test
       call check_solver_validation(trim(work_directory), failures)
    case ('solver_reciprocity')
       call check_solver_reciprocity(trim(work_directory), failures)
+   case ('fft_translation_validation')
+      call check_fft_translation_validation(trim(work_directory), failures)
    case default
       write (error_unit, '(a)') 'Unknown regression case: '//trim(case_name)
       error stop 2
@@ -216,6 +218,32 @@ contains
                         0.5_real64 * (reciprocal_matrix_left(1) + reciprocal_matrix_right(1)), &
                         direct_matrix(1), failure_count)
    end subroutine check_solver_reciprocity
+
+   subroutine check_fft_translation_validation(directory, failure_count)
+      character(len=*), intent(in) :: directory
+      integer, intent(inout) :: failure_count
+      real(real64) :: efficiency(9, 2)
+      integer :: component, interaction_count, run, transform_count, unit
+
+      call open_regression_file(directory//'/fft-translation-validation.dat', unit)
+      do run = 1, 2
+         call find_line(unit, 'total extinction, absorption, scattering efficiencies', .true.)
+         read (unit, *) efficiency(:, run)
+      end do
+      rewind (unit)
+      call find_line(unit, 'FFT interactions, 3-D transforms', .true.)
+      read (unit, *) interaction_count, transform_count
+      close (unit)
+
+      if (interaction_count <= 0 .or. transform_count <= 0) then
+         write (error_unit, '(a,2i8)') 'FFT path did not report work: ', interaction_count, transform_count
+         failure_count = failure_count + 1
+      end if
+      do component = 1, 9
+         call assert_close('FFT/pairwise efficiency', efficiency(component, 2), &
+                           efficiency(component, 1), failure_count)
+      end do
+   end subroutine check_fft_translation_validation
 
    subroutine open_regression_file(path, unit)
       character(len=*), intent(in) :: path

@@ -1,0 +1,34 @@
+! Exact pairwise translation reference.
+output_file
+fft-translation-validation.dat
+number_spheres
+2
+sphere_data
+-0.65d0,0.15d0,-0.25d0,0.45d0,(1.45d0,0.d0)
+ 0.55d0,-0.10d0,0.35d0,0.35d0,(1.70d0,0.d0)
+end_of_sphere_data
+incident_beta_deg
+43.d0
+incident_alpha_deg
+17.d0
+solution_epsilon
+1.d-8
+fft_translation_option
+f
+calculate_scattering_matrix
+f
+calculate_up_down_scattering
+f
+print_sphere_data
+f
+print_timings
+t
+! Force the accelerated path for the same small cluster.
+new_run
+fft_translation_option
+t
+min_fft_nsphere
+1
+node_order
+3
+end_of_options
