@@ -9,7 +9,6 @@ module random_orientation_scattering
    use specialfuncs
    use spheredata
    use surface_subroutines
-   use translation
    implicit none
    private
    public :: ranorienscatmatrixcalc, ranorientscatmatrix

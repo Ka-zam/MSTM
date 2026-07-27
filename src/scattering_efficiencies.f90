@@ -9,7 +9,6 @@ module scattering_efficiencies
    use specialfuncs
    use spheredata
    use surface_subroutines
-   use translation
    use scattering_amplitudes, only: common_origin_amplitude_matrix, multiple_origin_amplitude_matrix, &
                                     numerical_sm_azimuthal_average_mo, numerical_sm_azimuthal_average_so
    use scattering_interactions, only: sphereinteraction

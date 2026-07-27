@@ -9,7 +9,8 @@ module scattering_interactions
    use specialfuncs
    use spheredata
    use surface_subroutines
-   use translation
+   use translation, only: external_to_external_expansion, external_to_internal_expansion, &
+                          periodic_lattice_sphere_interaction, spheresurfaceinteraction, translation_data
    implicit none
    private
    public :: distribute_from_common_origin, layergaussbeamcoef, merge_to_common_origin, &
@@ -286,8 +287,7 @@ contains
       real(8) :: alpha, rpos(3), sinc, cbinc, rtran(3), r, rshft(3), zs
       complex(8) :: pmnp(2 * nodr * (nodr + 2), 2), riinc
       complex(8), allocatable :: pmnp0(:, :), ptvec(:)
-      type(translation_data), pointer :: loc_tranmat
-      type(translation_data), target :: tranmat
+      type(translation_data) :: tranmat
       if (sdir .eq. 1) then
          riinc = layer_ref_index(0)
          incregion = 0
@@ -319,28 +319,12 @@ contains
 !write(*,*) 's1'
       call gaussianbeamcoef(alpha, cbinc, gaussian_beam_constant, nodrgb, pmnp0)
       if (layer .eq. incregion .and. incdir) then
-         tranmat%matrix_calculated = .false.
-         tranmat%vswf_type = 1
-         tranmat%translation_vector = rtran
-         tranmat%refractive_index = (/riinc, riinc/)
-         tranmat%rot_op = (nodrgb .ge. translation_switch_order)
-         loc_tranmat => tranmat
+         call tranmat%configure(1, rtran, (/riinc, riinc/), nodrgb .ge. translation_switch_order)
          do p = 1, 2
 !write(*,*) 's2', p
-            call coefficient_translation(nodrgb, 2, nodr, 2, &
-                                         pmnp0(:, p), pmnp(:, p), loc_tranmat)
+            call tranmat%apply(nodrgb, 2, nodr, 2, pmnp0(:, p), pmnp(:, p))
          end do
-         if (.not. tranmat%zero_translation) then
-            if (tranmat%rot_op) then
-               if (associated(tranmat%rot_mat)) deallocate (tranmat%rot_mat, tranmat%phi_mat, tranmat%z_mat)
-               nullify (tranmat%rot_mat, tranmat%phi_mat, tranmat%z_mat)
-               nullify (loc_tranmat)
-            else
-               if (associated(tranmat%gen_mat)) deallocate (tranmat%gen_mat)
-               nullify (tranmat%gen_mat)
-               nullify (loc_tranmat)
-            end if
-         end if
+         call tranmat%clear()
       end if
       if (number_plane_boundaries .gt. 0 .and. incindir) then
          shiftgb = .false.
@@ -358,29 +342,13 @@ contains
          end if
          if (shiftgb) then
             allocate (ptvec(2 * nodrgb * (nodrgb + 2)))
-            tranmat%matrix_calculated = .false.
-            tranmat%vswf_type = 1
-            tranmat%translation_vector = rshft
-            tranmat%refractive_index = (/riinc, riinc/)
-            tranmat%rot_op = (nodrgb .ge. translation_switch_order)
-            loc_tranmat => tranmat
+            call tranmat%configure(1, rshft, (/riinc, riinc/), nodrgb .ge. translation_switch_order)
             do p = 1, 2
                ptvec(:) = pmnp0(:, p)
                pmnp0(:, p) = 0.d0
-               call coefficient_translation(nodrgb, 2, nodrgb, 2, &
-                                            ptvec(:), pmnp0(:, p), loc_tranmat)
+               call tranmat%apply(nodrgb, 2, nodrgb, 2, ptvec(:), pmnp0(:, p))
             end do
-            if (.not. tranmat%zero_translation) then
-               if (tranmat%rot_op) then
-                  if (associated(tranmat%rot_mat)) deallocate (tranmat%rot_mat, tranmat%phi_mat, tranmat%z_mat)
-                  nullify (tranmat%rot_mat, tranmat%phi_mat, tranmat%z_mat)
-                  nullify (loc_tranmat)
-               else
-                  if (associated(tranmat%gen_mat)) deallocate (tranmat%gen_mat)
-                  nullify (tranmat%gen_mat)
-                  nullify (loc_tranmat)
-               end if
-            end if
+            call tranmat%clear()
             deallocate (ptvec)
          end if
 
@@ -452,8 +420,7 @@ contains
       real(8), optional :: origin_position(3), merge_radius
       complex(8) :: amnp(number_eqns, *), amnp0(0:nodrt + 1, nodrt, 2, *), rimedium(2)
       complex(8), allocatable :: amnpt(:, :, :)
-      type(translation_data), pointer :: loc_tranmat
-      type(translation_data), target :: tranmat
+      type(translation_data) :: tranmat
 
       if (present(mpi_comm)) then
          mpicomm = mpi_comm
@@ -511,16 +478,11 @@ contains
 !                  ntrani=max(ntrani,noi)
                allocate (amnpt(0:ntrani + 1, ntrani, 2))
                amnpt = (0.d0, 0.d0)
-               tranmat%matrix_calculated = .false.
-               tranmat%vswf_type = 1
-               tranmat%translation_vector = r0 - sphere_position(:, i)
-               tranmat%refractive_index = rimedium
-               tranmat%rot_op = (max(noi, ntrani) .ge. translation_switch_order)
-               loc_tranmat => tranmat
+               call tranmat%configure(1, r0 - sphere_position(:, i), rimedium, &
+                                      max(noi, ntrani) .ge. translation_switch_order)
                do rhs = 1, nrhs
-                  call coefficient_translation(noi, 2, ntrani, 2, &
-                                               amnp(sphere_offset(i) + 1:sphere_offset(i) + nblk, rhs), amnpt, &
-                                               loc_tranmat)
+                  call tranmat%apply(noi, 2, ntrani, 2, &
+                                     amnp(sphere_offset(i) + 1:sphere_offset(i) + nblk, rhs), amnpt)
                   do n = 1, ntrani
                      do m = 0, ntrani + 1
                         amnp0(m, n, 1, rhs) = amnp0(m, n, 1, rhs) &
@@ -530,17 +492,7 @@ contains
                      end do
                   end do
                end do
-               if (.not. tranmat%zero_translation) then
-                  if (tranmat%rot_op) then
-                     if (associated(tranmat%rot_mat)) deallocate (tranmat%rot_mat, tranmat%phi_mat, tranmat%z_mat)
-                     nullify (tranmat%rot_mat, tranmat%phi_mat, tranmat%z_mat)
-                     nullify (loc_tranmat)
-                  else
-                     if (associated(tranmat%gen_mat)) deallocate (tranmat%gen_mat)
-                     nullify (tranmat%gen_mat)
-                     nullify (loc_tranmat)
-                  end if
-               end if
+               call tranmat%clear()
                deallocate (amnpt)
             end if
          end if
@@ -564,8 +516,7 @@ contains
       real(8) :: r0(3)
       real(8), optional :: origin_position(3)
       complex(8) :: amnp(number_eqns, *), amnp0(0:nodrt + 1, nodrt, 2, *), rimedium(2)
-      type(translation_data), pointer :: loc_tranmat
-      type(translation_data), target :: tranmat
+      type(translation_data) :: tranmat
 
       if (present(mpi_comm)) then
          mpicomm = mpi_comm
@@ -629,29 +580,14 @@ contains
                call exteriorrefindex(i, rimedium)
                noi = sphere_order(i)
                ntrani = nodrt
-               tranmat%matrix_calculated = .false.
-               tranmat%vswf_type = vtype
-               tranmat%translation_vector = sphere_position(:, i) - r0
-               tranmat%refractive_index = rimedium
-               tranmat%rot_op = (max(noi, ntrani) .ge. translation_switch_order)
-               loc_tranmat => tranmat
+               call tranmat%configure(vtype, sphere_position(:, i) - r0, rimedium, &
+                                      max(noi, ntrani) .ge. translation_switch_order)
                do rhs = 1, nrhs
-                  call coefficient_translation(ntrani, 2, noi, 2, &
-                                               amnp0(0:nodrt + 1, 1:nodrt, 1:2, rhs), &
-                                               amnp(sphere_offset(i) + 1:sphere_offset(i) + nblk, rhs), &
-                                               loc_tranmat)
+                  call tranmat%apply(ntrani, 2, noi, 2, &
+                                     amnp0(0:nodrt + 1, 1:nodrt, 1:2, rhs), &
+                                     amnp(sphere_offset(i) + 1:sphere_offset(i) + nblk, rhs))
                end do
-               if (.not. tranmat%zero_translation) then
-                  if (tranmat%rot_op) then
-                     if (associated(tranmat%rot_mat)) deallocate (tranmat%rot_mat, tranmat%phi_mat, tranmat%z_mat)
-                     nullify (tranmat%rot_mat, tranmat%phi_mat, tranmat%z_mat)
-                     nullify (loc_tranmat)
-                  else
-                     if (associated(tranmat%gen_mat)) deallocate (tranmat%gen_mat)
-                     nullify (tranmat%gen_mat)
-                     nullify (loc_tranmat)
-                  end if
-               end if
+               call tranmat%clear()
             end if
          end if
       end do

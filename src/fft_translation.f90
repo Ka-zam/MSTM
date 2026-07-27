@@ -7,7 +7,7 @@ module fft_translation
    use numerical_tables
    use specialfuncs
    use spheredata
-   use translation
+   use translation, only: clear_stored_trans_mat, shiftcoefficient, translation_data
    use mie
    implicit none
    type node_data
@@ -42,21 +42,27 @@ module fft_translation
 contains
 
    subroutine clear_fft_matrix(clear_h)
-      implicit none
+      implicit none(type, external)
       logical :: clearh
-      logical, optional :: clear_h
+      logical, optional, intent(in) :: clear_h
+      integer :: local_h_matrix_count, local_j_matrix_count
+
       if (present(clear_h)) then
          clearh = clear_h
       else
          clearh = .false.
       end if
+      local_j_matrix_count = 0
+      local_h_matrix_count = 0
+      if (allocated(stored_local_j_mat)) local_j_matrix_count = size(stored_local_j_mat)
+      if (allocated(stored_local_h_mat)) local_h_matrix_count = size(stored_local_h_mat)
       if (light_up) then
-         write (*, '('' fft cfm 1'',2i10,l)') mstm_global_rank, size(stored_local_j_mat), allocated(stored_local_j_mat)
+         write (*, '('' fft cfm 1'',2i10,l)') mstm_global_rank, local_j_matrix_count, allocated(stored_local_j_mat)
          flush (6)
       end if
       call clear_stored_trans_mat(stored_local_j_mat)
       if (light_up) then
-         write (*, '('' fft cfm 2'',2i10,l)') mstm_global_rank, size(stored_local_h_mat), allocated(stored_local_h_mat)
+         write (*, '('' fft cfm 2'',2i10,l)') mstm_global_rank, local_h_matrix_count, allocated(stored_local_h_mat)
          flush (6)
       end if
       call clear_stored_trans_mat(stored_local_h_mat)
@@ -436,20 +442,12 @@ contains
                npj2 = sphere_offset(j) + sphere_block(j)
                if (calcmat) then
                   if (smopt .and. store_translation_matrix) then
-                     stored_local_h_mat(idim)%matrix_calculated = .false.
-                     stored_local_h_mat(idim)%vswf_type = 3
-                     stored_local_h_mat(idim)%translation_vector = sphere_position(:, i) - sphere_position(:, j)
-                     stored_local_h_mat(idim)%zero_translation = .false.
-                     stored_local_h_mat(idim)%refractive_index = rimedium
-                     stored_local_h_mat(idim)%rot_op = (min(noi, noj) .ge. translation_switch_order)
+                     call stored_local_h_mat(idim)%configure(3, sphere_position(:, i) - sphere_position(:, j), &
+                                                             rimedium, min(noi, noj) .ge. translation_switch_order)
                      loc_tranmat => stored_local_h_mat(idim)
                   else
-                     tranmat%matrix_calculated = .false.
-                     tranmat%vswf_type = 3
-                     tranmat%translation_vector = sphere_position(:, i) - sphere_position(:, j)
-                     tranmat%zero_translation = .false.
-                     tranmat%refractive_index = rimedium
-                     tranmat%rot_op = (min(noi, noj) .ge. translation_switch_order)
+                     call tranmat%configure(3, sphere_position(:, i) - sphere_position(:, j), rimedium, &
+                                            min(noi, noj) .ge. translation_switch_order)
                      loc_tranmat => tranmat
                   end if
                else
@@ -457,18 +455,14 @@ contains
                end if
                do rhs = 1, nrhs
                   if (rhslist(rhs)) then
-                     call coefficient_translation(noj, 2, noi, 2, ain(npj1:npj2, rhs), gout(npi1:npi2, rhs), &
-                                                  loc_tranmat, shift_op=.false., tran_op=contran(rhs))
-                     call coefficient_translation(noi, 2, noj, 2, ain(npi1:npi2, rhs), gout(npj1:npj2, rhs), &
-                                                  loc_tranmat, shift_op=.true., tran_op=contran(rhs))
+                     call loc_tranmat%apply(noj, 2, noi, 2, ain(npj1:npj2, rhs), gout(npi1:npi2, rhs), &
+                                            shift_op=.false., tran_op=contran(rhs))
+                     call loc_tranmat%apply(noi, 2, noj, 2, ain(npi1:npi2, rhs), gout(npj1:npj2, rhs), &
+                                            shift_op=.true., tran_op=contran(rhs))
                   end if
                end do
                if (calcmat .and. (.not. (smopt .and. store_translation_matrix))) then
-                  if (tranmat%rot_op) then
-                     deallocate (tranmat%rot_mat, tranmat%phi_mat, tranmat%z_mat)
-                  else
-                     deallocate (tranmat%gen_mat)
-                  end if
+                  call tranmat%clear()
                end if
             end do
          end if
@@ -493,7 +487,7 @@ contains
       logical, optional :: store_matrix_option, initial_run, merge_procs, &
                            rhs_list(nrhs), con_tran(nrhs), sphere_to_node
       integer, optional :: mpi_comm, local_host
-      real(8) :: rtran(3), r
+      real(8) :: rtran(3)
   complex(8) :: asphere(number_eqns, nrhs), anode(cell_dim(1), cell_dim(2), cell_dim(3), node_order * (node_order + 2) * 2, nrhs), &
                     rimedium(2), anodet(node_order * (node_order + 2) * 2)
       type(translation_data), pointer :: loc_tranmat
@@ -584,23 +578,14 @@ contains
                npi1 = sphere_offset(i) + 1
                npi2 = sphere_offset(i) + sphere_block(i)
                rtran = d_cell * (dble(nodei) - .5d0) - sphere_position(:, i) + cell_boundary(:)
-               r = sum(rtran**2)
                if (calcmat) then
                   if (smopt .and. store_translation_matrix) then
-                     stored_local_j_mat(idim)%matrix_calculated = .false.
-                     stored_local_j_mat(idim)%vswf_type = 1
-                     stored_local_j_mat(idim)%translation_vector = rtran
-                     stored_local_j_mat(idim)%zero_translation = r .lt. 1.d-6
-                     stored_local_j_mat(idim)%refractive_index = rimedium
-                     stored_local_j_mat(idim)%rot_op = (min(noi, node_order) .ge. translation_switch_order)
+                     call stored_local_j_mat(idim)%configure(1, rtran, rimedium, &
+                                                             min(noi, node_order) .ge. translation_switch_order)
                      loc_tranmat => stored_local_j_mat(idim)
                   else
-                     tranmat%matrix_calculated = .false.
-                     tranmat%vswf_type = 1
-                     tranmat%translation_vector = rtran
-                     tranmat%zero_translation = r .lt. 1.d-6
-                     tranmat%refractive_index = rimedium
-                     tranmat%rot_op = (min(noi, node_order) .ge. translation_switch_order)
+                     call tranmat%configure(1, rtran, rimedium, &
+                                            min(noi, node_order) .ge. translation_switch_order)
                      loc_tranmat => tranmat
                   end if
                else
@@ -610,8 +595,8 @@ contains
                   do rhs = 1, nrhs
                      if (rhslist(rhs)) then
                         anodet = 0.d0
-                        call coefficient_translation(noi, 2, node_order, 2, asphere(npi1:npi2, rhs), &
-                                                     anodet, loc_tranmat, shift_op=.false., tran_op=contran(rhs))
+                        call loc_tranmat%apply(noi, 2, node_order, 2, asphere(npi1:npi2, rhs), &
+                                               anodet, shift_op=.false., tran_op=contran(rhs))
                         anode(nodei(1), nodei(2), nodei(3), :, rhs) &
                            = anode(nodei(1), nodei(2), nodei(3), :, rhs) + anodet(:)
                      end if
@@ -620,21 +605,14 @@ contains
                   do rhs = 1, nrhs
                      if (rhslist(rhs)) then
                         anodet(:) = anode(nodei(1), nodei(2), nodei(3), :, rhs)
-                        call coefficient_translation(node_order, 2, noi, 2, anodet, &
-                                                     asphere(npi1:npi2, rhs), loc_tranmat, &
-                                                     shift_op=.true., tran_op=contran(rhs))
+                        call loc_tranmat%apply(node_order, 2, noi, 2, anodet, &
+                                               asphere(npi1:npi2, rhs), shift_op=.true., tran_op=contran(rhs))
                      end if
                   end do
                end if
 
                if (calcmat .and. (.not. (smopt .and. store_translation_matrix))) then
-                  if (.not. tranmat%zero_translation) then
-                     if (tranmat%rot_op) then
-                        deallocate (tranmat%rot_mat, tranmat%phi_mat, tranmat%z_mat)
-                     else
-                        deallocate (tranmat%gen_mat)
-                     end if
-                  end if
+                  call tranmat%clear()
                end if
             end if
          end if

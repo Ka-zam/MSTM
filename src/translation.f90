@@ -1,64 +1,107 @@
 module translation
-   use mpidefs
-   use intrinsics
-   use numerical_tables
-   use specialfuncs
-   use surface_subroutines
-   use periodic_lattice_subroutines
-   use spheredata
-   use mie
+   use angular_functions, only: atcdim, axialtrancoefrecurrence, cartosphere, ephicoef, gentranmatrix, moffset, rotcoef
+   use coefficient_indexing, only: amnpaddress
+   use iso_fortran_env, only: real64
+   use mie, only: exteriorrefindex, multmiecoeffmult
+   use mpidefs, only: mpi_comm_world, mstm_global_rank, mstm_mpi, mstm_mpi_sum, mstm_mpi_wtime
+   use numerical_tables, only: light_up
+   use periodic_lattice_subroutines, only: periodic_lattice, plane_boundary_lattice_interaction
+   use spheredata, only: host_sphere, number_eqns, number_spheres, one_side_only, recalculate_surface_matrix, &
+                         run_print_unit, sphere_block, sphere_layer, sphere_offset, sphere_order, sphere_position, &
+                         sphere_ref_index, store_surface_matrix, store_translation_matrix, translation_switch_order
+   use surface_subroutines, only: layer_id, layer_ref_index, plane_interaction, plane_surface_present
+   use wave_functions, only: degree_transformation, mtransfer
 
-   implicit none
+   implicit none(type, external)
+   private
+
+   public :: translation_data
+   public :: interaction_radius
+   public :: clear_stored_trans_mat
+   public :: general_interaction_matrix
+   public :: periodic_lattice_sphere_interaction
+   public :: spheresurfaceinteraction
+   public :: external_to_external_expansion
+   public :: external_to_internal_expansion
+   public :: shiftcoefficient
+
    type translation_data
-      logical :: matrix_calculated, rot_op, zero_translation
-      integer :: vswf_type
-      real(8) :: translation_vector(3)
-      real(8), pointer :: rot_mat(:, :)
-      complex(8) :: refractive_index(2)
-      complex(8), pointer :: phi_mat(:), z_mat(:), gen_mat(:, :, :)
+      private
+      logical :: matrix_calculated = .false.
+      logical :: rot_op = .false.
+      logical :: zero_translation = .false.
+      integer :: vswf_type = 0
+      real(real64) :: translation_vector(3) = 0.0_real64
+      real(real64), allocatable :: rot_mat(:, :)
+      complex(real64) :: refractive_index(2) = (1.0_real64, 0.0_real64)
+      complex(real64), allocatable :: phi_mat(:), z_mat(:), gen_mat(:, :, :)
+   contains
+      procedure, public :: configure => configure_translation
+      procedure, public, pass(tranmat) :: apply => coefficient_translation
+      procedure, public :: clear => clear_translation
+      final :: finalize_translation
    end type translation_data
    type surface_ref_data
-      logical :: symmetrical
-      integer :: row_order, col_order
-      complex(8), pointer :: matrix(:)
+      logical :: symmetrical = .false.
+      integer :: row_order = 0, col_order = 0
+      complex(real64), allocatable :: matrix(:)
    end type surface_ref_data
    type pl_translation_data
-      integer :: row_order, col_order
-      complex(8), pointer :: matrix(:)
+      integer :: row_order = 0, col_order = 0
+      complex(real64), allocatable :: matrix(:)
    end type pl_translation_data
-   real(8), target :: interaction_radius
+   real(real64), target :: interaction_radius = 1.0e10_real64
    type(translation_data), target, allocatable :: stored_trans_mat(:)
    type(surface_ref_data), target, allocatable :: stored_ref(:)
    type(pl_translation_data), target, allocatable :: stored_plmat(:)
-   data interaction_radius/1.d10/
 
 contains
 
+   subroutine configure_translation(self, vswf_type, translation_vector, refractive_index, use_rotation)
+      class(translation_data), intent(inout) :: self
+      integer, intent(in) :: vswf_type
+      real(real64), intent(in) :: translation_vector(3)
+      complex(real64), intent(in) :: refractive_index(2)
+      logical, intent(in) :: use_rotation
+
+      call self%clear()
+      self%vswf_type = vswf_type
+      self%translation_vector = translation_vector
+      self%refractive_index = refractive_index
+      self%rot_op = use_rotation
+   end subroutine configure_translation
+
+   subroutine clear_translation(self)
+      class(translation_data), intent(inout) :: self
+
+      if (allocated(self%rot_mat)) deallocate (self%rot_mat)
+      if (allocated(self%phi_mat)) deallocate (self%phi_mat)
+      if (allocated(self%z_mat)) deallocate (self%z_mat)
+      if (allocated(self%gen_mat)) deallocate (self%gen_mat)
+      self%matrix_calculated = .false.
+      self%zero_translation = .false.
+      self%vswf_type = 0
+      self%translation_vector = 0.0_real64
+      self%refractive_index = (1.0_real64, 0.0_real64)
+      self%rot_op = .false.
+   end subroutine clear_translation
+
+   subroutine finalize_translation(self)
+      type(translation_data), intent(inout) :: self
+
+      call self%clear()
+   end subroutine finalize_translation
+
    subroutine clear_stored_trans_mat(mat)
-      implicit none
-      integer :: n, i
-      type(translation_data), target, allocatable :: mat(:)
+      implicit none(type, external)
+      integer :: n
+      type(translation_data), target, allocatable, intent(inout) :: mat(:)
       if (.not. allocated(mat)) return
       n = size(mat)
       if (light_up) then
          write (*, '('' cstm 1 '',3i10)') mstm_global_rank, n
          flush (6)
       end if
-      do i = 1, n
-         if (.not. mat(i)%zero_translation) then
-            if (mat(i)%rot_op) then
-               if (associated(mat(i)%rot_mat)) deallocate (mat(i)%rot_mat)
-               nullify (mat(i)%rot_mat)
-               if (associated(mat(i)%phi_mat)) deallocate (mat(i)%phi_mat)
-               nullify (mat(i)%phi_mat)
-               if (associated(mat(i)%z_mat)) deallocate (mat(i)%z_mat)
-               nullify (mat(i)%z_mat)
-            else
-               if (associated(mat(i)%gen_mat)) deallocate (mat(i)%gen_mat)
-               nullify (mat(i)%gen_mat)
-            end if
-         end if
-      end do
       if (light_up) then
          write (*, '('' cstm 2 '',3i10)') mstm_global_rank, n
          flush (6)
@@ -67,38 +110,29 @@ contains
    end subroutine clear_stored_trans_mat
 
    subroutine clear_stored_ref_mat(mat)
-      implicit none
-      integer :: n, i
-      type(surface_ref_data), allocatable :: mat(:)
+      implicit none(type, external)
+      type(surface_ref_data), allocatable, intent(inout) :: mat(:)
       if (.not. allocated(mat)) return
-      n = size(mat)
-      do i = 1, n
-         if (associated(mat(i)%matrix)) deallocate (mat(i)%matrix)
-      end do
       deallocate (mat)
    end subroutine clear_stored_ref_mat
 
    subroutine clear_stored_pl_mat(mat)
-      implicit none
-      integer :: n, i
-      type(pl_translation_data), allocatable :: mat(:)
+      implicit none(type, external)
+      type(pl_translation_data), allocatable, intent(inout) :: mat(:)
       if (.not. allocated(mat)) return
-      n = size(mat)
-      do i = 1, n
-         if (associated(mat(i)%matrix)) deallocate (mat(i)%matrix)
-      end do
       deallocate (mat)
    end subroutine clear_stored_pl_mat
 
    subroutine general_interaction_matrix(matrix, mie_mult, mpi_comm)
-      implicit none
+      implicit none(type, external)
       logical :: miemult
-      logical, optional :: mie_mult
+      logical, optional, intent(in) :: mie_mult
       integer :: j, i, nbi, nbj, ilay, jlay, vtype, i1, i2, j1, j2, mpicomm, rank, numprocs, task, nsend
-      integer, optional :: mpi_comm
-      real(8) :: rp(3), rdist
-      complex(8) :: matrix(number_eqns, number_eqns), rimedium(2)
-      complex(8), allocatable :: fsmat(:, :, :), acmat(:, :), anp(:)
+      integer, optional, intent(in) :: mpi_comm
+      real(real64) :: rp(3), rdist
+      complex(real64), intent(out) :: matrix(number_eqns, number_eqns)
+      complex(real64) :: rimedium(2)
+      complex(real64), allocatable :: fsmat(:, :, :), acmat(:, :), anp(:)
       if (present(mpi_comm)) then
          mpicomm = mpi_comm
       else
@@ -225,15 +259,18 @@ contains
 
    subroutine periodic_lattice_sphere_interaction(neqns, nrhs, ain, aout, &
                                                   initial_run, rhs_list, mpi_comm, con_tran, store_matrix_option)
-      implicit none
-      integer :: neqns, rank, numprocs, nrhs, nmat, mpicomm, proc, i, j, rhs, &
+      implicit none(type, external)
+      integer, intent(in) :: neqns, nrhs
+      integer :: rank, numprocs, nmat, mpicomm, proc, i, j, rhs, &
                  i1, i2, j1, j2, task, rank0, nbi, nbj, rmatdim
       logical :: initrun, rhslist(nrhs), calcmat, contran(nrhs), smopt
-      logical, optional :: initial_run, rhs_list(nrhs), con_tran(nrhs), store_matrix_option
+      logical, optional, intent(in) :: initial_run, rhs_list(nrhs), con_tran(nrhs), store_matrix_option
       integer, save :: nmat_tot
-      integer, optional :: mpi_comm
-      real(8) :: rp(3), time1, time2
-      complex(8) :: ain(neqns, nrhs), aout(neqns, nrhs), ri
+      integer, optional, intent(in) :: mpi_comm
+      real(real64) :: rp(3), time1, time2
+      complex(real64), intent(inout) :: ain(neqns, nrhs)
+      complex(real64), intent(out) :: aout(neqns, nrhs)
+      complex(real64) :: ri
       type(pl_translation_data), target :: rmat
       type(pl_translation_data), pointer :: loc_rmat
 
@@ -373,11 +410,13 @@ contains
    end subroutine periodic_lattice_sphere_interaction
 
    subroutine pl_matrix_mult(nodrt, nodrs, as, at, tran, fs_mat, pb_mat)
-      implicit none
-      logical :: tran
-      integer :: nodrt, nodrs, p
-      complex(8) :: as(nodrs * (nodrs + 2), 2), at(nodrt * (nodrt + 2), 2)
- complex(8), optional :: fs_mat(nodrt * (nodrt + 2), nodrs * (nodrs + 2), 2), pb_mat(nodrt * (nodrt + 2), 2, nodrs * (nodrs + 2), 2)
+      implicit none(type, external)
+      logical, intent(in) :: tran
+      integer, intent(in) :: nodrt, nodrs
+      integer :: p
+      complex(real64), intent(inout) :: as(nodrs * (nodrs + 2), 2), at(nodrt * (nodrt + 2), 2)
+      complex(real64), optional, intent(in) :: fs_mat(nodrt * (nodrt + 2), nodrs * (nodrs + 2), 2), &
+                                               pb_mat(nodrt * (nodrt + 2), 2, nodrs * (nodrs + 2), 2)
 
       if (.not. tran) then
          if (present(fs_mat)) then
@@ -404,17 +443,19 @@ contains
 
    subroutine spheresurfaceinteraction(neqns, nrhs, ain, aout, &
                                        initial_run, rhs_list, mpi_comm, con_tran)
-      implicit none
-      integer :: neqns, rank, numprocs, nrhs, nmat, mpicomm, proc, i, j, rhs, &
+      implicit none(type, external)
+      integer, intent(in) :: neqns, nrhs
+      integer :: rank, numprocs, nmat, mpicomm, proc, i, j, rhs, &
                  i1, i2, j1, j2, task, jstart, rmatdim, rank0
       logical :: initrun, rhslist(nrhs), calcmat, contran(nrhs), rmatsymm
-      logical, optional :: initial_run, rhs_list(nrhs), con_tran(nrhs)
+      logical, optional, intent(in) :: initial_run, rhs_list(nrhs), con_tran(nrhs)
       integer, save :: nmat_tot
-      integer, optional :: mpi_comm
-      real(8) :: rp(3), time1, time2
-      complex(8) :: ain(neqns, nrhs), aout(neqns, nrhs)
-      complex(8), allocatable :: atempi(:), atempj(:), &
-                                 atempi2(:), atempj2(:)
+      integer, optional, intent(in) :: mpi_comm
+      real(real64) :: rp(3), time1, time2
+      complex(real64), intent(inout) :: ain(neqns, nrhs)
+      complex(real64), intent(out) :: aout(neqns, nrhs)
+      complex(real64), allocatable :: atempi(:), atempj(:), &
+                                      atempi2(:), atempj2(:)
       type(surface_ref_data), target :: rmat
       type(surface_ref_data), pointer :: loc_rmat
 
@@ -574,10 +615,12 @@ contains
    end subroutine spheresurfaceinteraction
 
    subroutine surface_interaction_matrix_mult(nin, nout, ain, aout, rmat, dir)
-      implicit none
-      integer :: nin, nout, bin, bout, m, dir, m1, n, l, p, q, mnp, klq, i, moff
-      complex(8) :: ain(2 * nin * (nin + 2)), aout(2 * nout * (nout + 2))
-      type(surface_ref_data), pointer :: rmat
+      implicit none(type, external)
+      integer, intent(in) :: nin, nout, dir
+      integer :: bin, bout, m, m1, n, l, p, q, mnp, klq, i, moff
+      complex(real64), intent(in) :: ain(2 * nin * (nin + 2))
+      complex(real64), intent(out) :: aout(2 * nout * (nout + 2))
+      type(surface_ref_data), intent(in) :: rmat
       bin = 2 * nin * (nin + 2)
       bout = 2 * nout * (nout + 2)
       aout = 0.d0
@@ -629,20 +672,22 @@ contains
    subroutine external_to_external_expansion(neqns, nrhs, ain, gout, &
                                              store_matrix_option, initial_run, rhs_list, &
                                              mpi_comm, con_tran)
-      implicit none
-      integer :: neqns, rank, numprocs, nsphere, nrhs, mpicomm, &
+      implicit none(type, external)
+      integer, intent(in) :: neqns, nrhs
+      integer :: rank, numprocs, nsphere, mpicomm, &
                  i, j, npi1, npi2, npj1, npj2, noj, noi, task, proc, &
-                 nmin, nmax, ndim, tdim, idim, rhs
+                 nmin, ndim, idim, rhs
       logical :: smopt, rhslist(nrhs), contran(nrhs), rot
-      logical, save :: calcmat, firstrun
-      logical, optional :: store_matrix_option, initial_run, &
-                           rhs_list(nrhs), con_tran(nrhs)
-      integer, optional :: mpi_comm
-      real(8) :: rdist
-      complex(8) :: ain(neqns, nrhs), gout(neqns, nrhs), rimedium(2)
+      logical, save :: calcmat, firstrun = .true.
+      logical, optional, intent(in) :: store_matrix_option, initial_run, &
+                                       rhs_list(nrhs), con_tran(nrhs)
+      integer, optional, intent(in) :: mpi_comm
+      real(real64) :: rdist
+      complex(real64), intent(in) :: ain(neqns, nrhs)
+      complex(real64), intent(out) :: gout(neqns, nrhs)
+      complex(real64) :: rimedium(2)
       type(translation_data), pointer :: loc_tranmat
       type(translation_data), target :: tranmat
-      data firstrun/.true./
       if (present(mpi_comm)) then
          mpicomm = mpi_comm
       else
@@ -721,22 +766,13 @@ contains
                   npj2 = sphere_offset(j) + sphere_block(j)
                   if (calcmat) then
                      nmin = min(noi, noj)
-                     nmax = max(noi, noj)
                      rot = (nmin .ge. translation_switch_order)
-                     tdim = atcdim(noi, noj)
                      if (smopt .and. store_translation_matrix) then
-                        stored_trans_mat(idim)%matrix_calculated = .false.
-                        stored_trans_mat(idim)%vswf_type = 3
-                        stored_trans_mat(idim)%translation_vector = sphere_position(:, i) - sphere_position(:, j)
-                        stored_trans_mat(idim)%refractive_index = rimedium
-                        stored_trans_mat(idim)%rot_op = rot
+                        call stored_trans_mat(idim)%configure(3, sphere_position(:, i) - sphere_position(:, j), &
+                                                              rimedium, rot)
                         loc_tranmat => stored_trans_mat(idim)
                      else
-                        tranmat%matrix_calculated = .false.
-                        tranmat%vswf_type = 3
-                        tranmat%translation_vector = sphere_position(:, i) - sphere_position(:, j)
-                        tranmat%refractive_index = rimedium
-                        tranmat%rot_op = rot
+                        call tranmat%configure(3, sphere_position(:, i) - sphere_position(:, j), rimedium, rot)
                         loc_tranmat => tranmat
                      end if
                   else
@@ -744,17 +780,13 @@ contains
                   end if
                   do rhs = 1, nrhs
                      if (.not. rhslist(rhs)) cycle
-                     call coefficient_translation(noj, 2, noi, 2, ain(npj1:npj2, rhs), gout(npi1:npi2, rhs), &
-                                                  loc_tranmat, shift_op=.false., tran_op=contran(rhs))
-                     call coefficient_translation(noi, 2, noj, 2, ain(npi1:npi2, rhs), gout(npj1:npj2, rhs), &
-                                                  loc_tranmat, shift_op=.true., tran_op=contran(rhs))
+                     call loc_tranmat%apply(noj, 2, noi, 2, ain(npj1:npj2, rhs), gout(npi1:npi2, rhs), &
+                                            shift_op=.false., tran_op=contran(rhs))
+                     call loc_tranmat%apply(noi, 2, noj, 2, ain(npi1:npi2, rhs), gout(npj1:npj2, rhs), &
+                                            shift_op=.true., tran_op=contran(rhs))
                   end do
                   if (calcmat .and. (.not. (smopt .and. store_translation_matrix))) then
-                     if (rot) then
-                        deallocate (tranmat%rot_mat, tranmat%phi_mat, tranmat%z_mat)
-                     else
-                        deallocate (tranmat%gen_mat)
-                     end if
+                     call tranmat%clear()
                   end if
                end if
             end if
@@ -771,19 +803,17 @@ contains
 !
    subroutine external_to_internal_expansion(neqns, nrhs, ain, bout, &
                                              rhs_list, mpi_comm, con_tran)
-      implicit none
-      integer :: neqns, rank, numprocs, nsphere, nrhs, mpicomm, &
+      implicit none(type, external)
+      integer, intent(in) :: neqns, nrhs
+      integer :: rank, numprocs, nsphere, mpicomm, &
                  i, j, task, proc, extsurf, intsurf, ext1, ext2, &
                  int1, int2, noext, noint, rhs
       logical :: rhslist(nrhs), contran(nrhs)
-      logical, optional :: rhs_list(nrhs), con_tran(nrhs)
-      integer :: count
-      integer, optional :: mpi_comm
-      complex(8) :: ain(neqns, nrhs), bout(neqns, nrhs), rimedium(2)
-      type(translation_data), pointer :: loc_tranmat
-      type(translation_data), target :: tranmat
-      data count/0/
-      count = count + 1
+      logical, optional, intent(in) :: rhs_list(nrhs), con_tran(nrhs)
+      integer, optional, intent(in) :: mpi_comm
+      complex(real64), intent(in) :: ain(neqns, nrhs)
+      complex(real64), intent(out) :: bout(neqns, nrhs)
+      type(translation_data) :: tranmat
       if (present(mpi_comm)) then
          mpicomm = mpi_comm
       else
@@ -820,26 +850,19 @@ contains
                   end if
                   noext = sphere_order(extsurf)
                   noint = sphere_order(intsurf)
-                  rimedium = sphere_ref_index(:, intsurf)
-                  tranmat%matrix_calculated = .false.
-                  tranmat%vswf_type = 1
-                  tranmat%translation_vector = sphere_position(:, intsurf) - sphere_position(:, extsurf)
-                  tranmat%refractive_index = sphere_ref_index(:, intsurf)
-                  tranmat%rot_op = .true.
-                  loc_tranmat => tranmat
+                  call tranmat%configure(1, sphere_position(:, intsurf) - sphere_position(:, extsurf), &
+                                         sphere_ref_index(:, intsurf), .true.)
                   ext1 = sphere_offset(extsurf) + 1
                   ext2 = ext1 - 1 + sphere_block(extsurf)
                   int1 = sphere_offset(intsurf) + 1 + sphere_block(intsurf)
                   int2 = int1 - 1 + sphere_block(intsurf)
                   do rhs = 1, nrhs
-                     call coefficient_translation(noext, 2, noint, 2, ain(ext1:ext2, rhs), &
-                                                  bout(int1:int2, rhs), loc_tranmat, &
-                                                  shift_op=.false., tran_op=contran(rhs))
-                     call coefficient_translation(noint, 2, noext, 2, ain(int1:int2, rhs), &
-                                                  bout(ext1:ext2, rhs), loc_tranmat, &
-                                                  shift_op=.true., tran_op=contran(rhs))
+                     call tranmat%apply(noext, 2, noint, 2, ain(ext1:ext2, rhs), &
+                                        bout(int1:int2, rhs), shift_op=.false., tran_op=contran(rhs))
+                     call tranmat%apply(noint, 2, noext, 2, ain(int1:int2, rhs), &
+                                        bout(ext1:ext2, rhs), shift_op=.true., tran_op=contran(rhs))
                   end do
-                  if (.not. tranmat%zero_translation) deallocate (tranmat%rot_mat, tranmat%phi_mat, tranmat%z_mat)
+                  call tranmat%clear()
                end if
             end if
          end do
@@ -848,19 +871,22 @@ contains
 
    subroutine coefficient_translation(nodra, nmodea, nodrg, nmodeg, &
                                       acoef, gcoef, tranmat, shift_op, tran_op)
-      implicit none
+      implicit none(type, external)
       logical :: sop, top, rot
-      logical, optional :: shift_op, tran_op
-      integer :: nodra, nodrg, nblka, nblkg, lengtha, &
-                 lengthg, nmodea, nmodeg, nmode, shiftvec(2), n, m, im, nn1, nn2, n1, &
+      logical, optional, intent(in) :: shift_op, tran_op
+      integer, intent(in) :: nodra, nodrg, nmodea, nmodeg
+      integer :: nblka, nblkg, lengtha, lengthg, nmode, shiftvec(2), n, m, im, nn1, nn2, n1, &
                  p, nmin, m1, offset, blocksize, nmax, tdim, vtype, nodrs, nodrt
-      real(8) :: r, ct, rtran(3)
-      complex(8) :: acoef(*), gcoef(*), &
-                    a_t(0:nodra + 1, nodra, nmodea), g_t(0:nodrg + 1, nodrg, nmodeg), &
-                    a_tt(-nodra:nodra, nodra, 2), g_tt(-nodrg:nodrg, nodrg, 2), &
-                    atc(max(nodra, nodrg), max(nodra, nodrg), 2), &
-                    a_t2(nodra * (nodra + 2), 2), g_t2(nodrg * (nodrg + 2), 2), rimed(2), ephi
-      type(translation_data) :: tranmat
+      real(real64) :: r, ct, rtran(3)
+      complex(real64), intent(in) :: acoef(*)
+      complex(real64), intent(inout) :: gcoef(*)
+      complex(real64) :: &
+         a_t(0:nodra + 1, nodra, nmodea), g_t(0:nodrg + 1, nodrg, nmodeg), &
+         g_shift(0:nodrg + 1, nodrg, nmodeg), &
+         a_tt(-nodra:nodra, nodra, 2), g_tt(-nodrg:nodrg, nodrg, 2), &
+         atc(max(nodra, nodrg), max(nodra, nodrg), 2), &
+         a_t2(nodra * (nodra + 2), 2), g_t2(nodrg * (nodrg + 2), 2), rimed(2), ephi
+      class(translation_data), intent(inout) :: tranmat
       nblka = nodra * (nodra + 2)
       nblkg = nodrg * (nodrg + 2)
       nmin = min(nodra, nodrg)
@@ -985,7 +1011,8 @@ contains
                g_t(m + 1:nodrg + 1, m, 1:2) = g_tt(-m, m:nodrg, 1:2) * tranmat%phi_mat(im * m)
             end do
             call shiftcoefficient(nodrg, nmodeg, shiftvec(1), shiftvec(2), &
-                                  g_t, g_t)
+                                  g_t, g_shift)
+            g_t = g_shift
          else
             call shiftcoefficient(nodra, nmodea, shiftvec(1), shiftvec(2), &
                                   acoef(1:lengtha), &
@@ -1027,10 +1054,12 @@ contains
 
    subroutine shiftcoefficient(nodr, nmode, msign, mflip, &
                                ain, aout)
-      implicit none
-      integer :: nodr, nmode, m, n, msign, mflip, im
-      complex(8) :: ain(0:nodr + 1, nodr, nmode), at(nmode), &
-                    aout(0:nodr + 1, nodr, nmode)
+      implicit none(type, external)
+      integer, intent(in) :: nodr, nmode, msign, mflip
+      integer :: m, n, im
+      complex(real64), intent(in) :: ain(0:nodr + 1, nodr, nmode)
+      complex(real64), intent(out) :: aout(0:nodr + 1, nodr, nmode)
+      complex(real64) :: at(nmode)
       if (msign .eq. 1 .and. mflip .eq. 1) then
          aout = ain
       else

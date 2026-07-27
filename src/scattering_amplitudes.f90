@@ -9,7 +9,6 @@ module scattering_amplitudes
    use specialfuncs
    use spheredata
    use surface_subroutines
-   use translation
    implicit none
    private
    public :: amplitude_to_scattering_matrix, common_origin_amplitude_matrix, fosmcalc, fosmexpansion, &

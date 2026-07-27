@@ -13,7 +13,7 @@ module solver
    use specialfuncs
    use spheredata
    use mie
-   use translation
+   use translation, only: general_interaction_matrix
    use scatprops
    implicit none
 

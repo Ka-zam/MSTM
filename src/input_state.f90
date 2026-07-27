@@ -7,7 +7,7 @@ module input_state
    use mpidefs
    use solver
    use spheredata
-   use translation
+   use translation, only: interaction_radius
    use mie
    use nearfield
    use scatprops

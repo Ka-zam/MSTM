@@ -8,7 +8,7 @@ module nearfield
    use surface_subroutines
    use periodic_lattice_subroutines
    use scatprops
-   use translation, only: coefficient_translation, translation_data
+   use translation, only: translation_data
    implicit none
    type grid_info
       logical :: initialized
@@ -544,7 +544,7 @@ contains
 
    subroutine stored_source_vector_calculate(sourcevec, cellinfo)
       implicit none
-      integer :: nodr, nblk, i, p, cellhost
+      integer :: nodr, nblk, i, p, cellhost, vswf_type
       real(8) :: rc(3), r
       complex(8) :: sourcevec(number_eqns, 2), ri2(2)
       type(cell_info), pointer :: cellinfo
@@ -579,28 +579,25 @@ contains
                cellinfo%nispheres = cellinfo%nispheres + 1
             else
                cellinfo%outside_spheres = .true.
-               tranmat%matrix_calculated = .false.
-               tranmat%translation_vector = rc
-               tranmat%refractive_index = ri2
-               tranmat%rot_op = max(sphere_order(i), nodr) .ge. translation_switch_order
+               if (host_sphere(i) .eq. cellhost) then
+                  vswf_type = 3
+               else
+                  vswf_type = 1
+               end if
+               call tranmat%configure(vswf_type, rc, ri2, &
+                                      max(sphere_order(i), nodr) .ge. translation_switch_order)
                do p = 1, 2
                   if (host_sphere(i) .eq. cellhost) then
-                     tranmat%vswf_type = 3
-                     call coefficient_translation(sphere_order(i), 2, nodr, 2, &
-                                                  sourcevec(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), p), &
-                                                  cellinfo%reg_source_vector(:, :, p), tranmat)
+                     call tranmat%apply(sphere_order(i), 2, nodr, 2, &
+                                        sourcevec(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), p), &
+                                        cellinfo%reg_source_vector(:, :, p))
                   else
-                     tranmat%vswf_type = 1
-                     call coefficient_translation(sphere_order(i), 2, nodr, 2, &
-                                                  internal_field_vector(cellhost)%vector(:, :, p), &
-                                                  cellinfo%reg_source_vector(:, :, p), tranmat)
+                     call tranmat%apply(sphere_order(i), 2, nodr, 2, &
+                                        internal_field_vector(cellhost)%vector(:, :, p), &
+                                        cellinfo%reg_source_vector(:, :, p))
                   end if
                end do
-               if (tranmat%rot_op) then
-                  deallocate (tranmat%rot_mat, tranmat%phi_mat, tranmat%z_mat)
-               else
-                  deallocate (tranmat%gen_mat)
-               end if
+               call tranmat%clear()
             end if
          end if
       end do
