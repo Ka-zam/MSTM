@@ -1,7 +1,7 @@
 module scattering_interactions
    use, intrinsic :: iso_fortran_env, only: real64
    use constants
-   use fft_translation, only: fft_plan
+   use interaction_operators, only: create_interaction_operator, interaction_operator_t
    use mie
    use parallel_runtime, only: mpi_comm_world, mstm_global_rank, parallel_allreduce_sum, &
                                parallel_allreduce_sum_complex64_sequence, parallel_barrier, parallel_rank, parallel_size
@@ -11,7 +11,7 @@ module scattering_interactions
    use coefficient_indexing, only: mode_index
    use sphere_data
    use surface
-   use translation_expansions, only: external_to_external_expansion, external_to_internal_expansion
+   use translation_expansions, only: external_to_internal_expansion
    use translation_operator, only: translation_operator_state
    use translation_surface_interactions, only: periodic_lattice_sphere_interaction, sphere_surface_interaction
    implicit none
@@ -23,7 +23,7 @@ contains
 
    subroutine sphere_interaction(neqns, nrhs, ain, aout, initial_run, &
                                  rhs_list, mpi_comm, con_tran, mie_mult, fft_option, &
-                                 store_matrix_option, skip_external_translation)
+                                 store_matrix_option, skip_external_translation, external_operator)
       implicit none
       integer :: neqns, rank, numprocs, nrhs, nsend, &
                  mpicomm, rhs
@@ -32,6 +32,8 @@ contains
       logical, optional :: initial_run, rhs_list(nrhs), con_tran(nrhs), &
                            mie_mult(nrhs), fft_option, store_matrix_option, skip_external_translation
       integer, optional :: mpi_comm
+      class(interaction_operator_t), intent(inout), optional :: external_operator
+      class(interaction_operator_t), allocatable :: default_operator
       complex(real64) :: aout_t(neqns, nrhs), ain_t(neqns, nrhs), &
                          ain(neqns, nrhs), aout(neqns, nrhs), &
                          aout_t2(neqns, nrhs)
@@ -120,14 +122,13 @@ contains
                write (*, '('' si2b '',i3)') mstm_global_rank
                flush (6)
             end if
-            if (fftopt) then
-               call fft_plan%apply(neqns, nrhs, ain_t, aout_t, &
-                                   store_matrix_option=smopt, initial_run=initrun, &
-                                   rhs_list=rhslist, mpi_comm=mpicomm, con_tran=contran)
+            if (present(external_operator)) then
+               call external_operator%apply(neqns, nrhs, ain_t, aout_t, smopt, initrun, &
+                                            rhslist, mpicomm, contran)
             else
-               call external_to_external_expansion(neqns, nrhs, ain_t, aout_t, &
-                                                   store_matrix_option=smopt, initial_run=initrun, &
-                                                   rhs_list=rhslist, mpi_comm=mpicomm, con_tran=contran)
+               call create_interaction_operator(fftopt, default_operator)
+               call default_operator%apply(neqns, nrhs, ain_t, aout_t, smopt, initrun, &
+                                           rhslist, mpicomm, contran)
             end if
          end if
       end if

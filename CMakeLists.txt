@@ -93,6 +93,7 @@ set(mstm_core_sources
   src/translation_surface_interactions.f90
   src/translation_expansions.f90
   src/fft_translation.f90
+  src/interaction_operators.f90
   src/scattering_interactions.f90
   src/scattering_amplitudes.f90
   src/scattering_efficiencies.f90

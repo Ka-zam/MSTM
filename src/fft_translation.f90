@@ -78,7 +78,7 @@ module fft_translation
       final :: finalize_fft_plan
    end type fft_translation_plan_t
 
-   type(fft_translation_plan_t), public :: fft_plan
+   type(fft_translation_plan_t), target, public :: fft_plan
 
 contains
 

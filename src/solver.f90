@@ -12,6 +12,7 @@ module solver
    use direct_lu_solver, only: direct_lu_solver_t, solver_breakdown, solver_converged, &
                                solver_iteration_limit, solver_non_finite, solver_singular, &
                                solver_status_message
+   use interaction_operators, only: create_interaction_operator, interaction_operator_t
    use parallel_runtime, only: mpi_comm_null, mpi_comm_world, mstm_global_rank, parallel_allreduce_sum, &
                                parallel_barrier, parallel_broadcast, parallel_communicator_create, parallel_group, &
                                parallel_group_include, parallel_rank, parallel_reduce_sum, parallel_size, &
@@ -74,6 +75,7 @@ contains
                                 solution_eps, convergence_eps
       complex(real64) :: amnpkq(sphere_cluster%number_eqns), pmnpkq(sphere_cluster%number_eqns), pmnpan(sphere_cluster%number_eqns)
       complex(real64), allocatable :: pmnp0(:, :, :), amnp0(:)
+      class(interaction_operator_t), allocatable :: external_operator
       type(direct_lu_solver_t) :: direct_solver
       character(len=4) :: timeunit
       character(len=128) :: tmatrixfile
@@ -107,6 +109,7 @@ contains
       else
          mpicomm = mpi_comm_world
       end if
+      call create_interaction_operator(sphere_cluster%fft_translation_option, external_operator)
       if (present(procs_per_soln)) then
          ppsoln = procs_per_soln
       else
@@ -233,7 +236,8 @@ contains
                      if (itersoln) then
                         call solve_complex_biconjugate_gradient(niter, solneps, pmnpan, amnpkq, 0, &
                                                                 iter, solnerr, initialize_solver=initialize, &
-                                                                mpi_comm=pcomm, solution_status=ierr)
+                                                                mpi_comm=pcomm, solution_status=ierr, &
+                                                                external_operator=external_operator)
                         maxiter = max(iter, maxiter)
                         maxerr = max(solnerr, maxerr)
                         if (ierr /= solver_converged) then
@@ -432,6 +436,7 @@ contains
       real(real64), optional, intent(out) :: reciprocal_condition
       complex(real64) :: amnp(sphere_cluster%number_eqns, 2)
       complex(real64), allocatable :: pmnpan(:), pmnp0(:, :)
+      class(interaction_operator_t), allocatable :: external_operator
       type(direct_lu_solver_t) :: direct_solver
       character(len=1), optional :: solution_method
       data firstrun/.true./
@@ -440,6 +445,7 @@ contains
       else
          mpicomm = mpi_comm_world
       end if
+      call create_interaction_operator(sphere_cluster%fft_translation_option, external_operator)
       if (present(excited_spheres)) then
          exsphere = excited_spheres
       else
@@ -575,7 +581,7 @@ contains
             else
                call solve_complex_biconjugate_gradient(niter, eps, pmnpan, amnp(:, p), iterwrite, &
                                                        iter, serr, mpi_comm=pcomm, initialize_solver=initialize, &
-                                                       solution_status=ierr)
+                                                       solution_status=ierr, external_operator=external_operator)
                if (ierr /= solver_converged) then
                   istat = ierr
                   deallocate (pmnp0, pmnpan)
@@ -590,10 +596,10 @@ contains
                call sphere_interaction(sphere_cluster%number_eqns, 1, amnp(:, p), pmnpan, &
                                        initial_run=initialize, &
                                        skip_external_translation=.true., &
-                                       mpi_comm=pcomm)
+                                       mpi_comm=pcomm, external_operator=external_operator)
                call sphere_interaction(sphere_cluster%number_eqns, 1, pmnpan, pmnpan, &
                                        skip_external_translation=.true., &
-                                       mpi_comm=pcomm)
+                                       mpi_comm=pcomm, external_operator=external_operator)
                amnp(:, p) = amnp(:, p) + pmnpan
             end if
          end if
@@ -738,7 +744,7 @@ contains
 !  february 2013: number rhs option added, completely rewritten.
 !
    subroutine solve_complex_biconjugate_gradient(niter, eps, pnp, anp, iterwrite, iter, errmax, &
-                                                 initialize_solver, mpi_comm, solution_status)
+                                                 initialize_solver, mpi_comm, solution_status, external_operator)
       implicit none
       logical :: firstrun, initialize, contran2(2)
       logical, save :: inp1, inp2
@@ -750,6 +756,7 @@ contains
       integer, allocatable :: grouplist(:)
       integer, optional, intent(in) :: mpi_comm
       integer, optional, intent(out) :: solution_status
+      class(interaction_operator_t), intent(inout) :: external_operator
       real(real64) :: eps, time1, time2, eerr, enorm, errmax, errmin, time0, &
                       breakdown_scale, residual_squared
       complex(real64) :: pnp(sphere_cluster%number_eqns), anp(sphere_cluster%number_eqns), cak, csk, cbk, csk2
@@ -871,11 +878,11 @@ contains
          call sphere_interaction(neqns, 1, cp, cr, &
                                  initial_run=initialize, &
                                  skip_external_translation=.true., &
-                                 mpi_comm=mpicomm)
+                                 mpi_comm=mpicomm, external_operator=external_operator)
          cp = anp
          call sphere_interaction(neqns, 1, cp, anp, &
                                  skip_external_translation=.true., &
-                                 mpi_comm=mpicomm)
+                                 mpi_comm=mpicomm, external_operator=external_operator)
          deallocate (cr, cp, cw, cq, cap, caw, capt, cawt)
          if (present(solution_status)) solution_status = status
          return
@@ -892,10 +899,10 @@ contains
             if (iter .eq. 1) then
                call sphere_interaction(neqns, 1, cp, cr, &
                                        initial_run=initialize, &
-                                       mpi_comm=mpicomm)
+                                       mpi_comm=mpicomm, external_operator=external_operator)
             else
                call sphere_interaction(neqns, 1, cp, cr, &
-                                       mpi_comm=mpicomm)
+                                       mpi_comm=mpicomm, external_operator=external_operator)
             end if
             anp = anp + cr
             cp = cr
@@ -929,7 +936,7 @@ contains
 !
       cr = 0.d0
       call sphere_interaction(neqns, 1, anp, cr, initial_run=initialize, &
-                              mpi_comm=pcomm)
+                              mpi_comm=pcomm, external_operator=external_operator)
       cr = pnp - anp + cr
       cq = conjg(cr)
       cw = cq
@@ -984,17 +991,19 @@ contains
             contran2 = (/.false., .true./)
             ctout = 0.d0
             call sphere_interaction(neqns, 2, ctin, ctout, &
-                                    con_tran=contran2, mpi_comm=mpicomm)
+                                    con_tran=contran2, mpi_comm=mpicomm, &
+                                    external_operator=external_operator)
             cap(:) = ctout(:, 1)
             caw(:) = ctout(:, 2)
             deallocate (ctin, ctout)
          else
             if (pgroup .eq. 1) then
                call sphere_interaction(neqns, 1, cp, cap, &
-                                       mpi_comm=pcomm)
+                                       mpi_comm=pcomm, external_operator=external_operator)
             else
                call sphere_interaction(neqns, 1, cw, caw, &
-                                       con_tran=(/.true./), mpi_comm=pcomm)
+                                       con_tran=(/.true./), mpi_comm=pcomm, &
+                                       external_operator=external_operator)
             end if
             call parallel_barrier(mpi_comm=mpicomm)
             if (inp2) then
