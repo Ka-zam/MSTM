@@ -198,7 +198,7 @@ contains
    subroutine diffuse_scattering_effective_ref_index(a, qe, extrat)
       implicit none
       real(8) :: a, extrat, tvol, rc, ds, dela, qe, delextrat, extrat0
-      call target_volume(target_dimensions, tvol)
+      call calculate_target_volume(target_dimensions, tvol)
       tvol = tvol * length_scale_factor**3
       rc = (tvol * 3.d0 / 4.d0 / pi)**(1.d0 / 3.d0)
       qe = (dif_csca_ratio(1) * q_eff_tot(3, 1) + q_eff_tot(2, 1)) * cross_section_radius**2 / rc**2

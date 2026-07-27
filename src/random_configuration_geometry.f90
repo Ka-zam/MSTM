@@ -1,12 +1,14 @@
 module random_configuration_geometry
    use constants
-   use random_configuration_sorting, only: hpsort_eps_epw
+   use random_configuration_sorting, only: heap_sort_with_tolerance
    use random_configuration_state
    implicit none
    private
-   public :: add_sphere_to_cluster, cell_index, check_in_target, circumscribing_sphere, clear_cells, &
-             direct_overlap_test, hex_position_generator, initialize_cells, layered_sample, modify_cells, &
-             sample_position, sort_positions, sort_radii, swap_cell_contents, target_distribution_stats, target_volume
+   public :: add_sphere_to_cluster, calculate_target_distribution_statistics, calculate_target_volume, &
+             check_position_in_target, circumscribing_sphere, clear_cells, direct_overlap_test, &
+             generate_hexagonal_positions, initialize_cells, modify_cells, position_to_cell_index, &
+             sample_layered_configuration, sample_target_position, sort_sphere_positions, sort_sphere_radii, &
+             swap_cell_contents
 contains
 
    pure subroutine direct_overlap_test(nsphere, radius, position, overlap, distance, pair)
@@ -32,7 +34,7 @@ contains
       end do
    end subroutine direct_overlap_test
 
-   subroutine target_volume(targetdimensions, targetvol)
+   subroutine calculate_target_volume(targetdimensions, targetvol)
       implicit none
       integer :: i, ipbc(3)
       real(8) :: targetvol, targetdimensions(3)
@@ -47,18 +49,18 @@ contains
       else
          targetvol = four_pi_over_three * (targetdimensions(1) - wall_boundary_model)**3
       end if
-   end subroutine target_volume
+   end subroutine calculate_target_volume
 
-   subroutine cell_index(pos, cell)
+   subroutine position_to_cell_index(pos, cell)
       implicit none
       integer :: cell(3)
       real(8) :: pos(3)
       cell = floor((pos(:) - target_boundaries(:, 1)) / (target_boundaries(:, 2) - target_boundaries(:, 1)) * dble(cell_dim(:))) + 1
       cell = max(cell, (/1, 1, 1/))
       cell = min(cell, cell_dim)
-   end subroutine cell_index
+   end subroutine position_to_cell_index
 
-   subroutine sample_position(pos, rad)
+   subroutine sample_target_position(pos, rad)
       implicit none
       integer :: i
       real(8) :: pos(3), rannum(3), r, phi, ct, st, rad, wshift(3)
@@ -95,7 +97,7 @@ contains
          pos(2) = r * st * sin(phi)
          pos(3) = r * ct
       end if
-   end subroutine sample_position
+   end subroutine sample_target_position
 
    subroutine clear_cells()
       implicit none
@@ -183,14 +185,14 @@ contains
          iend = nsphere
       end if
       do isphere = istart, iend
-         call cell_index(position(:, isphere), cell)
+         call position_to_cell_index(position(:, isphere), cell)
          if (any(sphere_cell(:, isphere) .ne. cell)) then
             call swap_cell_contents(isphere, cell)
          end if
       end do
    end subroutine modify_cells
 
-   subroutine target_distribution_stats(nsphere, sdev)
+   subroutine calculate_target_distribution_statistics(nsphere, sdev)
       implicit none
       integer :: nsphere, n, iz, iy, ix, nt, ncell
       real(8) :: sdev, nmean
@@ -208,7 +210,7 @@ contains
          end do
       end do
       sdev = sqrt(sdev)
-   end subroutine target_distribution_stats
+   end subroutine calculate_target_distribution_statistics
 
    subroutine add_sphere_to_cluster(newrad, newpos, nsphere, radius, position, fitok)
       implicit none
@@ -222,7 +224,7 @@ contains
       elseif (target_shape .eq. 1) then
          pbc(3) = periodic_bc(3)
       end if
-      call cell_index(newpos, ccell)
+      call position_to_cell_index(newpos, ccell)
       fitok = .true.
       do m = 0, 26
          scell(1) = mod(m, 3) - 1
@@ -273,7 +275,7 @@ contains
       cell_list(ccell(1), ccell(2), ccell(3))%number_elements = n + 1
    end subroutine add_sphere_to_cluster
 
-   subroutine sort_positions(nsphere, radius, position, cindex, sort_elem, make_positive)
+   subroutine sort_sphere_positions(nsphere, radius, position, cindex, sort_elem, make_positive)
       implicit none
       logical :: makepos
       logical, optional :: make_positive
@@ -301,7 +303,7 @@ contains
          end if
       end if
       ind(1) = 0
-      call hpsort_eps_epw(nsphere, r, ind, 1.d-15)
+      call heap_sort_with_tolerance(nsphere, r, ind, 1.d-15)
       r = radius
       tpos = position
       tindex = cindex
@@ -310,17 +312,17 @@ contains
          position(:, i) = tpos(:, ind(i))
          cindex(i) = tindex(ind(i))
       end do
-   end subroutine sort_positions
+   end subroutine sort_sphere_positions
 
-   subroutine sort_radii(nsphere, radius)
+   subroutine sort_sphere_radii(nsphere, radius)
       implicit none
       integer :: nsphere, ind(nsphere)
       real(8) :: radius(nsphere)
       radius = -radius
       ind(1) = 0
-      call hpsort_eps_epw(nsphere, radius, ind, 1.d-15)
+      call heap_sort_with_tolerance(nsphere, radius, ind, 1.d-15)
       radius = -radius
-   end subroutine sort_radii
+   end subroutine sort_sphere_radii
 
    pure subroutine circumscribing_sphere(nsphere, radius, position, rcell)
       implicit none
@@ -329,12 +331,12 @@ contains
       real(8), intent(out) :: rcell
       integer :: i
       rcell = 0.d0
-      do concurrent (i = 1:nsphere) reduce(max:rcell)
+      do concurrent(i=1:nsphere) reduce(max:rcell)
          rcell = max(rcell, sqrt(sum(position(:, i)**2)) + radius(i))
       end do
    end subroutine circumscribing_sphere
 
-   subroutine check_in_target(rad, pos, wallbound, intarget)
+   subroutine check_position_in_target(rad, pos, wallbound, intarget)
       implicit none
       logical :: intarget
       integer :: i
@@ -369,9 +371,9 @@ contains
             return
          end if
       end if
-   end subroutine check_in_target
+   end subroutine check_position_in_target
 
-   subroutine layered_sample(nsphere, rad, pos, wallbound, nin)
+   subroutine sample_layered_configuration(nsphere, rad, pos, wallbound, nin)
       implicit none
       logical :: fitok, pbc(3)
       integer :: nsphere, nin, i, m, maxsamp
@@ -407,7 +409,7 @@ contains
                samp = (/wallbound(1, 1) + wdist(1), wallbound(2, 1) + wdist(2), z1/) &
                       + ((/wallbound(1, 2) - wdist(1), wallbound(2, 2) - wdist(2), z2/) &
                          - (/wallbound(1, 1) + wdist(1), wallbound(2, 1) + wdist(2), z1/)) * rannum
-               call check_in_target(rad(i) * wall_boundary_model, samp, wallbound, fitok)
+               call check_position_in_target(rad(i) * wall_boundary_model, samp, wallbound, fitok)
                if (.not. fitok) cycle
                call add_sphere_to_cluster(rad(i), samp, i - 1, rad, pos, fitok)
                if (fitok) then
@@ -427,7 +429,7 @@ contains
                samp(1) = rho * cos(phi)
                samp(2) = rho * sin(phi)
                samp(3) = z1 + dz * rannum(3)
-               call check_in_target(rad(i) * wall_boundary_model, samp, wallbound, fitok)
+               call check_position_in_target(rad(i) * wall_boundary_model, samp, wallbound, fitok)
                if (.not. fitok) cycle
                call add_sphere_to_cluster(rad(i), samp, i - 1, rad, pos, fitok)
                if (fitok) then
@@ -457,7 +459,7 @@ contains
                   samp(1) = r * st * cos(phi)
                   samp(2) = r * st * sin(phi)
                   samp(3) = r * ct
-                  call check_in_target(rad(i) * wall_boundary_model, samp, wallbound, fitok)
+                  call check_position_in_target(rad(i) * wall_boundary_model, samp, wallbound, fitok)
                end if
                if (.not. fitok) cycle
                call add_sphere_to_cluster(rad(i), samp, i - 1, rad, pos, fitok)
@@ -470,9 +472,9 @@ contains
          end if
          nin = i
       end do
-   end subroutine layered_sample
+   end subroutine sample_layered_configuration
 
-   subroutine hex_position_generator(nsphere, rad, pos, wallbound, s, allin, ns)
+   subroutine generate_hexagonal_positions(nsphere, rad, pos, wallbound, s, allin, ns)
       implicit none
       logical :: intarget, fitok, allin
       integer :: nsphere, i, l, m, n, ns, l0, imax, m0, i2, n2, m2, i21, l1, n0, ns0
@@ -504,7 +506,7 @@ contains
                   if (trad .ge. dble(i) .and. trad .lt. dble(i + 1)) then
                      trad = rad(ns + 1) * wall_boundary_model
                      intarget = .true.
-                     call check_in_target(trad, tpos, wallbound, intarget)
+                     call check_position_in_target(trad, tpos, wallbound, intarget)
                      if (intarget) then
                         call add_sphere_to_cluster(rad(ns + 1), tpos, ns, rad, pos, fitok)
                         if (fitok) then
@@ -521,7 +523,7 @@ contains
                   if (trad .ge. dble(i) .and. trad .lt. dble(i + 1)) then
                      trad = rad(ns + 1) * wall_boundary_model
                      intarget = .true.
-                     call check_in_target(trad, tpos, wallbound, intarget)
+                     call check_position_in_target(trad, tpos, wallbound, intarget)
                      if (intarget) then
                         call add_sphere_to_cluster(rad(ns + 1), tpos, ns, rad, pos, fitok)
                         if (fitok) then
@@ -539,5 +541,5 @@ contains
             return
          end if
       end do
-   end subroutine hex_position_generator
+   end subroutine generate_hexagonal_positions
 end module random_configuration_geometry

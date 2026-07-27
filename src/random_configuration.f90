@@ -8,11 +8,13 @@ module random_sphere_configuration
    use specialfuncs
    implicit none
    private
-   public :: add_sphere_to_cluster, cell_index, check_in_target, circumscribing_sphere, clear_cells, &
-             collisiontrajectory, direct_overlap_test, hex_position_generator, hpsort_eps_epw, &
-             initialize_cells, layered_sample, modify_cells, paircollisiontest, psdsamp, &
-             random_cluster_of_spheres, sample_position, samptrajectory, sort_positions, sort_radii, &
-             spheremove, swap_cell_contents, target_distribution_stats, target_volume, trajectorytest, walltest
+   public :: add_sphere_to_cluster, calculate_target_distribution_statistics, calculate_target_volume, &
+             check_position_in_target, circumscribing_sphere, clear_cells, direct_overlap_test, &
+             find_next_sphere_collision, find_next_wall_collision, generate_hexagonal_positions, &
+             heap_sort_with_tolerance, initialize_cells, modify_cells, move_spheres, position_to_cell_index, &
+             random_cluster_of_spheres, resolve_collision_velocities, sample_layered_configuration, &
+             sample_particle_radius, sample_random_velocities, sample_target_position, sort_sphere_positions, &
+             sort_sphere_radii, swap_cell_contents, test_pair_collision
    public :: c_list, c_temp, cell_list, coll_data, coll_list, component_number_fraction, component_radii, &
              l_list, max_collisions_per_sphere, max_diffusion_cpu_time, max_diffusion_simulation_time, &
              max_number_time_steps, number_components, periodic_bc, psd_sigma, random_lattice_configuration, &
@@ -74,16 +76,16 @@ contains
          do i = 1, nscompi(j)
             n = n + 1
             sphereindex(n) = j
-            call psdsamp(psd_sigma(j), 2.5d0, sphereradius(n))
+            call sample_particle_radius(psd_sigma(j), 2.5d0, sphereradius(n))
             sphereradius(n) = sphereradius(n) * component_radii(j) / radscale
             spherevol = spherevol + four_pi_over_three * sphereradius(n)**3
          end do
          !            if(psd_sigma.gt.0.1d0) then
-         !               call sort_radii(numberspheres,sphereradius)
+         !               call sort_sphere_radii(numberspheres,sphereradius)
          !               trystage1=.true.
          !            endif
       end do
-      call target_volume(targetdimensions, targetvol)
+      call calculate_target_volume(targetdimensions, targetvol)
       targetfv = spherevol / targetvol
       targetstretch = (1.d0 / targetfv)**(1.d0 / 3.d0)
       targetstretch = max(targetstretch, 1.02d0)
@@ -100,7 +102,7 @@ contains
          call initialize_cells(numberspheres)
          do i = 1, numberspheres
             do j = 1, maxsamp0
-               call sample_position(samppos, sphereradius(i))
+               call sample_target_position(samppos, sphereradius(i))
                if (sphere_1_fixed .and. i .eq. 1) samppos = 0.d0
                call add_sphere_to_cluster(sphereradius(i), samppos, i - 1, sphereradius, sphereposition, fitok)
                if (fitok) then
@@ -130,7 +132,7 @@ contains
          sum2 = 0.
          do j = 1, maxsamp1
             call initialize_cells(numberspheres)
-            call layered_sample(numberspheres, sphereradius, sphereposition, wallboundaries, maxns)
+            call sample_layered_configuration(numberspheres, sphereradius, sphereposition, wallboundaries, maxns)
             if (maxns .ge. numberspheres) exit
             sum1 = sum1 + maxns
             sum2 = sum2 + maxns * maxns
@@ -157,7 +159,8 @@ contains
       if ((.not. allin) .or. random_lattice_configuration) then
          do
             call initialize_cells(numberspheres)
-            call hex_position_generator(numberspheres, sphereradius, sphereposition, wallboundaries, targetstretch, allin, maxns)
+            call generate_hexagonal_positions(numberspheres, sphereradius, sphereposition, &
+                                              wallboundaries, targetstretch, allin, maxns)
 !if(rank.eq.0) then
 !write(*,'(i10,es12.4)') maxns,targetstretch
 !flush(6)
@@ -181,7 +184,7 @@ contains
          end if
       end if
       do i = 1, numberspheres
-         call check_in_target(sphereradius(i), sphereposition(:, i), wallboundaries, allin)
+         call check_position_in_target(sphereradius(i), sphereposition(:, i), wallboundaries, allin)
          if (.not. allin) write (iunit, '('' initially outside:'',i5,3es12.4)') i, sphereposition(:, i)
       end do
 !call direct_overlap_test(numberspheres,sphereradius,sphereposition,allin,distance=rmin,pair=opair)
@@ -196,13 +199,13 @@ contains
          end do
       end if
       if ((.not. skipdif) .and. max_number_time_steps .gt. 0 .and. max_diffusion_simulation_time .gt. 0.) then
-         call samptrajectory(numberspheres, u)
+         call sample_random_velocities(numberspheres, u)
          ncollstot = 0
          time1 = mstm_mpi_wtime()
          time0 = time1
          do j = 1, max_number_time_steps
-            call spheremove(numberspheres, sphereradius, sphereposition, u, time_step, wallboundaries, &
-                            number_wall_hits=ncolls)
+            call move_spheres(numberspheres, sphereradius, sphereposition, u, time_step, wallboundaries, &
+                              number_wall_hits=ncolls)
             ncollstot = ncollstot + ncolls
             collspersphere = dble(ncollstot) / dble(numberspheres)
             time2 = mstm_mpi_wtime()
@@ -224,16 +227,16 @@ contains
          ntsteps = min(ntsteps, j)
          if (printsim) close (31)
          do i = 1, numberspheres
-            call check_in_target(sphereradius(i), sphereposition(:, i), wallboundaries, allin)
+            call check_position_in_target(sphereradius(i), sphereposition(:, i), wallboundaries, allin)
             if (.not. allin) write (iunit, '('' outside:'',i5,3es12.4)') i, sphereposition(:, i)
          end do
 !call direct_overlap_test(numberspheres,sphereradius,sphereposition,allin,distance=rmin,pair=opair)
 !if(allin) write(iunit,'('' overlap:'',2i4,f8.3)') opair,rmin
       end if
       if (target_shape .eq. 0 .or. target_shape .eq. 1) then
-         call sort_positions(numberspheres, sphereradius, sphereposition, sphereindex, 3)
+         call sort_sphere_positions(numberspheres, sphereradius, sphereposition, sphereindex, 3)
       else
-         call sort_positions(numberspheres, sphereradius, sphereposition, sphereindex, 0)
+         call sort_sphere_positions(numberspheres, sphereradius, sphereposition, sphereindex, 0)
       end if
       if (random_lattice_configuration) then
          call random_number(rnum(1:3))

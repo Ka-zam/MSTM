@@ -67,7 +67,7 @@ contains
          if ((.not. number_spheres_specified) .or. auto_target_radius) then
             write (iunit, '(es12.4)') sphere_volume_fraction
          else
-            call target_volume(target_dimensions, tvol)
+            call calculate_target_volume(target_dimensions, tvol)
             tvol = tvol * length_scale_factor**3
             svol = four_pi_over_three * sum(sphere_radius(:)**3)
             write (iunit, '(es12.4)') svol / tvol

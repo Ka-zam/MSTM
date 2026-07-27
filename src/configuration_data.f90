@@ -2,7 +2,7 @@ module configuration_data
    use input_state
    implicit none
    private
-   public :: checkpositions, generate_random_configuration, read_sphere_data_input_file
+   public :: check_sphere_positions, generate_random_configuration, read_sphere_data_input_file
 contains
 
    subroutine read_sphere_data_input_file(mpi_comm)
@@ -149,7 +149,7 @@ contains
       end if
    end subroutine generate_random_configuration
 
-   subroutine checkpositions()
+   subroutine check_sphere_positions()
       implicit none
       logical :: check
       integer :: i, j, imin, jmin
@@ -202,5 +202,5 @@ contains
 !               jmin,sphere_position(:,jmin)
          flush (run_print_unit)
       end if
-   end subroutine checkpositions
+   end subroutine check_sphere_positions
 end module configuration_data

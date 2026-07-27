@@ -70,7 +70,7 @@ contains
                   target_dimensions(1:3) = target_width
                end if
             end if
-            call target_volume(target_dimensions, targetvol)
+            call calculate_target_volume(target_dimensions, targetvol)
             if (number_spheres_specified) then
                number_spheres = input_number_spheres
                sphere_volume_fraction = dble(input_number_spheres) * four_pi_over_three / targetvol
@@ -206,7 +206,7 @@ contains
          write (*, '('' s2 '',i3)') mstm_global_rank
          flush (6)
       end if
-      call findhostspheres()
+      call find_host_spheres()
 
       if (configuration_average .and. (target_shape .eq. 2) &
           .and. random_configuration_host .and. auto_target_radius) then
@@ -221,7 +221,7 @@ contains
          write (*, '('' s3 '',i3)') mstm_global_rank
          flush (6)
       end if
-      call sphere_layer_initialization()
+      call initialize_sphere_layers()
       call calculate_mie_coefficients(mie_epsilon)
       call init(max_mie_order)
       if (light_up) then
@@ -475,7 +475,7 @@ contains
       end if
 !call mstm_mpi(mpi_command='barrier')
       if (rank .eq. 0 .and. printout) then
-         if (check_positions) call checkpositions()
+         if (check_positions) call check_sphere_positions()
          call print_run_variables(run_print_unit)
          open (2, file=output_file, position='append')
          call print_run_variables(2)

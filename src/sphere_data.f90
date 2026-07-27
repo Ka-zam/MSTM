@@ -44,7 +44,7 @@ module spheredata
 
 contains
 
-   subroutine sphere_layer_initialization()
+   subroutine initialize_sphere_layers()
       implicit none
       type(linked_sphere_list), pointer :: slist
       integer :: i, j, l
@@ -116,7 +116,7 @@ contains
          max_sphere_depth = max(max_sphere_depth, sphere_depth(i))
       end do
 
-   end subroutine sphere_layer_initialization
+   end subroutine initialize_sphere_layers
 
    subroutine clear_host_list(hlist)
       implicit none
@@ -133,13 +133,13 @@ contains
       end do
    end subroutine clear_host_list
 !
-!  findhostspheres finds the host sphere of each sphere in the set.   host=0 for
+!  find_host_spheres finds the host sphere of each sphere in the set.   host=0 for
 !  external sphere.
 !
 !  december 2011
 !  march 2013: something changed
 !
-   subroutine findhostspheres()
+   subroutine find_host_spheres()
       implicit none
       integer :: i, j, m
       real(8) :: xij(3), rij, xspmin, zmax, zmin
@@ -185,6 +185,6 @@ contains
       zmin = minval(sphere_position(3, 1:number_spheres))
       one_side_only = (zmax * zmin .gt. 0.d0)
 
-   end subroutine findhostspheres
+   end subroutine find_host_spheres
 
 end module spheredata

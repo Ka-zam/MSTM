@@ -1,7 +1,7 @@
 module random_configuration_sorting
    implicit none
    private
-   public :: hpsort_eps_epw
+   public :: heap_sort_with_tolerance
 contains
 
 !
@@ -14,7 +14,7 @@ contains
    !
    ! Adapted from flib/hpsort_eps
    !---------------------------------------------------------------------
-   subroutine hpsort_eps_epw(n, ra, ind, eps)
+   subroutine heap_sort_with_tolerance(n, ra, ind, eps)
       !---------------------------------------------------------------------
       ! sort an array ra(1:n) into ascending order using heapsort algorithm,
       ! and considering two elements being equal if their values differ
@@ -94,7 +94,7 @@ contains
          DO while (j .le. ir)
             IF (j .lt. ir) then
                ! compare to better underling
-               IF (hslt(ra(j), ra(j + 1))) then
+               IF (is_less_with_tolerance(ra(j), ra(j + 1))) then
                   j = j + 1
                   !else if ( .not. hslt( ra (j+1),  ra (j) ) ) then
                   ! this means ra(j) == ra(j+1) within tolerance
@@ -102,7 +102,7 @@ contains
                END IF
             END IF
             ! demote rra
-            IF (hslt(rra, ra(j))) then
+            IF (is_less_with_tolerance(rra, ra(j))) then
                ra(i) = ra(j)
                ind(i) = ind(j)
                i = j
@@ -134,13 +134,13 @@ contains
       !  internal function
       !  compare two real number and return the result
 
-      pure logical function hslt(a, b)
+      pure logical function is_less_with_tolerance(a, b)
          REAL(8), intent(in) :: a, b
          IF (abs(a - b) < eps) then
-            hslt = .false.
+            is_less_with_tolerance = .false.
          ELSE
-            hslt = (a < b)
+            is_less_with_tolerance = (a < b)
          end if
-      end function hslt
-   end subroutine hpsort_eps_epw
+      end function is_less_with_tolerance
+   end subroutine heap_sort_with_tolerance
 end module random_configuration_sorting

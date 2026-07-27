@@ -1,15 +1,15 @@
 module random_configuration_dynamics
    use constants
    use mpidefs, only: mstm_mpi_wtime
-   use random_configuration_geometry, only: cell_index, check_in_target, modify_cells
+   use random_configuration_geometry, only: check_position_in_target, modify_cells, position_to_cell_index
    use random_configuration_state
    implicit none
    private
-   public :: collisiontrajectory, paircollisiontest, psdsamp, samptrajectory, spheremove, &
-             trajectorytest, walltest
+   public :: find_next_sphere_collision, find_next_wall_collision, move_spheres, &
+             resolve_collision_velocities, sample_particle_radius, sample_random_velocities, test_pair_collision
 contains
 
-   subroutine spheremove(nsphere, radius, pos, u, maxtime, wallboundaries, number_wall_hits)
+   subroutine move_spheres(nsphere, radius, pos, u, maxtime, wallboundaries, number_wall_hits)
       implicit none
       logical :: collision, wallcollision, pbc(3), intarget
       integer :: nsphere, i, is, js, collisionpair(2), iwall, iswall, m, nwhits, it
@@ -28,8 +28,8 @@ contains
       i = 1
       nwhits = 0
       time_0 = mstm_mpi_wtime()
-      call trajectorytest(nsphere, radius, pos, u, tmove, wallboundaries, &
-                          collision, tcoll, collisionpair)
+      call find_next_sphere_collision(nsphere, radius, pos, u, tmove, wallboundaries, &
+                                      collision, tcoll, collisionpair)
       sim_timings(1) = sim_timings(1) + mstm_mpi_wtime() - time_0
       do while (tmove .gt. 0.d0)
          time_0 = mstm_mpi_wtime()
@@ -50,7 +50,8 @@ contains
          sim_timings(3) = sim_timings(3) + mstm_mpi_wtime() - time_0
          time_0 = mstm_mpi_wtime()
          tcmin = tcoll
-         call walltest(nsphere, radius, pos, u, tmove, wallboundaries, twallmin, iswall, iwall)
+         call find_next_wall_collision(nsphere, radius, pos, u, tmove, wallboundaries, &
+                                       twallmin, iswall, iwall)
          sim_timings(4) = sim_timings(4) + mstm_mpi_wtime() - time_0
          time_0 = mstm_mpi_wtime()
          wallcollision = (twallmin .lt. tcmin)
@@ -69,7 +70,7 @@ contains
                      end if
                   end if
                end do
-               call check_in_target(radius(is), tpos, wallboundaries, intarget)
+               call check_position_in_target(radius(is), tpos, wallboundaries, intarget)
                if (.not. intarget) tcmin = .95 * tcmin
             end do
             if (intarget) then
@@ -127,11 +128,11 @@ contains
                is = collisionpair(1)
                js = collisionpair(2)
                if (is .eq. 1 .and. sphere_1_fixed) then
-                  call collisiontrajectory(1.d20, pos(1:3, is), u(1:3, is), 1.d0, &
-                                           pos(1:3, js), u(1:3, js), u1new, u2new)
+                  call resolve_collision_velocities(1.d20, pos(1:3, is), u(1:3, is), 1.d0, &
+                                                    pos(1:3, js), u(1:3, js), u1new, u2new)
                else
-                  call collisiontrajectory(1.d0, collpos(1:3), u(1:3, is), 1.d0, &
-                                           pos(1:3, js), u(1:3, js), u1new, u2new)
+                  call resolve_collision_velocities(1.d0, collpos(1:3), u(1:3, is), 1.d0, &
+                                                    pos(1:3, js), u(1:3, js), u1new, u2new)
                end if
                u(1:3, is) = u1new(1:3)
                u(1:3, js) = u2new(1:3)
@@ -140,25 +141,26 @@ contains
          tmove = tmove - abs(tcmin)
          coll_data(1:nsphere)%time = coll_data(1:nsphere)%time - abs(tcmin)
          if (wallcollision) then
-            call trajectorytest(nsphere, radius, pos, u, tmove, wallboundaries, &
-                                collision, tcoll, collisionpair, start_sphere=iswall, end_sphere=iswall)
+            call find_next_sphere_collision(nsphere, radius, pos, u, tmove, wallboundaries, &
+                                            collision, tcoll, collisionpair, &
+                                            start_sphere=iswall, end_sphere=iswall)
          elseif (collision) then
             is = collisionpair(1)
             js = collisionpair(2)
-            call trajectorytest(nsphere, radius, pos, u, tmove, wallboundaries, &
-                                collision, tcoll, collisionpair, start_sphere=is, end_sphere=is)
-            call trajectorytest(nsphere, radius, pos, u, tmove, wallboundaries, &
-                                collision, tcoll, collisionpair, start_sphere=js, end_sphere=js)
+            call find_next_sphere_collision(nsphere, radius, pos, u, tmove, wallboundaries, &
+                                            collision, tcoll, collisionpair, start_sphere=is, end_sphere=is)
+            call find_next_sphere_collision(nsphere, radius, pos, u, tmove, wallboundaries, &
+                                            collision, tcoll, collisionpair, start_sphere=js, end_sphere=js)
          end if
          i = i + 1
          if (sphere_1_fixed) u(:, 1) = 0.d0
          sim_timings(6) = sim_timings(6) + mstm_mpi_wtime() - time_0
       end do
       if (present(number_wall_hits)) number_wall_hits = nwhits
-   end subroutine spheremove
+   end subroutine move_spheres
 
-   subroutine walltest(nsphere, radius, pos, u, tmove, wallboundaries, twallmin, is, iswall, &
-                       start_sphere, end_sphere)
+   subroutine find_next_wall_collision(nsphere, radius, pos, u, tmove, wallboundaries, twallmin, is, iswall, &
+                                       start_sphere, end_sphere)
       implicit none
       integer :: nsphere, is, iwall, i, iswall, i1, i2
       integer, optional :: start_sphere, end_sphere
@@ -269,10 +271,10 @@ contains
             end if
          end do
       end if
-   end subroutine walltest
+   end subroutine find_next_wall_collision
 
-   subroutine trajectorytest(nsphere, radius, pos, u, maxtime, wallboundaries, collision, &
-                             tcmin, collisionpair, start_sphere, end_sphere, minimum_distance, collision_pos)
+   subroutine find_next_sphere_collision(nsphere, radius, pos, u, maxtime, wallboundaries, collision, &
+                                         tcmin, collisionpair, start_sphere, end_sphere, minimum_distance, collision_pos)
       implicit none
       logical :: collision, bndok, loccoll, pbc(3)
       integer :: nsphere, is, j, js, cell(3), ccell(3), scell(3), collisionpair(2), m, n, &
@@ -308,7 +310,7 @@ contains
          coll_data(is)%wallcoll = .false.
          coll_data(is)%time = maxtime
          coll_data(is)%collpos(:) = pos(:, is)
-         call cell_index(pos(:, is), ccell)
+         call position_to_cell_index(pos(:, is), ccell)
          do m = 0, 26
             scell(1) = mod(m, 3) - 1
             scell(2) = mod(m / 3, 3) - 1
@@ -340,8 +342,8 @@ contains
                js = llist%index
                if (js .ne. is) then
                   rcol = radius(is) + radius(js) + mindist
-                  call paircollisiontest(tpos(1:3), u(1:3, is), pos(1:3, js), u(1:3, js), &
-                                         rcol, loccoll, tcollision)
+                  call test_pair_collision(tpos(1:3), u(1:3, is), pos(1:3, js), u(1:3, js), &
+                                           rcol, loccoll, tcollision)
                   if (loccoll) then
                      if (coll_data(is)%time .gt. tcollision) then
                         coll_data(is)%time = tcollision
@@ -361,9 +363,9 @@ contains
          end do
       end do
       if (present(collision_pos)) collision_pos = collisionpos
-   end subroutine trajectorytest
+   end subroutine find_next_sphere_collision
 
-   pure subroutine paircollisiontest(pos1, u1, pos2, u2, rcol, collision, tcollision)
+   pure subroutine test_pair_collision(pos1, u1, pos2, u2, rcol, collision, tcollision)
       implicit none
       real(8), intent(in) :: pos1(3), u1(3), pos2(3), u2(3), rcol
       logical, intent(out) :: collision
@@ -392,9 +394,9 @@ contains
 !         tc2=-(b-sqrt(d))/2.d0/a
       tcollision = -(b + sqrt(b * b - 4.d0 * a * c)) / 2.d0 / a
       collision = .true.
-   end subroutine paircollisiontest
+   end subroutine test_pair_collision
 
-   pure subroutine collisiontrajectory(mass1, pos1, u1, mass2, pos2, u2, u1new, u2new)
+   pure subroutine resolve_collision_velocities(mass1, pos1, u1, mass2, pos2, u2, u1new, u2new)
       implicit none
       real(8), intent(in) :: mass1, pos1(3), u1(3), mass2, pos2(3), u2(3)
       real(8), intent(out) :: u1new(3), u2new(3)
@@ -420,9 +422,9 @@ contains
       u2pn(3) = ((mass2 - mass1) * u2p(3) + 2.d0 * mass1 * u1p(3)) / (mass1 + mass2)
       u1new = matmul(transpose(rotmat), u1pn)
       u2new = matmul(transpose(rotmat), u2pn)
-   end subroutine collisiontrajectory
+   end subroutine resolve_collision_velocities
 
-   subroutine samptrajectory(nsphere, u)
+   subroutine sample_random_velocities(nsphere, u)
       implicit none
       integer :: i, nsphere
       real(8) :: u(3, nsphere), cb, sb, alpha, ca, sa, rannum(2)
@@ -435,9 +437,9 @@ contains
          sa = sin(alpha)
          u(1:3, i) = (/ca * sb, sa * sb, cb/)
       end do
-   end subroutine samptrajectory
+   end subroutine sample_random_velocities
 
-   subroutine psdsamp(sigma, maxradius, x)
+   subroutine sample_particle_radius(sigma, maxradius, x)
       implicit none
       integer :: i
       real(8) :: sigma, maxradius, f1, fd, x, fmax, s2, xmax, &
@@ -461,5 +463,5 @@ contains
          t1 = (log(x) + 1.5d0 * s2)
          fd = exp(-t1 * t1 / (2.d0 * s2)) / sqrt_two_pi / x / sigma
       end do
-   end subroutine psdsamp
+   end subroutine sample_particle_radius
 end module random_configuration_dynamics
