@@ -1,4 +1,5 @@
 module angular_functions
+   use, intrinsic :: iso_fortran_env, only: real64
    use bessel_functions, only: riccati_bessel, riccati_hankel
    use coefficient_indexing, only: mode_index, polarized_mode_index
    use constants
@@ -9,7 +10,7 @@ contains
       use numerical_tables
       implicit none
       integer :: m, n, k, l, wmax, wmin, w, mk
-      real(8) :: vcn(0:n + l), t1, t2, t3, vcmax, vctest, rat
+      real(real64) :: vcn(0:n + l), t1, t2, t3, vcmax, vctest, rat
       vcn = 0.d0
       wmax = n + l
       wmin = max(abs(n - l), abs(m + k))
@@ -57,7 +58,7 @@ contains
       use numerical_tables
       implicit none
       integer :: m, n, k, l, wmax, w, mk, nl, m1, n1, l1, k1, w1, w2
-      real(8) :: vcn(0:n + l), t1, t2, t3, vc1
+      real(real64) :: vcn(0:n + l), t1, t2, t3, vc1
       mk = abs(m + k)
       nl = abs(n - l)
       if (nl .ge. mk) then
@@ -122,8 +123,8 @@ contains
       use numerical_tables
       implicit none
       integer :: nmax, mmax, m, n, im
-      real(8) :: dc(-mmax:mmax, 0:nmax), cbe, sbe
-      sbe = dsqrt((1.d0 + cbe) * (1.d0 - cbe))
+      real(real64) :: dc(-mmax:mmax, 0:nmax), cbe, sbe
+      sbe = sqrt((1.d0 + cbe) * (1.d0 - cbe))
       dc = 0.d0
       do m = 0, mmax
          dc(m, m) = (-1)**m * (0.5d0 * sbe)**m * bcof(m, m)
@@ -157,8 +158,8 @@ contains
       use numerical_tables
       implicit none
       integer :: kmax, nmax, k, m, sin, n, knmax, nn1, kn, im, m1
-      real(8) :: cbe, sbe, dc(-kmax:kmax, 0:nmax * (nmax + 2)), cbe2, sbe2, dk0(-nmax - 1:nmax + 1), &
-                 dk01(-nmax - 1:nmax + 1), sben, dkt, fmn, dkm0, dkm1, dkn1
+      real(real64) :: cbe, sbe, dc(-kmax:kmax, 0:nmax * (nmax + 2)), cbe2, sbe2, dk0(-nmax - 1:nmax + 1), &
+                      dk01(-nmax - 1:nmax + 1), sben, dkt, fmn, dkm0, dkm1, dkn1
 !if(light_up) then
 !write(*,'('' rot1 '',3es13.5)') cbe
 !flush(6)
@@ -167,7 +168,7 @@ contains
       if (abs(cbe) .ge. 1.d0) then
          sbe = 0.d0
       else
-         sbe = dsqrt(abs((1.d0 + cbe) * (1.d0 - cbe)))
+         sbe = sqrt(abs((1.d0 + cbe) * (1.d0 - cbe)))
       end if
       cbe2 = .5d0 * (1.d0 + cbe)
       sbe2 = .5d0 * (1.d0 - cbe)
@@ -246,10 +247,10 @@ contains
       use numerical_tables
       implicit none
       integer :: kmax, nmax, k, m, in, n, knmax, nn1, kn, im, m1
-      real(8) :: fmn
-      complex(8) :: cbe, sbe, dc(-kmax:kmax, 0:nmax * (nmax + 2)), cbe2, sbe2, dk0(-nmax - 1:nmax + 1), &
-                    dk01(-nmax - 1:nmax + 1), sben, dkt, dkm0, dkm1, dkn1
-      complex(8), optional :: sin_beta
+      real(real64) :: fmn
+      complex(real64) :: cbe, sbe, dc(-kmax:kmax, 0:nmax * (nmax + 2)), cbe2, sbe2, dk0(-nmax - 1:nmax + 1), &
+                         dk01(-nmax - 1:nmax + 1), sben, dkt, dkm0, dkm1, dkn1
+      complex(real64), optional :: sin_beta
       if (present(sin_beta)) then
          sbe = sin_beta
       else
@@ -317,9 +318,9 @@ contains
       logical, optional :: lr_model
       integer :: nodr, n, m, p, mn, i, nn1, imod, mnp, q
       integer, optional :: icon, index_model
-      real(8) :: fnm, const, alpha
-      real(8), optional :: azimuth_angle
-      complex(8) :: cb, pivec(2 * nodr * (nodr + 2), 2), drot(-1:1, 0:nodr * (nodr + 2)), tau(2), ci, cin, ephi
+      real(real64) :: fnm, const, alpha
+      real(real64), optional :: azimuth_angle
+      complex(real64) :: cb, pivec(2 * nodr * (nodr + 2), 2), drot(-1:1, 0:nodr * (nodr + 2)), tau(2), ci, cin, ephi
       data ci/(0.d0, 1.d0)/
 
       if (present(index_model)) then
@@ -383,7 +384,7 @@ contains
       use numerical_tables
       implicit none
       integer :: nmax, n, m, nn1, mn
-      real(8) :: drot(-1:1, 0:nmax * (nmax + 2)), tau(0:nmax + 1, nmax, 2), cb, fnm
+      real(real64) :: drot(-1:1, 0:nmax * (nmax + 2)), tau(0:nmax + 1, nmax, 2), cb, fnm
       call rotation_coefficients(cb, 1, nmax, drot)
       do n = 1, nmax
          nn1 = n * (n + 1)
@@ -411,11 +412,11 @@ contains
       use numerical_tables
       implicit none
       integer :: nmax, mmax, idir, k, n, m, in, kmax, ka, na, im, m1
-      real(8) :: dc(-nmax - 1:nmax + 1, -nmax - 1:nmax + 1), dk0(-nmax - 1:nmax + 1), &
-                 dk01(-nmax - 1:nmax + 1), sbe, cbe, sbe2, cbe2, sben, dkt, &
-                 fmn, dkm0, dkm1, alpha, beta, gamma
-      complex(8) :: ealpha, amn(0:nmax + 1, nmax, 2), ealpham(-nmax:nmax), &
-                    amnt(2, -nmax:nmax), a, b, ci, egamma, egammam(-nmax:nmax)
+      real(real64) :: dc(-nmax - 1:nmax + 1, -nmax - 1:nmax + 1), dk0(-nmax - 1:nmax + 1), &
+                      dk01(-nmax - 1:nmax + 1), sbe, cbe, sbe2, cbe2, sben, dkt, &
+                      fmn, dkm0, dkm1, alpha, beta, gamma
+      complex(real64) :: ealpha, amn(0:nmax + 1, nmax, 2), ealpham(-nmax:nmax), &
+                         amnt(2, -nmax:nmax), a, b, ci, egamma, egammam(-nmax:nmax)
       data ci/(0.d0, 1.d0)/
       call initialize_numerical_tables(nmax)
       dc = 0.d0
@@ -514,10 +515,10 @@ contains
       logical :: lrtran
       logical, optional :: lr_tran
       integer :: nodr, m, n, p, sp, nn1, mn
-      real(8) :: alpha, fnm, ca, sa
-      complex(8) :: drot(-1:1, 0:nodr * (nodr + 2)), tau(0:nodr + 1, nodr, 2), &
-                    taulr(0:nodr + 1, nodr, 2), cb, ealpha, ci, cin, &
-                    pmnp0(0:nodr + 1, nodr, 2, 2), ealpham(-nodr:nodr)
+      real(real64) :: alpha, fnm, ca, sa
+      complex(real64) :: drot(-1:1, 0:nodr * (nodr + 2)), tau(0:nodr + 1, nodr, 2), &
+                         taulr(0:nodr + 1, nodr, 2), cb, ealpha, ci, cin, &
+                         pmnp0(0:nodr + 1, nodr, 2, 2), ealpham(-nodr:nodr)
       data ci/(0.d0, 1.d0)/
       if (present(lr_tran)) then
          lrtran = lr_tran
@@ -541,7 +542,7 @@ contains
       end do
       ca = cos(alpha)
       sa = sin(alpha)
-      ealpha = cmplx(ca, sa, kind=kind(0.0d0))
+      ealpha = cmplx(ca, sa, kind=real64)
       call azimuthal_phase_factors(ealpha, nodr, ealpham)
       if (lrtran) then
          taulr(:, :, 1) = (tau(:, :, 1) + tau(:, :, 2))*.5d0
@@ -583,8 +584,8 @@ contains
       logical :: lrtran
       logical, optional :: lr_tran
       integer :: nodr, m, n, p, k
-      real(8) :: alpha, cbeta, cbeam, gbn
-      complex(8) :: ccb, pmnp0(0:nodr + 1, nodr, 2, 2)
+      real(real64) :: alpha, cbeta, cbeam, gbn
+      complex(real64) :: ccb, pmnp0(0:nodr + 1, nodr, 2, 2)
       if (present(lr_tran)) then
          lrtran = lr_tran
       else
@@ -593,7 +594,7 @@ contains
       ccb = cbeta
       call generate_plane_wave_coefficients(alpha, ccb, nodr, pmnp0, lr_tran=lrtran)
       do n = 1, nodr
-         gbn = dexp(-((dble(n) + .5d0) * cbeam)**2.)
+         gbn = exp(-((dble(n) + .5d0) * cbeam)**2.)
          do p = 1, 2
             do k = 1, 2
                do m = -n, -1
@@ -629,9 +630,9 @@ contains
       integer :: iadd, nlmax, iadd0, iadd1, ndim
       integer :: ma, blockdim
       integer, save :: nlmax0
-      real(8) :: r
-      complex(8) :: ri(2), ci, z(2), xi(0:nmax + lmax, 2)
-      complex(8) :: ac(ndim), act(nmax, lmax, 2), actt(2, 2)
+      real(real64) :: r
+      complex(real64) :: ri(2), ci, z(2), xi(0:nmax + lmax, 2)
+      complex(real64) :: ac(ndim), act(nmax, lmax, 2), actt(2, 2)
       data ci, nlmax0/(0.d0, 1.d0), 0/
       nlmax = max(nmax, lmax)
       nlmin = min(nmax, lmax)
@@ -739,8 +740,8 @@ contains
       use numerical_tables
       implicit none
       integer :: nmax, m, n, l, w, n21, ml, ll1, wmin, wmax, nlmin, lp1, lm1
-      real(8) :: c1, c2, vc1(0:2 * nmax), vc2(0:2 * nmax)
-      complex(8) :: ci, inlw
+      real(real64) :: c1, c2, vc1(0:2 * nmax), vc2(0:2 * nmax)
+      complex(real64) :: ci, inlw
       data ci/(0.d0, 1.d0)/
       if (allocated(vcc_const)) deallocate (vcc_const, fnm1_const, fn_const, fnp1_const)
       allocate (vcc_const(nmax, nmax * (nmax + 2), 0:2 * nmax), fnm1_const(-nmax:nmax, nmax), &
@@ -783,8 +784,8 @@ contains
       use numerical_tables
       implicit none
       integer :: nodrmax, v, w, wmax, wmin, n, l, m, k, m1m, mn, kl
-      real(8) :: vc1(0:2 * nodrmax), vc2(0:2 * nodrmax)
-      complex(8) :: ci, c, a
+      real(real64) :: vc1(0:2 * nodrmax), vc2(0:2 * nodrmax)
+      complex(real64) :: ci, c, a
       data ci/(0.d0, 1.d0)/
       if (allocated(tran_coef)) deallocate (tran_coef)
       allocate (tran_coef(nodrmax * (nodrmax + 2), nodrmax * (nodrmax + 2), 0:2 * nodrmax))
@@ -826,12 +827,12 @@ contains
                  nblks, nblkt, w, v, wmin, itype, nmodes, nmodet, nmode, mna, kla
       integer, optional :: vswf_type, mode_s, mode_t, index_model
       integer, save :: setnodrmax
-      real(8) :: r, ct, xp(3), ymn(-nodr_s - nodr_t:nodr_s + nodr_t, 0:nodr_s + nodr_t)
-      real(8) :: translation_vector(3)
-      complex(8) :: ri(2), ephi, rri, ephim(-nodr_s - nodr_t:nodr_s + nodr_t), &
-                    hn(0:nodr_s + nodr_t, 2), a1, a2, b1, b2
-      complex(8) :: ac_matrix(nodr_t * (nodr_t + 2), nodr_s * (nodr_s + 2), 1:2)
-      complex(8), optional :: refractive_index(2)
+      real(real64) :: r, ct, xp(3), ymn(-nodr_s - nodr_t:nodr_s + nodr_t, 0:nodr_s + nodr_t)
+      real(real64) :: translation_vector(3)
+      complex(real64) :: ri(2), ephi, rri, ephim(-nodr_s - nodr_t:nodr_s + nodr_t), &
+                         hn(0:nodr_s + nodr_t, 2), a1, a2, b1, b2
+      complex(real64) :: ac_matrix(nodr_t * (nodr_t + 2), nodr_s * (nodr_s + 2), 1:2)
+      complex(real64), optional :: refractive_index(2)
       data setnodrmax/0/
       nblks = nodr_s * (nodr_s + 2)
       nblkt = nodr_t * (nodr_t + 2)
@@ -882,7 +883,7 @@ contains
          if (xp(1) .eq. 0.d0 .and. xp(2) .eq. 0.d0) then
             ephi = (1.d0, 0.d0)
          else
-            ephi = cmplx(xp(1), xp(2), kind=kind(0.0d0)) / sqrt(xp(1) * xp(1) + xp(2) * xp(2))
+            ephi = cmplx(xp(1), xp(2), kind=real64) / sqrt(xp(1) * xp(1) + xp(2) * xp(2))
          end if
          ephim(0) = 1.d0
          do m = 1, wmax
@@ -956,10 +957,10 @@ contains
       implicit none
       integer :: nmax, lmax, n, l, m, w, n21, wmin, wmax
       integer, parameter :: nlim = 200
-      real(8) :: r, alnw, sum, eps
-      real(8) :: vc1(0:nlim + lmax)
-      complex(8) :: ri, ci, z, a, b, c
-      complex(8) :: xi(0:nlim + lmax)
+      real(real64) :: r, alnw, sum, eps
+      real(real64) :: vc1(0:nlim + lmax)
+      complex(real64) :: ri, ci, z, a, b, c
+      complex(real64) :: xi(0:nlim + lmax)
       data ci/(0.d0, 1.d0)/
       if (r .eq. 0.d0) then
          nmax = lmax
@@ -1044,9 +1045,9 @@ contains
 !
    pure subroutine cartesian_to_spherical(xp, r, ct, ep)
       implicit none
-      real(8), intent(in) :: xp(3)
-      real(8), intent(out) :: r, ct
-      complex(8), intent(out) :: ep
+      real(real64), intent(in) :: xp(3)
+      real(real64), intent(out) :: r, ct
+      complex(real64), intent(out) :: ep
       r = xp(1) * xp(1) + xp(2) * xp(2) + xp(3) * xp(3)
       if (r .eq. 0.d0) then
          ct = 1.d0
@@ -1058,7 +1059,7 @@ contains
       if (xp(1) .eq. 0.d0 .and. xp(2) .eq. 0.d0) then
          ep = (1.d0, 0.d0)
       else
-         ep = cmplx(xp(1), xp(2), kind=kind(0.0d0)) / sqrt(xp(1) * xp(1) + xp(2) * xp(2))
+         ep = cmplx(xp(1), xp(2), kind=real64) / sqrt(xp(1) * xp(1) + xp(2) * xp(2))
       end if
       return
    end subroutine cartesian_to_spherical
@@ -1066,10 +1067,10 @@ contains
    pure subroutine cartesian_vectors_to_spherical(nt, xp, xps)
       implicit none
       integer, intent(in) :: nt
-      real(8), intent(in) :: xp(3, nt)
-      real(8), intent(out) :: xps(3, nt)
+      real(real64), intent(in) :: xp(3, nt)
+      real(real64), intent(out) :: xps(3, nt)
       integer :: i
-      real(8) :: r, ct, phi
+      real(real64) :: r, ct, phi
       do concurrent(i=1:nt) local(r, ct, phi)
          r = xp(1, i) * xp(1, i) + xp(2, i) * xp(2, i) + xp(3, i) * xp(3, i)
          if (r .eq. 0.d0) then
@@ -1081,7 +1082,7 @@ contains
             if (xp(1, i) .eq. 0.d0 .and. xp(2, i) .eq. 0.d0) then
                phi = 0.d0
             else
-               phi = datan2(xp(2, i), xp(1, i))
+               phi = atan2(xp(2, i), xp(1, i))
             end if
          end if
          xps(:, i) = (/ct, phi, r/)
@@ -1097,8 +1098,8 @@ contains
       implicit none
       integer :: dir, n, i
       integer, optional :: num
-      real(8) :: xp(3, *), eulerangf(3), eulerang(3), cang(3), sang(3), &
-                 mat1(3, 3), mat2(3, 3), mat3(3, 3), xprot(3, *), xpt(3)
+      real(real64) :: xp(3, *), eulerangf(3), eulerang(3), cang(3), sang(3), &
+                      mat1(3, 3), mat2(3, 3), mat3(3, 3), xprot(3, *), xpt(3)
       if (present(num)) then
          n = num
       else
@@ -1138,7 +1139,7 @@ contains
    subroutine azimuthal_phase_factors(ep, nodr, epm)
       implicit none
       integer :: nodr, m
-      complex(8) :: ep, epm(-nodr:nodr)
+      complex(real64) :: ep, epm(-nodr:nodr)
       epm(0) = (1.d0, 0.d0)
       do m = 1, nodr
          epm(m) = ep * epm(m - 1)
@@ -1155,9 +1156,9 @@ contains
    subroutine estimate_plane_wave_order(r, rimedium, eps, nodr)
       implicit none
       integer :: nodr, n1, n
-      real(8) :: r, eps, err
-      complex(8), allocatable :: jn(:)
-      complex(8) :: sum, ci, eir, rimedium(2), rri, rib
+      real(real64) :: r, eps, err
+      complex(real64), allocatable :: jn(:)
+      complex(real64) :: sum, ci, eir, rimedium(2), rri, rib
       data ci/(0.d0, 1.d0)/
       rib = 2.d0 / (1.d0 / rimedium(1) + 1.d0 / rimedium(2))
       n1 = max(10, int(3.*r + 1))

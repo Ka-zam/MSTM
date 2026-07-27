@@ -1,5 +1,6 @@
 module mie
 
+   use, intrinsic :: iso_fortran_env, only: real64
 contains
 !
 !  calculation of the max order of sphere expansions and storage of mie coefficients
@@ -16,10 +17,10 @@ contains
       implicit none
       integer :: i, nodrn, nsphere, ntermstot, nblktot, nterms, &
                  n1, n2, j, n
-      real(8) :: qext, qsca, qeps, qabs
-      complex(8) :: rihost(2)
-      complex(8), allocatable :: anp(:, :, :), cnp(:, :, :), unp(:, :, :), &
-                                 vnp(:, :, :), dnp(:, :, :), anpinv(:, :, :)
+      real(real64) :: qext, qsca, qeps, qabs
+      complex(real64) :: rihost(2)
+      complex(real64), allocatable :: anp(:, :, :), cnp(:, :, :), unp(:, :, :), &
+                                      vnp(:, :, :), dnp(:, :, :), anpinv(:, :, :)
       nsphere = number_spheres
       if (allocated(sphere_order)) deallocate (sphere_order, mie_offset, sphere_block, &
                                                qext_mie, qabs_mie, optically_active, sphere_offset)
@@ -126,7 +127,7 @@ contains
       use surface
       implicit none
       integer :: i
-      complex(8) :: rihost(2)
+      complex(real64) :: rihost(2)
       if (plane_surface_present .and. (host_sphere(i) .eq. 0)) then
          rihost = layer_ref_index(sphere_layer(i))
       else
@@ -138,7 +139,7 @@ contains
 !
    subroutine left_right_to_mode_matrix(at, am)
       implicit none
-      complex(8) :: a(2, 2), am(2, 2), at(2, 2)
+      complex(real64) :: a(2, 2), am(2, 2), at(2, 2)
       a = at
       am(1, 1) = (a(1, 1) + a(1, 2) + a(2, 1) + a(2, 2)) / 2.
       am(1, 2) = (a(1, 1) - a(1, 2) + a(2, 1) - a(2, 2)) / 2.
@@ -155,16 +156,16 @@ contains
       use special_functions
       implicit none
       integer :: nstop, n, i, p, q, nodr0, s, t, ss, st
-      real(8) :: x, qeps, qext, qsca, fn1, err, qextt, qabs
-      real(8), allocatable :: qext1(:)
-      complex(8) :: ci, ri(2), xri(2, 2), rii(2, 2), ribulk(2), psip(2, 2), &
-                    xip(2, 2), gmatinv(2, 2), bmatinv(2, 2), gmat(2, 2), bmat(2, 2), &
-                    amat(2, 2), dmat(2, 2), umat(2, 2), vmat(2, 2), amatinv(2, 2), &
-                    psipn(2, 2), xipn(2, 2)
-      complex(8), optional :: anp_mie(2, 2, *), dnp_mie(2, 2, *), ri_medium(2), &
-                              unp_mie(2, 2, *), vnp_mie(2, 2, *), cnp_mie(2, 2, *), &
-                              anp_inv_mie(2, 2, *), dnp_eff_mie(2, 2, *), anp_eff_mie(2, 2, *)
-      complex(8), allocatable :: psi(:, :, :), xi(:, :, :)
+      real(real64) :: x, qeps, qext, qsca, fn1, err, qextt, qabs
+      real(real64), allocatable :: qext1(:)
+      complex(real64) :: ci, ri(2), xri(2, 2), rii(2, 2), ribulk(2), psip(2, 2), &
+                         xip(2, 2), gmatinv(2, 2), bmatinv(2, 2), gmat(2, 2), bmat(2, 2), &
+                         amat(2, 2), dmat(2, 2), umat(2, 2), vmat(2, 2), amatinv(2, 2), &
+                         psipn(2, 2), xipn(2, 2)
+      complex(real64), optional :: anp_mie(2, 2, *), dnp_mie(2, 2, *), ri_medium(2), &
+                                   unp_mie(2, 2, *), vnp_mie(2, 2, *), cnp_mie(2, 2, *), &
+                                   anp_inv_mie(2, 2, *), dnp_eff_mie(2, 2, *), anp_eff_mie(2, 2, *)
+      complex(real64), allocatable :: psi(:, :, :), xi(:, :, :)
       data ci/(0.d0, 1.d0)/
 
       if (present(ri_medium)) then
@@ -301,8 +302,8 @@ contains
       use sphere_data
       implicit none
       integer :: i, n, p, nodr, n1, n2, nterms
-      complex(8) :: cx(0:nodr + 1, nodr, 2), cy(0:nodr + 1, nodr, 2)
-      complex(8), allocatable :: an1(:, :, :)
+      complex(real64) :: cx(0:nodr + 1, nodr, 2), cy(0:nodr + 1, nodr, 2)
+      complex(real64), allocatable :: an1(:, :, :)
       character(len=1), optional :: mie_coefficient
       character(len=1) :: miecoefficient
 
@@ -350,10 +351,10 @@ contains
       implicit none
       integer :: neqns, i, n, p, q, nodri, nblki, n1, n2, b11, b12, b21, b22, idir, &
                  nterms, j, nrhs
-      complex(8) :: ain(neqns, nrhs), aout(neqns, nrhs)
-      complex(8), allocatable :: gin_t(:, :, :), aout_t(:, :, :), &
-                                 an1(:, :, :), dn1(:, :, :), un1(:, :, :), vn1(:, :, :), &
-                                 bin_t(:, :, :), fout_t(:, :, :)
+      complex(real64) :: ain(neqns, nrhs), aout(neqns, nrhs)
+      complex(real64), allocatable :: gin_t(:, :, :), aout_t(:, :, :), &
+                                      an1(:, :, :), dn1(:, :, :), un1(:, :, :), vn1(:, :, :), &
+                                      bin_t(:, :, :), fout_t(:, :, :)
       logical, optional :: rhs_list(nrhs)
       logical :: rhslist(nrhs)
       if (present(rhs_list)) then

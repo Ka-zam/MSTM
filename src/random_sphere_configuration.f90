@@ -1,4 +1,5 @@
 module random_sphere_configuration
+   use, intrinsic :: iso_fortran_env, only: real64
    use constants
    use parallel_runtime
    use random_configuration_dynamics
@@ -34,11 +35,11 @@ contains
       integer :: i, j, maxsamp0, maxsamp1, numberspheres, ncolls, ncollstot, maxns, ntsteps, istatus, iunit, &
                  rank, opair(2), simulation_unit, &
                  nscompi(4), sphereindex(numberspheres), n
-      real(8) :: samppos(3), sphereposition(3, numberspheres), sphereradius(numberspheres), &
-                 spherevol, targetfv, u(3, numberspheres), wallboundaries(3, 2), targetvol, targetdimensions(3), &
-                 targetstretch, collspersphere, mfp, time0, time1, sum1, sum2, sdev, mean, time2, rmin, rnum(3), &
-                 radscale
-      real(8), allocatable, save :: saved_sphereradius(:), saved_sphereposition(:, :)
+      real(real64) :: samppos(3), sphereposition(3, numberspheres), sphereradius(numberspheres), &
+                      spherevol, targetfv, u(3, numberspheres), wallboundaries(3, 2), targetvol, targetdimensions(3), &
+                      targetstretch, collspersphere, mfp, time0, time1, sum1, sum2, sdev, mean, time2, rmin, rnum(3), &
+                      radscale
+      real(real64), allocatable, save :: saved_sphereradius(:), saved_sphereposition(:, :)
       character(len=255), optional :: simulation_file
       data maxsamp0, maxsamp1, firstrun/10000, 100, .true./
       if (present(use_saved_values)) then

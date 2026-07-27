@@ -1,4 +1,5 @@
 module effective_medium_analysis
+   use, intrinsic :: iso_fortran_env, only: real64
    use constants
    use input_state
    implicit none
@@ -7,7 +8,7 @@ contains
    subroutine effective_extinction_coefficient_ratio(scacoef, abscoef, srat, arat)
       implicit none
       integer :: i
-      real(8) :: miesca, mieabs, scaq, absq, h, scacoef, abscoef, root0, root, func, dfunc, srat, arat, across
+      real(real64) :: miesca, mieabs, scaq, absq, h, scacoef, abscoef, root0, root, func, dfunc, srat, arat, across
 
 !         miesca=(mean_qext_mie-mean_qabs_mie)*sphere_volume_fraction*3.d0/4.d0/length_scale_factor
       mieabs = (mean_qabs_mie) * sphere_volume_fraction * 3.d0 / 4.d0 / length_scale_factor
@@ -71,17 +72,17 @@ contains
       use parallel_runtime
       implicit none
       integer :: ndat, i, rank
-      real(8) :: d, xdat(ndat), phase(ndat), amplitude(ndat), &
-                 phaseslope, phaseintercept, &
-                 ampslope, ampintercept, oldphase, &
-                 newphase
-      complex(8) :: edat(ndat), rieff, e0
+      real(real64) :: d, xdat(ndat), phase(ndat), amplitude(ndat), &
+                      phaseslope, phaseintercept, &
+                      ampslope, ampintercept, oldphase, &
+                      newphase
+      complex(real64) :: edat(ndat), rieff, e0
       call mstm_mpi(mpi_command='rank', mpi_rank=rank)
 
       oldphase = -1.d10
       do i = 1, ndat
          xdat(i) = d * dble(i - 1)
-         phase(i) = datan2(aimag(edat(i)), dble(edat(i)))
+         phase(i) = atan2(aimag(edat(i)), dble(edat(i)))
          amplitude(i) = dlog(abs(edat(i)))
       end do
       oldphase = phase(1)
@@ -101,16 +102,16 @@ contains
                              phaseslope, phaseintercept)
       call linear_regression(ndat, amplitude, xdat, &
                              ampslope, ampintercept)
-      rieff = cmplx(phaseslope, -ampslope, kind=kind(0.0d0))
-      e0 = dexp(ampintercept) * exp((0.d0, 1.d0) * phaseintercept)
+      rieff = cmplx(phaseslope, -ampslope, kind=real64)
+      e0 = exp(ampintercept) * exp((0.d0, 1.d0) * phaseintercept)
    end subroutine effective_refractive_index
 
    pure subroutine linear_regression(ndat, fdat, xdat, a, b)
       implicit none
       integer, intent(in) :: ndat
-      real(8), intent(in) :: fdat(ndat), xdat(ndat)
-      real(8), intent(out) :: a, b
-      real(8) :: xbar, x2bar, fbar, xfbar
+      real(real64), intent(in) :: fdat(ndat), xdat(ndat)
+      real(real64), intent(out) :: a, b
+      real(real64) :: xbar, x2bar, fbar, xfbar
       fbar = sum(fdat(1:ndat)) / dble(ndat)
       xbar = sum(xdat(1:ndat)) / dble(ndat)
       xfbar = sum(xdat(1:ndat) * fdat(1:ndat)) / dble(ndat)
@@ -123,8 +124,8 @@ contains
       use levenberg_marquardt
       implicit none
       integer :: info, n0, m0, fitorder
-      real(8) :: parm(3), vec(4 * t_matrix_order), xfit, rii, rir, fv
-      complex(8) :: anp(2, t_matrix_order), rifit, ri1(2), rim(2)
+      real(real64) :: parm(3), vec(4 * t_matrix_order), xfit, rii, rir, fv
+      complex(real64) :: anp(2, t_matrix_order), rifit, ri1(2), rim(2)
 
       ri1 = 1.d0
       rim = layer_ref_index(0)
@@ -147,7 +148,7 @@ contains
       else
          rii = mean_qext_mie * area_mean_radius**2 * 3.d0 * dble(number_spheres) / (4.d0 * xfit**3) / 2.d0
          rir = (1.d0 - fv) + fv * dble(ref_index_scale_factor)
-         rifit = cmplx(rir, rii / 2.d0, kind=kind(0.0d0))
+         rifit = cmplx(rir, rii / 2.d0, kind=real64)
       end if
       parm = (/dble(rifit), aimag(rifit), xfit/)
       effective_fit_order = fitorder
@@ -157,17 +158,17 @@ contains
       effective_fit_coefficients = anp(:, 1:fitorder)
       call lmdif1(effective_refractive_index_residual, m0, n0, parm, vec, 1.d-6, info)
       deallocate (effective_fit_coefficients)
-      rifit = cmplx(parm(1), parm(2), kind=kind(0.0d0))
+      rifit = cmplx(parm(1), parm(2), kind=real64)
       xfit = parm(3)
    end subroutine fit_effective_refractive_index
 
    subroutine effective_refractive_index_residual(ndat, nparm, xparm, fdat, iflag)
       implicit none
       integer :: nparm, ndat, iflag, n, i
-      real(8) :: xparm(nparm), fdat(ndat), xsp, qext, qabs, qsca
-      complex(8) :: ri(2), anpmie(2, 2, effective_fit_order), a(2), ri0(2)
+      real(real64) :: xparm(nparm), fdat(ndat), xsp, qext, qabs, qsca
+      complex(real64) :: ri(2), anpmie(2, 2, effective_fit_order), a(2), ri0(2)
       ri0(:) = layer_ref_index(0)
-      ri(:) = cmplx(xparm(1), xparm(2), kind=kind(0.0d0))
+      ri(:) = cmplx(xparm(1), xparm(2), kind=real64)
       if (nparm .eq. 3) then
          xsp = xparm(3)
       else
@@ -197,7 +198,7 @@ contains
 
    subroutine diffuse_scattering_effective_refractive_index(a, qe, extrat)
       implicit none
-      real(8) :: a, extrat, tvol, rc, ds, dela, qe, delextrat, extrat0
+      real(real64) :: a, extrat, tvol, rc, ds, dela, qe, delextrat, extrat0
       call calculate_target_volume(target_dimensions, tvol)
       tvol = tvol * length_scale_factor**3
       rc = (tvol * 3.d0 / 4.d0 / pi)**(1.d0 / 3.d0)

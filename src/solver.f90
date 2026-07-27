@@ -7,6 +7,7 @@
 !                february 2013
 !
 module solver
+   use, intrinsic :: iso_fortran_env, only: real64
    use parallel_runtime
    use numerical_tables
    use runtime_support, only: open_output_file, runtime_failed, set_runtime_error, synchronize_runtime_status
@@ -30,15 +31,15 @@ contains
                  n, m, p, nssoln, kq, ns
       integer, save :: pcomm, prank, pgroup, ppsoln, pcomm0
       integer, optional :: mpi_comm, procs_per_soln, max_iterations, solution_status
-      real(8) :: r0(3), maxerr, qeffi(3, number_spheres), &
-                 dqeffi(3, number_spheres), qeff(3), qeffold(3), time0, time1, timepersoln, timeleft, &
-                 solneps, conveps, solnerr, converr(1), qteff(3), &
-                 ttime(0:6), dqteff(3), converri, qeffiold(3)
-      real(8), allocatable :: sexp(:, :), scexp(:, :)
-      real(8), optional :: sphere_qeff(3, number_spheres), &
-                           solution_eps, convergence_eps
-      complex(8) :: amnpkq(number_eqns), pmnpkq(number_eqns), pmnpan(number_eqns)
-      complex(8), allocatable :: pmnp0(:, :, :), amnp0(:)
+      real(real64) :: r0(3), maxerr, qeffi(3, number_spheres), &
+                      dqeffi(3, number_spheres), qeff(3), qeffold(3), time0, time1, timepersoln, timeleft, &
+                      solneps, conveps, solnerr, converr(1), qteff(3), &
+                      ttime(0:6), dqteff(3), converri, qeffiold(3)
+      real(real64), allocatable :: sexp(:, :), scexp(:, :)
+      real(real64), optional :: sphere_qeff(3, number_spheres), &
+                                solution_eps, convergence_eps
+      complex(real64) :: amnpkq(number_eqns), pmnpkq(number_eqns), pmnpan(number_eqns)
+      complex(real64), allocatable :: pmnp0(:, :, :), amnp0(:)
       character(len=4) :: timeunit
       character(len=128) :: tmatrixfile
       character(len=256) :: io_message
@@ -384,9 +385,9 @@ contains
       integer, save :: pcomm, synccomm1, synccomm2, p1, p2
       integer, allocatable :: grouplist(:)
       integer, optional :: mpi_comm
-      real(8) :: alpha, sinc, eps, serr, qeff(3, qeffdim, number_spheres), maxerr
-      complex(8) :: amnp(number_eqns, 2)
-      complex(8), allocatable :: pmnpan(:), pmnp0(:, :)
+      real(real64) :: alpha, sinc, eps, serr, qeff(3, qeffdim, number_spheres), maxerr
+      complex(real64) :: amnp(number_eqns, 2)
+      complex(real64), allocatable :: pmnpan(:), pmnp0(:, :)
       character(len=1), optional :: solution_method
       data firstrun/.true./
       if (present(mpi_comm)) then
@@ -607,10 +608,10 @@ contains
       integer :: ierr, ierr_buffer(1), rank, niter, iter, mpicomm
       integer, allocatable, save :: indx(:)
       integer, optional :: number_iterations, solution_status, mpi_comm
-      real(8) :: dsign, serr, seps
-      real(8), optional :: solution_error, solution_eps
-      complex(8) :: pnp(number_eqns), anp(number_eqns), rnp(number_eqns)
-      complex(8), allocatable, save :: amat(:, :), lumat(:, :)
+      real(real64) :: dsign, serr, seps
+      real(real64), optional :: solution_error, solution_eps
+      complex(real64) :: pnp(number_eqns), anp(number_eqns), rnp(number_eqns)
+      complex(real64), allocatable, save :: amat(:, :), lumat(:, :)
       data firstrun/.true./
       if (present(mpi_comm)) then
          mpicomm = mpi_comm
@@ -701,10 +702,10 @@ contains
       integer, save :: pgroup, pcomm, synccomm1, synccomm2
       integer, allocatable :: grouplist(:)
       integer, optional :: mpi_comm
-      real(8) :: eps, time1, time2, eerr, enorm, errmax, errmin, time0
-      complex(8) :: pnp(number_eqns), anp(number_eqns), cak, csk, cbk, csk2
-      complex(8), allocatable :: cr(:), cp(:), cw(:), cq(:), cap(:), caw(:), &
-                                 capt(:), cawt(:), ctin(:, :), ctout(:, :)
+      real(real64) :: eps, time1, time2, eerr, enorm, errmax, errmin, time0
+      complex(real64) :: pnp(number_eqns), anp(number_eqns), cak, csk, cbk, csk2
+      complex(real64), allocatable :: cr(:), cp(:), cw(:), cq(:), cap(:), caw(:), &
+                                      capt(:), cawt(:), ctin(:, :), ctout(:, :)
       data firstrun/.true./
       data writetime/0/
 
@@ -988,8 +989,8 @@ contains
    subroutine lu_decomposition(a, n, indx, d, ierr)
       implicit none
       integer :: n, indx(n), i, j, k, imax, ierr
-      real(8) :: tiny, aamax, d, vv(n), dum, time1, time2
-      complex(8) :: a(n, n), sum, cdum
+      real(real64) :: tiny, aamax, d, vv(n), dum, time1, time2
+      complex(real64) :: a(n, n), sum, cdum
       data tiny/1.d-20/
       ierr = 0
       d = 1.d0
@@ -1062,7 +1063,7 @@ contains
    subroutine lu_backsubstitution(a, n, indx, b)
       implicit none
       integer :: n, indx(n), i, ii, j, ll
-      complex(8) :: a(n, n), b(n), sum
+      complex(real64) :: a(n, n), b(n), sum
       ii = 0
       do i = 1, n
          ll = indx(i)

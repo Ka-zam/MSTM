@@ -1,4 +1,5 @@
 module random_orientation_scattering
+   use, intrinsic :: iso_fortran_env, only: real32, real64
    use constants
    use fft_translation
    use mie
@@ -37,19 +38,19 @@ contains
                  new_comm, new_rank, nblkw, wv, sizedm, sizetm, nread, mpicomm, rank0
       integer, allocatable :: windex(:), vindex(:), wvindex(:), wvnum(:), group_list(:)
       integer, optional :: number_processors, mpi_comm, override_order
-      real(8) :: sm(4, 4, 0:*), fl, xv, fl2, cbeam, gbn, wvperproc, sum, &
-                 time1, time2, smcf(4, 4, 0:*), qextt, qscatt
-      real(8), allocatable :: vc(:)
-      real(8), optional :: beam_width
-      complex(8) :: ci, cin, a, tct, tcp(2)
-      complex(8), allocatable :: aw(:, :, :), bw(:, :, :), cw(:), &
-                                 dw(:), pp(:, :, :), bm(:, :, :), &
-                                 am(:, :, :), fm(:, :, :, :, :), bmcf(:, :, :), &
-                                 amcf(:, :, :), fmcf(:, :, :, :, :), awcf(:, :, :), &
-                                 bwcf(:, :, :), cwcf(:), dwcf(:)
-      complex(8), allocatable :: dm(:, :, :, :, :, :), dmcf(:, :, :, :, :, :)
-      complex(8), optional :: mean_t_matrix(*)
-      complex(4), allocatable :: tc(:, :, :, :)
+      real(real64) :: sm(4, 4, 0:*), fl, xv, fl2, cbeam, gbn, wvperproc, sum, &
+                      time1, time2, smcf(4, 4, 0:*), qextt, qscatt
+      real(real64), allocatable :: vc(:)
+      real(real64), optional :: beam_width
+      complex(real64) :: ci, cin, a, tct, tcp(2)
+      complex(real64), allocatable :: aw(:, :, :), bw(:, :, :), cw(:), &
+                                      dw(:), pp(:, :, :), bm(:, :, :), &
+                                      am(:, :, :), fm(:, :, :, :, :), bmcf(:, :, :), &
+                                      amcf(:, :, :), fmcf(:, :, :, :, :), awcf(:, :, :), &
+                                      bwcf(:, :, :), cwcf(:), dwcf(:)
+      complex(real64), allocatable :: dm(:, :, :, :, :, :), dmcf(:, :, :, :, :, :)
+      complex(real64), optional :: mean_t_matrix(*)
+      complex(real32), allocatable :: tc(:, :, :, :)
       character(len=30) :: tmatrixfile
       data ci/(0.d0, 1.d0)/
       if (present(mpi_comm)) then
@@ -223,7 +224,7 @@ contains
 !  compute the GB modified T matrix
 !
          do n = 1, nodrrhs
-            gbn = dexp(-((dble(n) + .5d0) * cbeam)**2.)
+            gbn = exp(-((dble(n) + .5d0) * cbeam)**2.)
             cin = ci**(n + 1)
             pp(n, 1, 1) = -.5d0 * cin * fnr(n + n + 1) * gbn
             pp(n, 2, 1) = -pp(n, 1, 1)
@@ -606,8 +607,8 @@ contains
    subroutine evaluate_random_orientation_scattering_matrix(ct, smc, nodrexp, sm)
       implicit none
       integer :: nodrexp, n, nn0, nnp2, nnm2
-      real(8) :: smc(4, 4, 0:nodrexp), sm(4, 4), dc(-2:2, 0:nodrexp * (nodrexp + 2)), &
-                 ct
+      real(real64) :: smc(4, 4, 0:nodrexp), sm(4, 4), dc(-2:2, 0:nodrexp * (nodrexp + 2)), &
+                      ct
 !
 !     dc is the normalized generalized spherical function
 !     dc(k,n*(n+1)+m) = ((n-k)!(n+m)!/(n+k)!/(n-m)!)^(1/2) D^k_{mn},

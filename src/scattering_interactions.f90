@@ -1,4 +1,5 @@
 module scattering_interactions
+   use, intrinsic :: iso_fortran_env, only: real64
    use constants
    use fft_translation
    use mie
@@ -28,9 +29,9 @@ contains
       logical, optional :: initial_run, rhs_list(nrhs), con_tran(nrhs), &
                            mie_mult(nrhs), fft_option, store_matrix_option, skip_external_translation
       integer, optional :: mpi_comm
-      complex(8) :: aout_t(neqns, nrhs), ain_t(neqns, nrhs), &
-                    ain(neqns, nrhs), aout(neqns, nrhs), &
-                    aout_t2(neqns, nrhs)
+      complex(real64) :: aout_t(neqns, nrhs), ain_t(neqns, nrhs), &
+                         ain(neqns, nrhs), aout(neqns, nrhs), &
+                         aout_t2(neqns, nrhs)
       if (present(mpi_comm)) then
          mpicomm = mpi_comm
       else
@@ -183,8 +184,8 @@ contains
    subroutine estimate_sphere_translation_orders(eps, ntran, nodrt)
       implicit none
       integer :: nodrt, ntran(*), i, host, nodrmax
-      real(8) :: r, eps, rpos0(3), xi0(3)
-      complex(8) :: ri0, riext(2)
+      real(real64) :: r, eps, rpos0(3), xi0(3)
+      complex(real64) :: ri0, riext(2)
       nodrt = 0
       nodrmax = max_mie_order
       do i = 1, number_spheres
@@ -215,9 +216,9 @@ contains
       logical, optional :: excited_spheres(number_spheres)
       integer :: p, i, dir, mpicomm, n, m, mn, rank
       integer, optional :: mpi_comm
-      real(8) :: alpha, sinc, qext, qsca, qabs
-      complex(8) :: pmnp(number_eqns, 2), ri1(2), ri0(2), pt(2, 2)
-      complex(8), allocatable :: pmnptot(:, :), dnpeff(:, :, :), pmnp0(:, :, :)
+      real(real64) :: alpha, sinc, qext, qsca, qabs
+      complex(real64) :: pmnp(number_eqns, 2), ri1(2), ri0(2), pt(2, 2)
+      complex(real64), allocatable :: pmnptot(:, :), dnpeff(:, :, :), pmnp0(:, :, :)
       if (present(excited_spheres)) then
          exsphere = excited_spheres
       else
@@ -285,9 +286,9 @@ contains
       logical :: incdir, incindir, shiftgb
       logical, optional :: include_direct, include_indirect
       integer :: p, incregion, sdir, nodr, layer, nodrgb
-      real(8) :: alpha, rpos(3), sinc, cbinc, rtran(3), r, rshft(3), zs
-      complex(8) :: pmnp(2 * nodr * (nodr + 2), 2), riinc
-      complex(8), allocatable :: pmnp0(:, :), ptvec(:)
+      real(real64) :: alpha, rpos(3), sinc, cbinc, rtran(3), r, rshft(3), zs
+      complex(real64) :: pmnp(2 * nodr * (nodr + 2), 2), riinc
+      complex(real64), allocatable :: pmnp0(:, :), ptvec(:)
       type(translation_operator_state) :: tranmat
       if (sdir .eq. 1) then
          riinc = layer_ref_index(0)
@@ -377,8 +378,8 @@ contains
    subroutine phase_shift(amnp, dir)
       implicit none
       integer :: dir, i
-      real(8), save :: ilv(2)
-      complex(8) :: amnp(number_eqns, 2)
+      real(real64), save :: ilv(2)
+      complex(real64) :: amnp(number_eqns, 2)
 
       if (dir .eq. 1) then
          do i = 1, number_spheres
@@ -417,10 +418,10 @@ contains
                  rank, numprocs, nsend, proc, mpicomm, noi, &
                  startsphere, endsphere, rhs
       integer, optional :: number_rhs, mpi_comm, single_sphere
-      real(8) :: r0(3), mrad, ri0
-      real(8), optional :: origin_position(3), merge_radius
-      complex(8) :: amnp(number_eqns, *), amnp0(0:nodrt + 1, nodrt, 2, *), rimedium(2)
-      complex(8), allocatable :: amnpt(:, :, :)
+      real(real64) :: r0(3), mrad, ri0
+      real(real64), optional :: origin_position(3), merge_radius
+      complex(real64) :: amnp(number_eqns, *), amnp0(0:nodrt + 1, nodrt, 2, *), rimedium(2)
+      complex(real64), allocatable :: amnpt(:, :, :)
       type(translation_operator_state) :: tranmat
 
       if (present(mpi_comm)) then
@@ -514,9 +515,9 @@ contains
       integer :: nodrt, i, nblk, ntrani, nrhs, task, rhs, startsphere, endsphere, &
                  rank, numprocs, nsend, proc, mpicomm, noi, vtype, ohost
       integer, optional :: number_rhs, mpi_comm, vswf_type, origin_host, single_sphere
-      real(8) :: r0(3)
-      real(8), optional :: origin_position(3)
-      complex(8) :: amnp(number_eqns, *), amnp0(0:nodrt + 1, nodrt, 2, *), rimedium(2)
+      real(real64) :: r0(3)
+      real(real64), optional :: origin_position(3)
+      complex(real64) :: amnp(number_eqns, *), amnp0(0:nodrt + 1, nodrt, 2, *), rimedium(2)
       type(translation_operator_state) :: tranmat
 
       if (present(mpi_comm)) then

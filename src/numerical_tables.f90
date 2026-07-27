@@ -5,15 +5,16 @@
 !  last revised: 15 January 2011
 !
 module numerical_tables
+   use, intrinsic :: iso_fortran_env, only: real64
    use parallel_runtime
    implicit none
    logical, target :: light_up
    integer :: print_intermediate_results, global_rank
    integer, allocatable :: monen(:)
    integer, private :: nmax = 0
-   real(8), allocatable :: bcof(:, :), fnr(:), vwh_coef(:, :, :, :)
-   real(8), allocatable :: vcc_const(:, :, :), fnm1_const(:, :), fn_const(:, :), fnp1_const(:, :)
-   real(8), allocatable :: tran_coef(:, :, :)
+   real(real64), allocatable :: bcof(:, :), fnr(:), vwh_coef(:, :, :, :)
+   real(real64), allocatable :: vcc_const(:, :, :), fnm1_const(:, :), fn_const(:, :), fnp1_const(:, :)
+   real(real64), allocatable :: tran_coef(:, :, :)
    data light_up/.false./
 
 contains
@@ -21,7 +22,7 @@ contains
    subroutine initialize_numerical_tables(notd)
       implicit none
       integer :: notd, l, n, ierr, nbc, m, mm1, mp1, np1, nm1, nn1
-      real(8) :: fnorm1, fnorm2
+      real(real64) :: fnorm1, fnorm2
 !
 !  bcof(n,l)=((n+l)!/(n!l!))^(1/2)
 !
@@ -36,7 +37,7 @@ contains
       end do
       fnr(0) = 0.d0
       do n = 1, 2 * nbc
-         fnr(n) = dsqrt(dble(n))
+         fnr(n) = sqrt(dble(n))
       end do
       bcof(0, 0) = 1.d0
       do n = 0, nbc - 1

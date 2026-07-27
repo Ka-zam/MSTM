@@ -95,7 +95,7 @@ contains
 !
       implicit none
 
-      integer, parameter :: rk = kind(1.0D+00)
+      integer, parameter :: rk = real64
 
       integer m
       integer n
@@ -226,7 +226,7 @@ contains
 !
       implicit none
 
-      integer, parameter :: rk = kind(1.0D+00)
+      integer, parameter :: rk = real64
 
       integer ldfjac
       integer m
@@ -424,7 +424,7 @@ contains
 !
       implicit none
 
-      integer, parameter :: rk = kind(1.0D+00)
+      integer, parameter :: rk = real64
 
       integer ldfjac
       integer m
@@ -523,6 +523,8 @@ contains
 !
       par = 0.0D+00
       iter = 1
+      delta = 0.0D+00
+      xnorm = 0.0D+00
 !
 !  Beginning of the outer loop.
 !
@@ -908,7 +910,7 @@ contains
 !
       implicit none
 
-      integer, parameter :: rk = kind(1.0D+00)
+      integer, parameter :: rk = real64
 
       integer ldr
       integer n
@@ -1192,7 +1194,7 @@ contains
 !
       implicit none
 
-      integer, parameter :: rk = kind(1.0D+00)
+      integer, parameter :: rk = real64
 
       integer lda
       integer lipvt
@@ -1398,7 +1400,7 @@ contains
 !
       implicit none
 
-      integer, parameter :: rk = kind(1.0D+00)
+      integer, parameter :: rk = real64
 
       integer ldr
       integer n
@@ -1532,7 +1534,7 @@ contains
 
       return
    end subroutine qrsolv
-   pure real(8) function enorm(n, x)
+   pure real(real64) function enorm(n, x)
 
 !*****************************************************************************80
 !
@@ -1573,7 +1575,7 @@ contains
 !
       implicit none
 
-      integer, parameter :: rk = kind(1.0D+00)
+      integer, parameter :: rk = real64
 
       integer, intent(in) :: n
       real(kind=rk), intent(in) :: x(n)

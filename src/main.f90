@@ -1,5 +1,5 @@
 program mstm
-   use, intrinsic :: iso_fortran_env, only: error_unit, output_unit
+   use, intrinsic :: iso_fortran_env, only: error_unit, output_unit, real64
    use input
    use mstm_version_info, only: mstm_version
    use solver
@@ -209,9 +209,9 @@ contains
       logical :: continueloop
       integer :: looplevel, varposition, loopindex, rank
       integer, pointer :: i_loop_var_pointer
-      real(8) :: maxdif, loopdif
-      real(8), pointer :: r_loop_var_pointer
-      complex(8), pointer :: c_loop_var_pointer
+      real(real64) :: maxdif, loopdif
+      real(real64), pointer :: r_loop_var_pointer
+      complex(real64), pointer :: c_loop_var_pointer
       character(len=256) :: varlabel
       character(len=1) :: vartype
 

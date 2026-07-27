@@ -1,4 +1,5 @@
 module bessel_functions
+   use, intrinsic :: iso_fortran_env, only: int32, real64
    use constants
    implicit none
 contains
@@ -12,10 +13,10 @@ contains
    pure subroutine riccati_bessel(n, ds, psi)
       implicit none
       integer, intent(in) :: n
-      complex(8), intent(in) :: ds
-      complex(8), intent(out) :: psi(0:n)
+      complex(real64), intent(in) :: ds
+      complex(real64), intent(out) :: psi(0:n)
       integer :: i
-      complex(8) :: chi(0:n)
+      complex(real64) :: chi(0:n)
       call complex_spherical_bessel(n, ds, psi, chi)
       do concurrent(i=0:n)
          psi(i) = psi(i) * ds
@@ -35,11 +36,11 @@ contains
    pure subroutine riccati_hankel(n, ds, xi)
       implicit none
       integer, intent(in) :: n
-      complex(8), intent(in) :: ds
-      complex(8), intent(out) :: xi(0:n)
-      complex(8), parameter :: ci = (0.d0, 1.d0)
+      complex(real64), intent(in) :: ds
+      complex(real64), intent(out) :: xi(0:n)
+      complex(real64), parameter :: ci = (0.d0, 1.d0)
       integer :: i
-      complex(8) :: psi(0:n), chi(0:n), psi0
+      complex(real64) :: psi(0:n), chi(0:n), psi0
       xi(0) = -ci * exp(ci * ds)
       psi0 = sin(ds)
       if (abs(xi(0)) / abs(psi0) .lt. 1.d-6) then
@@ -77,12 +78,13 @@ contains
    pure subroutine complex_spherical_bessel(n, z, csj, csy)
       implicit none
       integer, intent(in) :: n
-      complex(8), intent(in) :: z
-      complex(8), intent(out) :: csj(0:n), csy(0:n)
+      complex(real64), intent(in) :: z
+      complex(real64), intent(out) :: csj(0:n), csy(0:n)
       integer :: nm, k, m
-      real(8) :: a0
-      complex(8) :: csa, csb, cs, cf0, cf1, cf
+      real(real64) :: a0
+      complex(real64) :: csa, csb, cs, cf0, cf1, cf
       a0 = abs(z)
+      cs = (0.0d0, 0.0d0)
       nm = n
       if (a0 .lt. 1.0d-60) then
          csj = (0.d0, 0.d0)
@@ -104,6 +106,7 @@ contains
          end if
          cf0 = 0.0d0
          cf1 = 1.0d0 - 100
+         cf = cf1
          do k = m, 0, -1
             cf = (2.0d0 * k + 3.0d0) * cf1 / z - cf0
             if (k .le. nm) csj(k) = cf
@@ -131,10 +134,10 @@ contains
    pure subroutine bessel_integer_complex(n, z, nmax, b)
       implicit none
       integer, intent(in) :: n
-      complex(8), intent(in) :: z
+      complex(real64), intent(in) :: z
       integer, intent(out) :: nmax
-      complex(8), intent(out) :: b(0:n)
-      complex(8) :: cbj(0:n + 1), cdj(0:n + 1), cby(0:n + 1), cdy(0:n + 1)
+      complex(real64), intent(out) :: b(0:n)
+      complex(real64) :: cbj(0:n + 1), cdj(0:n + 1), cby(0:n + 1), cdy(0:n + 1)
 
       if (aimag(z) .eq. 0.d0) then
          b = bessel_jn(0, n, real(z, kind=kind(0.d0)))
@@ -176,59 +179,59 @@ contains
       !
       !  Parameters:
       !
-      !    Input, integer ( kind = 4 ) N, the order of Jn(z) and Yn(z).
+      !    Input, integer(int32) N, the order of Jn(z) and Yn(z).
       !
-      !    Input, complex ( kind = 8 ) Z, the argument of Jn(z) and Yn(z).
+      !    Input, complex(real64) Z, the argument of Jn(z) and Yn(z).
       !
-      !    Output, integer ( kind = 4 ) NM, the highest order computed.
+      !    Output, integer(int32) NM, the highest order computed.
       !
-      !    Output, complex ( kind = 8 ) CBJ(0:N), CDJ(0:N), CBY(0:N), CDY(0:N),
+      !    Output, complex(real64) CBJ(0:N), CDJ(0:N), CBY(0:N), CDY(0:N),
       !    the values of Jn(z), Jn'(z), Yn(z), Yn'(z).
       !
       implicit none
-      integer(kind=4), intent(in) :: n
-      complex(kind=8), intent(in) :: z
-      integer(kind=4), intent(out) :: nm
-      complex(kind=8), intent(out) :: cbj(0:n + 1), cby(0:n + 1), cdj(0:n + 1), cdy(0:n + 1)
-      real(kind=8), parameter, dimension(4) :: a = (/ &
+      integer(int32), intent(in) :: n
+      complex(real64), intent(in) :: z
+      integer(int32), intent(out) :: nm
+      complex(real64), intent(out) :: cbj(0:n + 1), cby(0:n + 1), cdj(0:n + 1), cdy(0:n + 1)
+      real(real64), parameter, dimension(4) :: a = (/ &
                                                -0.7031250000000000D-01, 0.1121520996093750D+00, &
                                                -0.5725014209747314D+00, 0.6074042001273483D+01/)
-      real(kind=8) a0
-      real(kind=8), parameter, dimension(4) :: a1 = (/ &
+      real(real64) a0
+      real(real64), parameter, dimension(4) :: a1 = (/ &
                                                0.1171875000000000D+00, -0.1441955566406250D+00, &
                                                0.6765925884246826D+00, -0.6883914268109947D+01/)
-      real(kind=8), parameter, dimension(4) :: b = (/ &
+      real(real64), parameter, dimension(4) :: b = (/ &
                                                0.7324218750000000D-01, -0.2271080017089844D+00, &
                                                0.1727727502584457D+01, -0.2438052969955606D+02/)
-      real(kind=8), parameter, dimension(4) :: b1 = (/ &
+      real(real64), parameter, dimension(4) :: b1 = (/ &
                                                -0.1025390625000000D+00, 0.2775764465332031D+00, &
                                                -0.1993531733751297D+01, 0.2724882731126854D+02/)
-      complex(kind=8) cbj0
-      complex(kind=8) cbj1
-      complex(kind=8) cbjk
-      complex(kind=8) cbs
-      complex(kind=8) cby0
-      complex(kind=8) cby1
-      complex(kind=8) ce
-      complex(kind=8) cf
-      complex(kind=8) cf1
-      complex(kind=8) cf2
-      complex(kind=8) cp0
-      complex(kind=8) cp1
-      complex(kind=8) cq0
-      complex(kind=8) cq1
-      complex(kind=8) cs0
-      complex(kind=8) csu
-      complex(kind=8) csv
-      complex(kind=8) ct1
-      complex(kind=8) ct2
-      complex(kind=8) cu
-      complex(kind=8) cyy
-      real(kind=8) el
-      integer(kind=4) k
-      integer(kind=4) m
-      real(kind=8) r2p
-      real(kind=8) y0
+      complex(real64) cbj0
+      complex(real64) cbj1
+      complex(real64) cbjk
+      complex(real64) cbs
+      complex(real64) cby0
+      complex(real64) cby1
+      complex(real64) ce
+      complex(real64) cf
+      complex(real64) cf1
+      complex(real64) cf2
+      complex(real64) cp0
+      complex(real64) cp1
+      complex(real64) cq0
+      complex(real64) cq1
+      complex(real64) cs0
+      complex(real64) csu
+      complex(real64) csv
+      complex(real64) ct1
+      complex(real64) ct2
+      complex(real64) cu
+      complex(real64) cyy
+      real(real64) el
+      integer(int32) k
+      integer(int32) m
+      real(real64) r2p
+      real(real64) y0
 
       el = 0.5772156649015329D+00
       r2p = 0.63661977236758D+00
@@ -237,13 +240,13 @@ contains
       nm = n
       if (a0 < 1.0D-100) then
          do concurrent(k=0:n)
-            cbj(k) = cmplx(0.0D+00, 0.0D+00, kind=8)
-            cdj(k) = cmplx(0.0D+00, 0.0D+00, kind=8)
-            cby(k) = -cmplx(1.0D+30, 0.0D+00, kind=8)
-            cdy(k) = cmplx(1.0D+30, 0.0D+00, kind=8)
+            cbj(k) = cmplx(0.0D+00, 0.0D+00, kind=real64)
+            cdj(k) = cmplx(0.0D+00, 0.0D+00, kind=real64)
+            cby(k) = -cmplx(1.0D+30, 0.0D+00, kind=real64)
+            cdy(k) = cmplx(1.0D+30, 0.0D+00, kind=real64)
          end do
-         cbj(0) = cmplx(1.0D+00, 0.0D+00, kind=8)
-         cdj(1) = cmplx(0.5D+00, 0.0D+00, kind=8)
+         cbj(0) = cmplx(1.0D+00, 0.0D+00, kind=real64)
+         cdj(1) = cmplx(0.5D+00, 0.0D+00, kind=real64)
          return
       end if
       if (a0 <= 300.0D+00 .or. 80 < n) then
@@ -256,11 +259,12 @@ contains
          else
             m = bessel_recurrence_start_for_order(a0, nm, 15)
          end if
-         cbs = cmplx(0.0D+00, 0.0D+00, kind=8)
-         csu = cmplx(0.0D+00, 0.0D+00, kind=8)
-         csv = cmplx(0.0D+00, 0.0D+00, kind=8)
-         cf2 = cmplx(0.0D+00, 0.0D+00, kind=8)
-         cf1 = cmplx(1.0D-30, 0.0D+00, kind=8)
+         cbs = cmplx(0.0D+00, 0.0D+00, kind=real64)
+         csu = cmplx(0.0D+00, 0.0D+00, kind=real64)
+         csv = cmplx(0.0D+00, 0.0D+00, kind=real64)
+         cf2 = cmplx(0.0D+00, 0.0D+00, kind=real64)
+         cf1 = cmplx(1.0D-30, 0.0D+00, kind=real64)
+         cf = cf1
          do k = m, 0, -1
             cf = 2.0D+00 * (k + 1.0D+00) / z * cf1 - cf2
             if (k <= nm) then
@@ -293,7 +297,7 @@ contains
                          - 4.0D+00 * csv / cs0)
       else
          ct1 = z - quarter_pi
-         cp0 = cmplx(1.0D+00, 0.0D+00, kind=8)
+         cp0 = cmplx(1.0D+00, 0.0D+00, kind=real64)
          do k = 1, 4
             cp0 = cp0 + a(k) * z**(-2 * k)
          end do
@@ -307,7 +311,7 @@ contains
          cbj(0) = cbj0
          cby(0) = cby0
          ct2 = z - three_quarters_pi
-         cp1 = cmplx(1.0D+00, 0.0D+00, kind=8)
+         cp1 = cmplx(1.0D+00, 0.0D+00, kind=real64)
          do k = 1, 4
             cp1 = cp1 + a1(k) * z**(-2 * k)
          end do
@@ -351,10 +355,10 @@ contains
 
    pure integer function bessel_recurrence_start(x, mp)
       implicit none
-      real(8), intent(in) :: x
+      real(real64), intent(in) :: x
       integer, intent(in) :: mp
       integer :: n0, n1, it, nn
-      real(8) :: a0, f1, f, f0
+      real(real64) :: a0, f1, f, f0
       a0 = dabs(x)
       n0 = int(1.1 * a0) + 1
       f0 = bessel_order_envelope(n0, a0) - mp
@@ -374,10 +378,10 @@ contains
 
    pure integer function bessel_recurrence_start_for_order(x, n, mp)
       implicit none
-      real(8), intent(in) :: x
+      real(real64), intent(in) :: x
       integer, intent(in) :: n, mp
       integer :: n0, n1, it, nn
-      real(8) :: a0, hmp, ejn, obj, f0, f1, f
+      real(real64) :: a0, hmp, ejn, obj, f0, f1, f
       a0 = dabs(x)
       hmp = 0.5d0 * dble(mp)
       ejn = bessel_order_envelope(n, a0)
@@ -403,10 +407,10 @@ contains
       bessel_recurrence_start_for_order = nn + 10
    end function bessel_recurrence_start_for_order
 
-   pure real(8) function bessel_order_envelope(n, x)
+   pure real(real64) function bessel_order_envelope(n, x)
       implicit none
       integer, intent(in) :: n
-      real(8), intent(in) :: x
+      real(real64), intent(in) :: x
       integer :: order
       order = max(1, abs(n))
       bessel_order_envelope = 0.5d0 * dlog10(6.28d0 * order) - order * dlog10(1.36d0 * x / order)

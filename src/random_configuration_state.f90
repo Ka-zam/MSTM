@@ -1,10 +1,11 @@
 module random_configuration_state
+   use, intrinsic :: iso_fortran_env, only: real64
    implicit none
 
    type coll_list
       logical :: wallcoll
       integer :: wall, sphere
-      real(8) :: time, collpos(3)
+      real(real64) :: time, collpos(3)
    end type coll_list
    type l_list
       integer :: index
@@ -19,12 +20,12 @@ module random_configuration_state
    integer :: cell_dim(3)
    integer, allocatable :: sphere_cell(:, :)
    integer, target :: target_shape, wall_boundary_model, max_number_time_steps, number_components, random_seed_value
-   real(8) :: fv_crit, time_step
-   real(8) :: minimum_gap, d_cell, target_boundaries(3, 2)
-   real(8), target :: target_dimensions(3), psd_sigma(4), target_width, target_thickness, max_collisions_per_sphere, &
-                      max_diffusion_cpu_time, max_diffusion_simulation_time, component_radii(4), &
-                      component_number_fraction(4)
-   real(8) :: sim_timings(10), time_0
+   real(real64) :: fv_crit, time_step
+   real(real64) :: minimum_gap, d_cell, target_boundaries(3, 2)
+   real(real64), target :: target_dimensions(3), psd_sigma(4), target_width, target_thickness, max_collisions_per_sphere, &
+                           max_diffusion_cpu_time, max_diffusion_simulation_time, component_radii(4), &
+                           component_number_fraction(4)
+   real(real64) :: sim_timings(10), time_0
    type(c_list), allocatable :: cell_list(:, :, :)
    type(coll_list), allocatable :: coll_data(:)
    character(len=1) :: c_temp

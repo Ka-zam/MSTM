@@ -1,4 +1,5 @@
 module random_configuration_geometry
+   use, intrinsic :: iso_fortran_env, only: real64
    use constants
    use random_configuration_sorting, only: heap_sort_with_tolerance
    use random_configuration_state
@@ -14,12 +15,12 @@ contains
    pure subroutine direct_overlap_test(nsphere, radius, position, overlap, distance, pair)
       implicit none
       integer, intent(in) :: nsphere
-      real(8), intent(in) :: radius(nsphere), position(3, nsphere)
+      real(real64), intent(in) :: radius(nsphere), position(3, nsphere)
       logical, intent(out) :: overlap
-      real(8), optional, intent(out) :: distance
+      real(real64), optional, intent(out) :: distance
       integer, optional, intent(out) :: pair(2)
       integer :: i, j
-      real(8) :: rij
+      real(real64) :: rij
       overlap = .false.
       do i = 1, nsphere - 1
          do j = i + 1, nsphere
@@ -37,7 +38,7 @@ contains
    subroutine calculate_target_volume(targetdimensions, targetvol)
       implicit none
       integer :: i, ipbc(3)
-      real(8) :: targetvol, targetdimensions(3)
+      real(real64) :: targetvol, targetdimensions(3)
       ipbc = wall_boundary_model
       do i = 1, 3
          if (periodic_bc(i)) ipbc(i) = 0
@@ -54,7 +55,7 @@ contains
    subroutine position_to_cell_index(pos, cell)
       implicit none
       integer :: cell(3)
-      real(8) :: pos(3)
+      real(real64) :: pos(3)
       cell = floor((pos(:) - target_boundaries(:, 1)) / (target_boundaries(:, 2) - target_boundaries(:, 1)) * dble(cell_dim(:))) + 1
       cell = max(cell, (/1, 1, 1/))
       cell = min(cell, cell_dim)
@@ -63,7 +64,7 @@ contains
    subroutine sample_target_position(pos, rad)
       implicit none
       integer :: i
-      real(8) :: pos(3), rannum(3), r, phi, ct, st, rad, wshift(3)
+      real(real64) :: pos(3), rannum(3), r, phi, ct, st, rad, wshift(3)
 
       call random_number(rannum)
       if (target_shape .eq. 0) then
@@ -141,6 +142,7 @@ contains
       implicit none
       integer :: i, newcell(3), cell(3), n, l
       type(l_list), pointer :: llist, llist2, llistnew
+      nullify (llistnew)
       cell(:) = sphere_cell(:, i)
       n = cell_list(cell(1), cell(2), cell(3))%number_elements
       if (cell_list(cell(1), cell(2), cell(3))%members%index .eq. i) then
@@ -159,6 +161,7 @@ contains
             llist => llist%next
          end do
       end if
+      if (.not. associated(llistnew)) return
       cell_list(cell(1), cell(2), cell(3))%number_elements = n - 1
       cell = newcell
       n = cell_list(cell(1), cell(2), cell(3))%number_elements
@@ -173,7 +176,7 @@ contains
       implicit none
       integer :: isphere, nsphere, cell(3), istart, iend
       integer, optional :: start_sphere, end_sphere
-      real(8) :: position(3, nsphere)
+      real(real64) :: position(3, nsphere)
       if (present(start_sphere)) then
          istart = start_sphere
       else
@@ -195,7 +198,7 @@ contains
    subroutine calculate_target_distribution_statistics(nsphere, sdev)
       implicit none
       integer :: nsphere, n, iz, iy, ix, nt, ncell
-      real(8) :: sdev, nmean
+      real(real64) :: sdev, nmean
       sdev = 0.d0
       ncell = product(cell_dim)
       nmean = dble(nsphere) / dble(ncell)
@@ -216,7 +219,7 @@ contains
       implicit none
       logical :: fitok, bndok, pbc(3)
       integer :: nsphere, i, cell(3), n, m, ccell(3), scell(3), j
-      real(8) :: radius(*), position(3, *), newrad, newpos(3), rij, tpos(3)
+      real(real64) :: radius(*), position(3, *), newrad, newpos(3), rij, tpos(3)
       type(l_list), pointer :: llist
       pbc = .false.
       if (target_shape .eq. 0) then
@@ -281,8 +284,8 @@ contains
       logical, optional :: make_positive
       integer :: nsphere, i, ind(nsphere), selem, cindex(nsphere), tindex(nsphere)
       integer, optional :: sort_elem
-      real(8) :: radius(nsphere), position(3, nsphere), r(nsphere), &
-                 tpos(3, nsphere)
+      real(real64) :: radius(nsphere), position(3, nsphere), r(nsphere), &
+                      tpos(3, nsphere)
       if (present(sort_elem)) then
          selem = sort_elem
       else
@@ -317,7 +320,7 @@ contains
    subroutine sort_sphere_radii(nsphere, radius)
       implicit none
       integer :: nsphere, ind(nsphere)
-      real(8) :: radius(nsphere)
+      real(real64) :: radius(nsphere)
       radius = -radius
       ind(1) = 0
       call heap_sort_with_tolerance(nsphere, radius, ind, 1.d-15)
@@ -327,8 +330,8 @@ contains
    pure subroutine circumscribing_sphere(nsphere, radius, position, rcell)
       implicit none
       integer, intent(in) :: nsphere
-      real(8), intent(in) :: radius(nsphere), position(3, nsphere)
-      real(8), intent(out) :: rcell
+      real(real64), intent(in) :: radius(nsphere), position(3, nsphere)
+      real(real64), intent(out) :: rcell
       integer :: i
       rcell = 0.d0
       do concurrent(i=1:nsphere) reduce(max:rcell)
@@ -340,7 +343,7 @@ contains
       implicit none
       logical :: intarget
       integer :: i
-      real(8) :: rad, pos(3), wallbound(3, 2), rho, wrad
+      real(real64) :: rad, pos(3), wallbound(3, 2), rho, wrad
       intarget = .true.
       wrad = rad * wall_boundary_model
       if (target_shape .eq. 0) then
@@ -377,9 +380,12 @@ contains
       implicit none
       logical :: fitok, pbc(3)
       integer :: nsphere, nin, i, m, maxsamp
-      real(8) :: rad(nsphere), pos(3, nsphere), wallbound(3, 2), r2, vtot, delv, wdist(3), &
-                 dz, z1, z2, samp(3), rho, phi, r1, r, st, ct, rannum(3)
+      real(real64) :: rad(nsphere), pos(3, nsphere), wallbound(3, 2), r2, vtot, delv, wdist(3), &
+                      dz, z1, z2, samp(3), rho, phi, r1, r, st, ct, rannum(3)
       data maxsamp/5000/
+      r2 = 0.d0
+      vtot = 0.d0
+      delv = 0.d0
       if (target_shape .eq. 0) then
          pbc = periodic_bc
       elseif (target_shape .eq. 1) then
@@ -478,12 +484,13 @@ contains
       implicit none
       logical :: intarget, fitok, allin
       integer :: nsphere, i, l, m, n, ns, l0, imax, m0, i2, n2, m2, i21, l1, n0, ns0
-      real(8) :: rad(nsphere), pos(3, nsphere), wallbound(3, 2), s, cscale(3), tpos(3), &
-                 tpos1(3), tpos2(3), trad, cscale2(3)
+      real(real64) :: rad(nsphere), pos(3, nsphere), wallbound(3, 2), s, cscale(3), tpos(3), &
+                      tpos1(3), tpos2(3), trad, cscale2(3)
       data imax/200/
       cscale = (/2.d0, sqrt(3.d0), sqrt(8.d0 / 3.d0)/)
       cscale2 = cscale * cscale
       ns = 0
+      ns0 = 0
       allin = .true.
       do i = 0, imax
          if (mod(i, 2) .eq. 0) ns0 = ns

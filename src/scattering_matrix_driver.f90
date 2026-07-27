@@ -1,4 +1,5 @@
 module scattering_matrix_driver
+   use, intrinsic :: iso_fortran_env, only: real64
    use input_state
    use scattering, only: common_origin_scattering_matrix, evaluate_fixed_orientation_scattering_matrix, &
                          multiple_origin_scattering_matrix, &
@@ -14,9 +15,9 @@ contains
       logical :: singleorigin, iframe
       integer :: i, sy, sx, mpicomm
       integer, optional :: mpi_comm
-      real(8) :: scatmat(scat_mat_mdim, scat_mat_ldim:scat_mat_udim), costheta, phi, csca, &
-                 ky, kx, sintheta, ctm
-      complex(8) :: amnp(*), ampmat(2, 2)
+      real(real64) :: scatmat(scat_mat_mdim, scat_mat_ldim:scat_mat_udim), costheta, phi, csca, &
+                      ky, kx, sintheta, ctm
+      complex(real64) :: amnp(*), ampmat(2, 2)
       if (present(mpi_comm)) then
          mpicomm = mpi_comm
       else
@@ -95,7 +96,7 @@ contains
                if (sx .eq. 0 .and. sy .eq. 0) then
                   phi = 0.d0
                else
-                  phi = datan2(ky, kx)
+                  phi = atan2(ky, kx)
                end if
                costheta = -sqrt(1.d0 - sintheta)
                if (singleorigin) then

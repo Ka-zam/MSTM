@@ -1,4 +1,5 @@
 module random_configuration_sorting
+   use, intrinsic :: iso_fortran_env, only: real64
    implicit none
    private
    public :: heap_sort_with_tolerance
@@ -38,12 +39,12 @@ contains
       implicit none
       !-input/output variables
       integer, intent(in) :: n
-      real(8), intent(in) :: eps
+      real(real64), intent(in) :: eps
       integer :: ind(n)
-      real(8) :: ra(n)
+      real(real64) :: ra(n)
       !-local variables
       integer :: i, ir, j, l, iind
-      real(8) :: rra
+      real(real64) :: rra
       !
       ! initialize index array
       IF (ind(1) .eq. 0) then
@@ -135,7 +136,7 @@ contains
       !  compare two real number and return the result
 
       pure logical function is_less_with_tolerance(a, b)
-         REAL(8), intent(in) :: a, b
+         real(real64), intent(in) :: a, b
          IF (abs(a - b) < eps) then
             is_less_with_tolerance = .false.
          ELSE

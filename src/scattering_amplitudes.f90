@@ -1,4 +1,5 @@
 module scattering_amplitudes
+   use, intrinsic :: iso_fortran_env, only: real64
    use constants
    use fft_translation
    use mie
@@ -25,9 +26,9 @@ contains
       logical, optional :: dry_run
       integer :: nmax, dir, n, i, q, p, ix, iy, nang, istrt
       integer, optional :: num_dirs(2)
-      real(8) :: qsca(2, 2), k0x, k0y, wx, wy, targetz, kx, ky, krho, phi, smscale
-      real(8), optional :: scat_mat(32, *), krho_vec(2, *)
-      complex(8) :: amnp(*), ri, s, kz, sa(4)
+      real(real64) :: qsca(2, 2), k0x, k0y, wx, wy, targetz, kx, ky, krho, phi, smscale
+      real(real64), optional :: scat_mat(32, *), krho_vec(2, *)
+      complex(real64) :: amnp(*), ri, s, kz, sa(4)
 
       if (present(dry_run)) then
          dryrun = dry_run
@@ -63,7 +64,7 @@ contains
          if (kx .eq. 0.d0 .and. ky .eq. 0.d0) then
             phi = 0.d0
          else
-            phi = datan2(ky, kx)
+            phi = atan2(ky, kx)
          end if
          nang = 1
          if (.not. dryrun) then
@@ -111,7 +112,7 @@ contains
                   if (kx .eq. 0.d0 .and. ky .eq. 0.d0) then
                      phi = 0.d0
                   else
-                     phi = datan2(ky, kx)
+                     phi = atan2(ky, kx)
                   end if
                   nang = nang + 1
                   if (.not. dryrun) then
@@ -140,9 +141,9 @@ contains
    subroutine multiple_origin_amplitude_matrix(amnp, s, phi, targetz, dir, sa)
       implicit none
       integer :: p, i, dir
-      real(8) :: phi, targetz
-      complex(8) :: amnp(number_eqns, 2), sa(4), sat(4), s
-      complex(8), allocatable :: pmnpi(:, :), amnpi(:, :)
+      real(real64) :: phi, targetz
+      complex(real64) :: amnp(number_eqns, 2), sa(4), sat(4), s
+      complex(real64), allocatable :: pmnpi(:, :), amnpi(:, :)
 
       sa = 0.d0
       do i = 1, number_spheres
@@ -165,8 +166,8 @@ contains
    subroutine common_origin_amplitude_matrix(amnp, s, phi, targetz, dir, sa)
       implicit none
       integer :: dir
-      real(8) :: phi, targetz
-      complex(8) :: amnp(2 * t_matrix_order * (t_matrix_order + 2), 2), sa(4), s, pmnp(2 * t_matrix_order * (t_matrix_order + 2), 2)
+      real(real64) :: phi, targetz
+ complex(real64) :: amnp(2 * t_matrix_order * (t_matrix_order + 2), 2), sa(4), s, pmnp(2 * t_matrix_order * (t_matrix_order + 2), 2)
       call layer_vector_spherical_harmonics(s, phi, targetz, dir, cluster_origin, t_matrix_order, pmnp)
       sa(1) = 0.5d0 * sum(pmnp(:, 2) * amnp(:, 2))
       sa(2) = 0.5d0 * sum(pmnp(:, 1) * amnp(:, 1))
@@ -176,10 +177,10 @@ contains
 
    pure subroutine amplitude_to_scattering_matrix(sa, sm)
       implicit none
-      complex(8), intent(in) :: sa(4)
-      real(8), intent(out) :: sm(4, 4)
+      complex(real64), intent(in) :: sa(4)
+      real(real64), intent(out) :: sm(4, 4)
       integer :: i, j
-      complex(8) :: sp(4, 4)
+      complex(real64) :: sp(4, 4)
       do concurrent(i=1:4, j=1:4)
          sp(i, j) = sa(i) * conjg(sa(j))
       end do
@@ -206,8 +207,8 @@ contains
       logical :: rotate, s11only
       logical, optional :: rotate_plane, s11_only
       integer :: dir, nelem
-      real(8) :: ct, phi, sm(*), csca, targetz
-      complex(8) :: amnp(number_eqns, 2), sa(4), ri, s, amnpt(number_eqns, 2)
+      real(real64) :: ct, phi, sm(*), csca, targetz
+      complex(real64) :: amnp(number_eqns, 2), sa(4), ri, s, amnpt(number_eqns, 2)
       if (present(rotate_plane)) then
          rotate = rotate_plane
       else
@@ -267,9 +268,9 @@ contains
       logical, optional :: rotate_plane, normalize_s11, s11_only
       logical :: rotate, norms11, s11only
       integer :: nodrt, m, n, p, m1, n1, nelem
-      real(8) :: ct, phi, sm(*), cphi, sphi, qsca, tau(0:nodrt + 1, nodrt, 2)
-      complex(8) :: amn0(0:nodrt + 1, nodrt, 2, 2), sa(4), ephi, ephim(-nodrt:nodrt), &
-                    ci, cin, a, b
+      real(real64) :: ct, phi, sm(*), cphi, sphi, qsca, tau(0:nodrt + 1, nodrt, 2)
+      complex(real64) :: amn0(0:nodrt + 1, nodrt, 2, 2), sa(4), ephi, ephim(-nodrt:nodrt), &
+                         ci, cin, a, b
       data ci/(0.d0, 1.d0)/
       if (present(rotate_plane)) then
          rotate = rotate_plane
@@ -294,7 +295,7 @@ contains
       call vector_spherical_harmonics(ct, nodrt, tau)
       cphi = cos(phi)
       sphi = sin(phi)
-      ephi = cmplx(cphi, sphi, kind=kind(0.0d0))
+      ephi = cmplx(cphi, sphi, kind=real64)
       call azimuthal_phase_factors(ephi, nodrt, ephim)
       sa = (0.d0, 0.d0)
       qsca = 0.d0
@@ -346,8 +347,8 @@ contains
       logical, optional :: rotate_plane, normalize_s11, s11_only
       integer :: i, numang, nodrt, nelem
       integer, optional :: number_angles
-      real(8) :: ct, phi, sm(*), smt(16)
-      complex(8) :: amn0(0:nodrt + 1, nodrt, 2, 2), sa(4)
+      real(real64) :: ct, phi, sm(*), smt(16)
+      complex(real64) :: amn0(0:nodrt + 1, nodrt, 2, 2), sa(4)
       if (present(rotate_plane)) then
          rotate = rotate_plane
       else
@@ -390,8 +391,8 @@ contains
       logical, optional :: s11_only, rotate_plane
       integer :: i, numang, nelem
       integer, optional :: number_angles
-      real(8) :: ct, phi, sm(*), smt(16), csca
-      complex(8) :: amnp(number_eqns, 2), sa(4)
+      real(real64) :: ct, phi, sm(*), smt(16), csca
+      complex(real64) :: amnp(number_eqns, 2), sa(4)
       if (present(number_angles)) then
          numang = number_angles
       else
@@ -440,16 +441,16 @@ contains
       implicit none
       integer :: nodrt, m, n, p, ma, na, mmax, nodrg, w, w1, w2, u, uw, ww1, &
                  l1, l2, ka, la, k, l, q, ik
-      real(8) :: vc1(0:nodrt * 2 + 1), vc2(0:nodrt * 2 + 1), g0
-      complex(8) :: amn0(0:nodrt + 1, nodrt, 2, 2), gmn(0:nodrg * (nodrg + 3) / 2), &
-                    a(2, 2), c, c2
+      real(real64) :: vc1(0:nodrt * 2 + 1), vc2(0:nodrt * 2 + 1), g0
+      complex(real64) :: amn0(0:nodrt + 1, nodrt, 2, 2), gmn(0:nodrg * (nodrg + 3) / 2), &
+                         a(2, 2), c, c2
       gmn = (0.d0, 0.d0)
       do n = 1, nodrt
          l1 = max(1, n - nodrg)
          l2 = min(nodrt, n + nodrg)
          do l = l1, l2
             c = sqrt(dble((n + n + 1) * (l + l + 1))) &
-                * cmplx(0.d0, 1.d0, kind=kind(0.0d0))**(l - n)
+                * cmplx(0.d0, 1.d0, kind=real64)**(l - n)
             w2 = min(n + l, nodrg)
             call vector_coupling_coefficients(-1, l, 1, n, vc2)
             do m = -n, n
@@ -501,7 +502,7 @@ contains
       gmn(0) = 1.d0
       do w = 1, nodrg
          ww1 = (w * (w + 1)) / 2
-         gmn(ww1) = cmplx(dble(gmn(ww1)), 0.d0, kind=kind(0.0d0)) / g0
+         gmn(ww1) = cmplx(dble(gmn(ww1)), 0.d0, kind=real64) / g0
          do u = 1, min(mmax, w)
             uw = ww1 + u
             gmn(uw) = (-1)**u * 2.d0 * gmn(uw) / g0
@@ -520,8 +521,8 @@ contains
       logical :: norms11
       logical, optional :: normalize_s11
       integer :: ntot, w, ww1
-      real(8) :: s00(4, 4, 0:ntot * 2), s02(4, 4, 0:ntot * 2), sp22(4, 4, 0:ntot * 2), sm22(4, 4, 0:ntot * 2), &
-                 sm(4, 4), dc(-2:2, 0:2 * ntot * (2 * ntot + 2)), ct, temp
+      real(real64) :: s00(4, 4, 0:ntot * 2), s02(4, 4, 0:ntot * 2), sp22(4, 4, 0:ntot * 2), sm22(4, 4, 0:ntot * 2), &
+                      sm(4, 4), dc(-2:2, 0:2 * ntot * (2 * ntot + 2)), ct, temp
       if (present(normalize_s11)) then
          norms11 = normalize_s11
       else
@@ -590,12 +591,12 @@ contains
       integer :: ntot, n, p, m, l, wmin, wmax, m1m, q, m1mq, m1mnpl, w, m1w, i, wtot, j, &
                  rank, numprocs, nsend, runprintunit, mpicomm, task
       integer, optional :: mpi_comm
-      real(8) :: s00(4, 4, 0:ntot * 2), s02(4, 4, 0:ntot * 2), sp22(4, 4, 0:ntot * 2), sm22(4, 4, 0:ntot * 2), &
-                 cm1p1(0:ntot * 2), cm1m1(0:ntot * 2), cmmpm(0:ntot * 2), cmmm2pm(0:ntot * 2), &
-                 cmmp2pm(0:ntot * 2)
-      complex(8) :: amnp(0:ntot + 1, ntot, 2, 2), a1(-ntot - 2:ntot + 2, ntot, 2), a2(-ntot - 2:ntot + 2, ntot, 2), &
-                    fnl, a1122, a2112, a1p2, a1m2
-      complex(8), parameter :: ci = (0.d0, 1.d0)
+      real(real64) :: s00(4, 4, 0:ntot * 2), s02(4, 4, 0:ntot * 2), sp22(4, 4, 0:ntot * 2), sm22(4, 4, 0:ntot * 2), &
+                      cm1p1(0:ntot * 2), cm1m1(0:ntot * 2), cmmpm(0:ntot * 2), cmmm2pm(0:ntot * 2), &
+                      cmmp2pm(0:ntot * 2)
+      complex(real64) :: amnp(0:ntot + 1, ntot, 2, 2), a1(-ntot - 2:ntot + 2, ntot, 2), a2(-ntot - 2:ntot + 2, ntot, 2), &
+                         fnl, a1122, a2112, a1p2, a1m2
+      complex(real64), parameter :: ci = (0.d0, 1.d0)
       if (present(mpi_comm)) then
          mpicomm = mpi_comm
       else

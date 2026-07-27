@@ -1,4 +1,5 @@
 module input_value_parsing
+   use, intrinsic :: iso_fortran_env, only: real64
    implicit none
    private
    public :: apply_complex_input_value, apply_integer_input_value, &
@@ -30,8 +31,8 @@ contains
    subroutine apply_real_input_value(sentvarvalue, &
                                      rvarvalue, var_operation)
       implicit none
-      real(8) :: rtemp
-      real(8), pointer :: rvarvalue
+      real(real64) :: rtemp
+      real(real64), pointer :: rvarvalue
       character(len=256) :: sentvarvalue, varop, intfile
       character(len=256), optional :: var_operation
       if (present(var_operation)) then
@@ -53,8 +54,8 @@ contains
       implicit none
       integer :: varlen, i, ierr
       integer, optional :: var_len
-      real(8) :: rtemp(4)
-      real(8), pointer :: rvarvalue(:)
+      real(real64) :: rtemp(4)
+      real(real64), pointer :: rvarvalue(:)
       character(len=256) :: sentvarvalue, varop, intfile
       character(len=256), optional :: var_operation
       if (present(var_operation)) then
@@ -86,8 +87,8 @@ contains
    subroutine apply_complex_input_value(sentvarvalue, &
                                         cvarvalue, var_operation)
       implicit none
-      complex(8) :: ctemp
-      complex(8), pointer :: cvarvalue
+      complex(real64) :: ctemp
+      complex(real64), pointer :: cvarvalue
       character(len=256) :: sentvarvalue, varop, intfile
       character(len=256), optional :: var_operation
       if (present(var_operation)) then

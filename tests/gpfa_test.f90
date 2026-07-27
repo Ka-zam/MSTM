@@ -1,4 +1,5 @@
 program gpfa_test
+   use, intrinsic :: iso_fortran_env, only: real64
    use constants, only: two_pi
    use gpfa_controller, only: cgpfa
    use gpfa_setup, only: setgpfa
@@ -9,12 +10,12 @@ program gpfa_test
    integer :: input_index, output_index
    ! The inherited GPFA kernels use legacy trigonometric recurrences whose
    ! observed double-precision error is approximately 1.7e-7 for this case.
-   real(8), parameter :: tolerance = 5.d-7
-   real(8) :: angle, max_error
-   real(8) :: real_data(transform_size), imag_data(transform_size)
-   real(8) :: real_input(transform_size), imag_input(transform_size)
-   real(8) :: trigs(trig_size)
-   complex(8) :: expected, actual
+   real(real64), parameter :: tolerance = 5.d-7
+   real(real64) :: angle, max_error
+   real(real64) :: real_data(transform_size), imag_data(transform_size)
+   real(real64) :: real_input(transform_size), imag_input(transform_size)
+   real(real64) :: trigs(trig_size)
+   complex(real64) :: expected, actual
 
    do input_index = 1, transform_size
       real_input(input_index) = sin(0.2d0 * input_index) + 0.03d0 * input_index
@@ -31,10 +32,10 @@ program gpfa_test
       expected = (0.d0, 0.d0)
       do input_index = 1, transform_size
          angle = two_pi * dble((output_index - 1) * (input_index - 1)) / dble(transform_size)
-         expected = expected + cmplx(real_input(input_index), imag_input(input_index), kind=8) &
-                    * cmplx(cos(angle), sin(angle), kind=8)
+         expected = expected + cmplx(real_input(input_index), imag_input(input_index), kind=real64) &
+                    * cmplx(cos(angle), sin(angle), kind=real64)
       end do
-      actual = cmplx(real_data(output_index), imag_data(output_index), kind=8)
+      actual = cmplx(real_data(output_index), imag_data(output_index), kind=real64)
       max_error = max(max_error, abs(actual - expected))
    end do
 

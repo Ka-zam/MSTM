@@ -1,4 +1,5 @@
 module configuration_data
+   use, intrinsic :: iso_fortran_env, only: real64
    use input_state
    use runtime_support, only: open_input_file, runtime_failed, set_runtime_error, synchronize_runtime_status
    implicit none
@@ -10,8 +11,8 @@ contains
       implicit none
       integer :: input_unit, mpicomm, rank, istat, n
       integer, optional :: mpi_comm
-      real(8) :: rtemp(4)
-      complex(8) :: ctemp(2)
+      real(real64) :: rtemp(4)
+      complex(real64) :: ctemp(2)
       character(len=256) :: parmval
 
       if (present(mpi_comm)) then
@@ -73,8 +74,8 @@ contains
       integer :: mpicomm, rank, nsend, nsphere, nspheresamp, i, generation_status(1)
       integer, optional :: mpi_comm
       integer, allocatable, save :: sphereindex(:)
-      real(8) :: targetdimensions(3), crad
-      real(8), allocatable, save :: sphereradius(:), sphereposition(:, :)
+      real(real64) :: targetdimensions(3), crad
+      real(real64), allocatable, save :: sphereradius(:), sphereposition(:, :)
       data firstrun/.true./
       if (present(skip_diffusion)) then
          skipdif = skip_diffusion
@@ -165,7 +166,7 @@ contains
       implicit none
       logical :: check
       integer :: i, j, imin, jmin
-      real(8) :: r, amax, amin, rmingap
+      real(real64) :: r, amax, amin, rmingap
 
       check = .true.
       rmingap = -1.d10

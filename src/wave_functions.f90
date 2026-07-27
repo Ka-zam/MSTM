@@ -1,4 +1,5 @@
 module wave_functions
+   use, intrinsic :: iso_fortran_env, only: real64
    use constants
    use angular_functions, only: azimuthal_phase_factors, cartesian_to_spherical, &
                                 complex_rotation_coefficients, rotation_coefficients
@@ -15,13 +16,13 @@ contains
       integer :: nodr, itype, n, nodrp1, nodrm1, nn1, np1, nm1, p, sp, imod, m, iadd(-nodr:nodr)
       integer, save :: nodrmax
       integer, optional :: index_model
-      real(8) :: rpos(3), r, ct
-      real(8) pmn(0:0, 0:(nodr + 1) * (nodr + 3))
-      complex(8) :: ci, vwh(3, 2 * nodr * (nodr + 2)), ri(2), ephi, a(2), vtemp(3, 2)
-      complex(8) :: a1vec(-nodr:nodr), &
-                    b1vec(-nodr:nodr), z1vec(-nodr:nodr), a2vec(-nodr:nodr), &
-                    b2vec(-nodr:nodr), z2vec(-nodr:nodr)
-      complex(8) :: umn(-nodr - 2:nodr + 2, 0:nodr + 1, 2), hn(0:nodr + 1, 2), ephim(-nodr - 1:nodr + 1)
+      real(real64) :: rpos(3), r, ct
+      real(real64) pmn(0:0, 0:(nodr + 1) * (nodr + 3))
+      complex(real64) :: ci, vwh(3, 2 * nodr * (nodr + 2)), ri(2), ephi, a(2), vtemp(3, 2)
+      complex(real64) :: a1vec(-nodr:nodr), &
+                         b1vec(-nodr:nodr), z1vec(-nodr:nodr), a2vec(-nodr:nodr), &
+                         b2vec(-nodr:nodr), z2vec(-nodr:nodr)
+      complex(real64) :: umn(-nodr - 2:nodr + 2, 0:nodr + 1, 2), hn(0:nodr + 1, 2), ephim(-nodr - 1:nodr + 1)
       data ci, nodrmax/(0.d0, 1.d0), 0/
       if (nodr .gt. nodrmax) then
          nodrmax = nodr
@@ -124,8 +125,8 @@ contains
       use numerical_tables
       implicit none
       integer :: nodr, itype, n, m, mn
-      real(8) :: x, y, z, r, ct, rho, ymn(0:nodr * (nodr + 2)), c, c0
-      complex(8) :: ri, swf(0:nodr * (nodr + 2)), ephi, rri, hn(0:nodr)
+      real(real64) :: x, y, z, r, ct, rho, ymn(0:nodr * (nodr + 2)), c, c0
+      complex(real64) :: ri, swf(0:nodr * (nodr + 2)), ephi, rri, hn(0:nodr)
 
       r = sqrt(x * x + y * y + z * z)
       if (r .lt. 1.d-10) then
@@ -139,7 +140,7 @@ contains
          rho = 0.d0
       else
          rho = sqrt(x * x + y * y)
-         ephi = cmplx(x, y, kind=kind(0.0d0)) / rho
+         ephi = cmplx(x, y, kind=real64) / rho
       end if
       call rotation_coefficients(ct, 0, nodr, ymn)
       rri = r * ri
@@ -168,8 +169,8 @@ contains
       use numerical_tables
       implicit none
       integer :: nodr, n, m, mn
-      real(8) :: kx, ky, x, y, z, k
-      complex(8) :: ri, swf(0:nodr * (nodr + 2)), ephi, kz, ymn(0:nodr * (nodr + 2)), skz, c, cr
+      real(real64) :: kx, ky, x, y, z, k
+      complex(real64) :: ri, swf(0:nodr * (nodr + 2)), ephi, kz, ymn(0:nodr * (nodr + 2)), skz, c, cr
       k = sqrt(kx * kx + ky * ky)
       kz = sqrt((1.d0, 0.d0) - k * k / ri / ri)
       if (z .gt. 0.d0) then
@@ -180,7 +181,7 @@ contains
       if (k .eq. 0.d0) then
          ephi = 1.d0
       else
-         ephi = cmplx(kx, ky, kind=kind(0.0d0)) / k
+         ephi = cmplx(kx, ky, kind=real64) / k
       end if
       call complex_rotation_coefficients(skz, 0, nodr, ymn)
       c = exp((0.d0, 1.d0) * (kx * x + ky * y + ri * skz * z)) / ri / ri / kz / sqrt(four_pi)
@@ -198,10 +199,10 @@ contains
 !
    pure subroutine invert_two_by_two_matrix(mat, imat)
       implicit none
-      complex(8), intent(in) :: mat(2, 2)
-      complex(8), intent(out) :: imat(2, 2)
+      complex(real64), intent(in) :: mat(2, 2)
+      complex(real64), intent(out) :: imat(2, 2)
       integer :: s, t
-      complex(8) :: tmat(2, 2), det
+      complex(real64) :: tmat(2, 2), det
       tmat = mat
       det = mat(1, 1) * mat(2, 2) - mat(2, 1) * mat(1, 2)
       do concurrent(s=1:2, t=1:2)
@@ -215,9 +216,9 @@ contains
    pure subroutine resize_mode_coefficients(nin, nout, cin, cout)
       implicit none
       integer, intent(in) :: nin, nout
-      complex(8), intent(in) :: cin(0:nin + 1, nin, 2)
-      complex(8), intent(out) :: cout(0:nout + 1, nout, 2)
-      complex(8) :: ct(0:max(nin, nout) + 1, max(nin, nout), 2)
+      complex(real64), intent(in) :: cin(0:nin + 1, nin, 2)
+      complex(real64), intent(out) :: cout(0:nout + 1, nout, 2)
+      complex(real64) :: ct(0:max(nin, nout) + 1, max(nin, nout), 2)
       ct = 0.d0
       ct(0:nin + 1, 1:nin, 1:2) = cin(0:nin + 1, 1:nin, 1:2)
       cout = 0.d0
@@ -228,7 +229,7 @@ contains
       logical :: lrtomode
       logical, optional :: lr_to_mode
       integer :: nodr
-      complex(8) :: alr(nodr * (nodr + 2), 2), amode(nodr * (nodr + 2), 2), at(nodr * (nodr + 2), 2)
+      complex(real64) :: alr(nodr * (nodr + 2), 2), amode(nodr * (nodr + 2), 2), at(nodr * (nodr + 2), 2)
       if (present(lr_to_mode)) then
          lrtomode = lr_to_mode
       else
@@ -248,8 +249,8 @@ contains
    pure subroutine reverse_azimuthal_modes(nodr, ain, aout)
       implicit none
       integer, intent(in) :: nodr
-      complex(8), intent(in) :: ain(2 * nodr * (nodr + 2))
-      complex(8), intent(out) :: aout(2 * nodr * (nodr + 2))
+      complex(real64), intent(in) :: ain(2 * nodr * (nodr + 2))
+      complex(real64), intent(out) :: aout(2 * nodr * (nodr + 2))
       integer :: m, n, p, mnp, mnp2, im, m1
       do concurrent(m=-nodr:nodr) local(m1, im, mnp, mnp2)
          m1 = max(abs(m), 1)

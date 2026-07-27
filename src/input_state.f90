@@ -2,6 +2,7 @@
 !27 july: core volume fraction added to output
 
 module input_state
+   use, intrinsic :: iso_fortran_env, only: real64
    use special_functions
    use parallel_runtime
    use solver
@@ -44,33 +45,33 @@ module input_state
                       number_incident_directions, shifted_sphere, number_excited_spheres, input_number_spheres, &
                       random_configuration_host_model
    integer, allocatable :: sphere_index(:)
-   real(8) :: r_var_start(5), r_var_stop(5), r_var_step(5), diffuse_scattering_ratio, &
-              coherent_scattering_ratio, hemispherical_sca(2, 2), evan_sca(2), prop_sca(2), &
-              input_layer_thickness(max_number_plane_boundaries), &
-              pl_sca(2, 2), scat_mat_amin, scat_mat_amax, pl_sca_ave(2, 2), solution_time, solution_time_ave, &
-              incident_beta, solution_error, surface_absorptance(2), surface_absorptance_ave(2), &
-              position_shift(3), tot_csca_ave(1), dif_csca_ratio(1), fit_radius, tot_csca, dif_csca
-   real(8), allocatable :: q_eff(:, :, :), q_vabs(:, :), q_eff_tot(:, :), scat_mat(:, :), &
-                           dif_scat_mat(:, :), sm_coef(:, :, :), sm_cf_coef(:, :, :), boundary_sca(:, :), boundary_ext(:, :), &
-                           q_eff_ave(:, :, :), q_vabs_ave(:, :), q_eff_tot_ave(:, :), scat_mat_ave(:, :), &
-                           boundary_sca_ave(:, :), boundary_ext_ave(:, :), sphere_position_ave(:, :), dif_boundary_sca(:, :), &
+   real(real64) :: r_var_start(5), r_var_stop(5), r_var_step(5), diffuse_scattering_ratio, &
+                   coherent_scattering_ratio, hemispherical_sca(2, 2), evan_sca(2), prop_sca(2), &
+                   input_layer_thickness(max_number_plane_boundaries), &
+                   pl_sca(2, 2), scat_mat_amin, scat_mat_amax, pl_sca_ave(2, 2), solution_time, solution_time_ave, &
+                   incident_beta, solution_error, surface_absorptance(2), surface_absorptance_ave(2), &
+                   position_shift(3), tot_csca_ave(1), dif_csca_ratio(1), fit_radius, tot_csca, dif_csca
+   real(real64), allocatable :: q_eff(:, :, :), q_vabs(:, :), q_eff_tot(:, :), scat_mat(:, :), &
+                                dif_scat_mat(:, :), sm_coef(:, :, :), sm_cf_coef(:, :, :), boundary_sca(:, :), boundary_ext(:, :), &
+                                q_eff_ave(:, :, :), q_vabs_ave(:, :), q_eff_tot_ave(:, :), scat_mat_ave(:, :), &
+                                boundary_sca_ave(:, :), boundary_ext_ave(:, :), sphere_position_ave(:, :), dif_boundary_sca(:, :), &
                          scat_mat_exp_coef(:, :, :), scat_mat_exp_coef_ave(:, :, :), rl_vec(:, :), coh_scat_mat_exp_coef(:, :, :), &
-                           coh_scat_mat_exp_coef_ave(:, :, :), s_field(:, :, :, :, :), s_field_ave(:, :, :, :, :)
-   real(8), target :: incident_beta_deg, incident_alpha_deg, solution_epsilon, &
-                      mie_epsilon, length_scale_factor, near_field_plane_position, &
-                      near_field_plane_vertices(3, 2), near_field_step_size, &
-                      translation_epsilon, t_matrix_convergence_epsilon, &
-                      scattering_map_increment, incident_sin_beta, input_cell_width(2), &
-                      sphere_volume_fraction, input_cell_width_x, &
-                      input_cell_volume_fraction, medium_re_ref_index, medium_im_ref_index, &
-                      excitation_radius, absorption_sample_radius, absorption_sample_radius_fraction, &
-                      x_shift, y_shift, z_shift, input_d_cell, target_radius_padding
-   complex(8) :: c_var_start(5), c_var_stop(5), c_var_step(5), nf_eff_ref_index
-   complex(8), target :: ref_index_scale_factor, host_sphere_ref_index, medium_ref_index, &
-                         component_ref_index(4)
-   complex(8), allocatable :: amnp_s(:, :), amnp_0_ave(:, :), amnp_0(:, :), e_field(:, :, :, :, :), &
-                              e_field_ave(:, :, :, :, :), h_field(:, :, :, :, :), h_field_ave(:, :, :, :, :), &
-                              mean_t(:, :), mean_t_ave(:, :)
+                                coh_scat_mat_exp_coef_ave(:, :, :), s_field(:, :, :, :, :), s_field_ave(:, :, :, :, :)
+   real(real64), target :: incident_beta_deg, incident_alpha_deg, solution_epsilon, &
+                           mie_epsilon, length_scale_factor, near_field_plane_position, &
+                           near_field_plane_vertices(3, 2), near_field_step_size, &
+                           translation_epsilon, t_matrix_convergence_epsilon, &
+                           scattering_map_increment, incident_sin_beta, input_cell_width(2), &
+                           sphere_volume_fraction, input_cell_width_x, &
+                           input_cell_volume_fraction, medium_re_ref_index, medium_im_ref_index, &
+                           excitation_radius, absorption_sample_radius, absorption_sample_radius_fraction, &
+                           x_shift, y_shift, z_shift, input_d_cell, target_radius_padding
+   complex(real64) :: c_var_start(5), c_var_stop(5), c_var_step(5), nf_eff_ref_index
+   complex(real64), target :: ref_index_scale_factor, host_sphere_ref_index, medium_ref_index, &
+                              component_ref_index(4)
+   complex(real64), allocatable :: amnp_s(:, :), amnp_0_ave(:, :), amnp_0(:, :), e_field(:, :, :, :, :), &
+                                   e_field_ave(:, :, :, :, :), h_field(:, :, :, :, :), h_field_ave(:, :, :, :, :), &
+                                   mean_t(:, :), mean_t_ave(:, :)
    character(len=1) :: loop_var_type(5)
    character(len=20) :: run_date_and_time
    character(len=256) :: loop_var_label(5), input_file
@@ -78,8 +79,8 @@ module input_state
                                  sphere_data_input_file, near_field_output_file, solution_method, &
                                  random_configuration_output_file
    integer :: effective_fit_order
-   real(8) :: effective_fit_radius
-   complex(8), allocatable :: effective_fit_coefficients(:, :)
+   real(real64) :: effective_fit_radius
+   complex(real64), allocatable :: effective_fit_coefficients(:, :)
    data loop_job, repeat_run/.false., .false./
    data append_output_file/.false./
    data copy_input_file/.false./

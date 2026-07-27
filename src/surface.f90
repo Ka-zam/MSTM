@@ -1,4 +1,5 @@
 module surface
+   use, intrinsic :: iso_fortran_env, only: real64
    use constants
    use numerical_tables
    use special_functions
@@ -10,19 +11,19 @@ module surface
               source_layer2, number_limits, max_gf_iterations, number_gf_iterations, source_order2, &
               error_codes(4), energy_kernel_region, number_singular_points, singular_point_polarization(max_singular_points)
    integer, target :: number_plane_boundaries, maximum_integration_subdivisions
-   real(8) :: source_z, target_z, azimuth_angle, incident_field_boundary, &
-              radial_distance, max_s, gf_error_epsilon, &
-              s_sc1, s_sc2, max_gf, max_bf, max_pi, max_picon, &
-              top_boundary, bot_boundary, source_z2, integration_error, singular_points(max_singular_points), &
-              incident_field_scale(2), pole_integration_radius, singular_gf_value(max_singular_points), &
-              incident_lateral_vector(2), g_cut, g_sing_mag
-   real(8), target :: layer_thickness(max_number_plane_boundaries), integration_limit_epsilon, &
-                      integration_error_epsilon, real_axis_integration_limit, gf_switch_factor, s_scale_constant, &
-                      minimum_integration_spacing, minimum_initial_segment_size
-   real(8), allocatable :: plane_boundary_position(:), real_axis_limits(:)
-   complex(8) :: source_ri, target_ri, pole_integration_s
-   complex(8), target :: layer_ref_index(0:max_number_plane_boundaries)
-   complex(8), allocatable :: source_coefficient(:, :), source_coefficient_1(:, :, :), source_coefficient_2(:, :, :)
+   real(real64) :: source_z, target_z, azimuth_angle, incident_field_boundary, &
+                   radial_distance, max_s, gf_error_epsilon, &
+                   s_sc1, s_sc2, max_gf, max_bf, max_pi, max_picon, &
+                   top_boundary, bot_boundary, source_z2, integration_error, singular_points(max_singular_points), &
+                   incident_field_scale(2), pole_integration_radius, singular_gf_value(max_singular_points), &
+                   incident_lateral_vector(2), g_cut, g_sing_mag
+   real(real64), target :: layer_thickness(max_number_plane_boundaries), integration_limit_epsilon, &
+                           integration_error_epsilon, real_axis_integration_limit, gf_switch_factor, s_scale_constant, &
+                           minimum_integration_spacing, minimum_initial_segment_size
+   real(real64), allocatable :: plane_boundary_position(:), real_axis_limits(:)
+   complex(real64) :: source_ri, target_ri, pole_integration_s
+   complex(real64), target :: layer_ref_index(0:max_number_plane_boundaries)
+   complex(real64), allocatable :: source_coefficient(:, :), source_coefficient_1(:, :, :), source_coefficient_2(:, :, :)
    data real_axis_integration_limit, minimum_integration_spacing, minimum_initial_segment_size/100.d0, 1.d-5, 0.d0/
    data include_direct_source/.false./
    data max_gf_iterations, gf_switch_factor, number_gf_iterations, gf_error_epsilon/1000, .5d0, 0, 1.d-7/
@@ -39,7 +40,7 @@ contains
    subroutine initialize_plane_boundaries()
       implicit none
       integer :: i
-      real(8) :: smax
+      real(real64) :: smax
       if (allocated(plane_boundary_position)) deallocate (plane_boundary_position)
       allocate (plane_boundary_position(1:max(number_plane_boundaries, 1)))
       plane_boundary_position(1) = 0.d0
@@ -62,7 +63,7 @@ contains
    subroutine find_green_function_singular_points(sourcez, targetz, gcut, smax, nsingpoints, singpoints, singpol, singval)
       implicit none
       integer :: p, i, nbrack, nsingpoints, singpol(*)
-      real(8) :: sourcez, targetz, gcut, smax, singpoints(*), sbrack(2, max_singular_points), s0, s1, s2, fmax, sfmax, singval(*)
+    real(real64) :: sourcez, targetz, gcut, smax, singpoints(*), sbrack(2, max_singular_points), s0, s1, s2, fmax, sfmax, singval(*)
       nsingpoints = 0
       do p = 1, 2
          call bracket_green_function_singular_points(sourcez, targetz, p, gcut, smax, nbrack, sbrack)
@@ -84,8 +85,8 @@ contains
       implicit none
       logical :: inbrack
       integer :: nbrack, p
-      real(8) :: sz, tz, smax, sbrack(2, *), dels, fm, gcut
-      complex(8) :: gf(2, 2, 2), skz, tkz, s
+      real(real64) :: sz, tz, smax, sbrack(2, *), dels, fm, gcut
+      complex(real64) :: gf(2, 2, 2), skz, tkz, s
       data dels/1.d-3/
       inbrack = .false.
       nbrack = 0
@@ -116,8 +117,8 @@ contains
    subroutine maximize_green_function(sz, tz, p, ax, bx, cx, tol, maxsteps, gmax, xmax)
       implicit none
       integer :: n, maxsteps, p
-      real(8) :: ax, bx, cx, tol, xmax, r, c, x0, x3, x1, x2, f1, f2, f3, f0, gmax, sz, tz
-      complex(8) :: gf(2, 2, 2), skz, tkz, s
+      real(real64) :: ax, bx, cx, tol, xmax, r, c, x0, x3, x1, x2, f1, f2, f3, f0, gmax, sz, tz
+      complex(real64) :: gf(2, 2, 2), skz, tkz, s
       data r, c/.61803399d0, .38196602d0/
       x0 = ax
       x3 = cx
@@ -169,10 +170,10 @@ contains
    subroutine layer_green_function_series(sourcelayer, targetlayer, sourcez, targetz, kz, omega, tm, gfs)
       implicit none
       integer :: n, sourcelayer, targetlayer, p, sourcedir, iter
-      real(8) :: scale, scale0, sourcez, targetz
-      complex(8) :: gf(2, number_plane_boundaries, 2), kz(0:number_plane_boundaries), omega(0:number_plane_boundaries), &
+      real(real64) :: scale, scale0, sourcez, targetz
+      complex(real64) :: gf(2, number_plane_boundaries, 2), kz(0:number_plane_boundaries), omega(0:number_plane_boundaries), &
 tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_boundaries, 2), gftot(2, number_plane_boundaries, 2), &
-                    tfup, tfdn
+                         tfup, tfdn
       if (targetlayer .gt. 0) then
          tfup = exp((0.d0, 1.d0) * layer_ref_index(targetlayer) * kz(targetlayer) &
                     * (targetz - plane_boundary_position(targetlayer)))
@@ -249,13 +250,13 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
    subroutine layer_green_function_recurrence(sourcelayer, targetlayer, sourcez, targetz, kz, omega, tm, gfs)
       implicit none
       integer :: n, sourcelayer, targetlayer, p, sourcedir
-      real(8) :: sourcez, targetz
-      complex(8) :: gf(2, 0:number_plane_boundaries + 1), kz(0:number_plane_boundaries), omega(0:number_plane_boundaries), &
-                    tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), tfup, tfdn
+      real(real64) :: sourcez, targetz
+      complex(real64) :: gf(2, 0:number_plane_boundaries + 1), kz(0:number_plane_boundaries), omega(0:number_plane_boundaries), &
+                         tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), tfup, tfdn
 !         complex(16) :: um(2,2,0:number_plane_boundaries),sm(2,2,0:number_plane_boundaries), &
 !            sv(2,0:number_plane_boundaries+1),tempv(2),umt(2,2),bv(2,0:number_plane_boundaries+1),umt0(2,2)
-      complex(8) :: um(2, 2, 0:number_plane_boundaries), sm(2, 2, 0:number_plane_boundaries), &
-                    sv(2, 0:number_plane_boundaries + 1), tempv(2), umt(2, 2), bv(2, 0:number_plane_boundaries + 1), umt0(2, 2)
+      complex(real64) :: um(2, 2, 0:number_plane_boundaries), sm(2, 2, 0:number_plane_boundaries), &
+                         sv(2, 0:number_plane_boundaries + 1), tempv(2), umt(2, 2), bv(2, 0:number_plane_boundaries + 1), umt0(2, 2)
       if (targetlayer .gt. 0) then
          tfup = exp((0.d0, 1.d0) * layer_ref_index(targetlayer) * kz(targetlayer) &
                     * (targetz - plane_boundary_position(targetlayer)))
@@ -333,16 +334,17 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       logical :: incdir, prop
       logical, optional :: include_direct
       integer :: n, sourcelayer, targetlayer, i
-      real(8) :: sourcez, targetz, c
-      complex(8) :: kz(0:number_plane_boundaries), omega(0:number_plane_boundaries), &
-                    den, tm(2, 2, 0:number_plane_boundaries + 1, 2), &
-                    gfs(2, 2, 2), &
-                    sourcekz, targetkz, s
+      real(real64) :: sourcez, targetz, c
+      complex(real64) :: kz(0:number_plane_boundaries), omega(0:number_plane_boundaries), &
+                         den, tm(2, 2, 0:number_plane_boundaries + 1, 2), &
+                         gfs(2, 2, 2), &
+                         sourcekz, targetkz, s
       if (present(include_direct)) then
          incdir = include_direct
       else
          incdir = .false.
       end if
+      c = 1.d0
       sourcelayer = find_layer_index(sourcez)
       targetlayer = find_layer_index(targetz)
       do n = 0, number_plane_boundaries
@@ -434,19 +436,19 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       implicit none
       integer :: m, m1, k, k1, mk, n, l, p, q, mn, kl, i, pol, dir, tsign, ssign, mmax, ntot
       integer, save :: count
-      real(8) :: t
-      complex(8) :: kernmat(ntot), temp, bfunc(0:source_order + target_order), &
-                    s, const, const2, sr, dsdt, &
-                    pivec(2, source_order * (source_order + 2), 2), picvec(2, target_order * (target_order + 2), 2), &
-                    bvec(2, 2), sourcekz, targetkz, gfunc(2, 2, 2), sourceri, targetri, sources, targets
+      real(real64) :: t
+      complex(real64) :: kernmat(ntot), temp, bfunc(0:source_order + target_order), &
+                         s, const, const2, sr, dsdt, &
+                         pivec(2, source_order * (source_order + 2), 2), picvec(2, target_order * (target_order + 2), 2), &
+                         bvec(2, 2), sourcekz, targetkz, gfunc(2, 2, 2), sourceri, targetri, sources, targets
       data count/0/
       if (pole_integration) then
          dsdt = (0.d0, 1.d0) * pole_integration_radius * exp((0.d0, 1.d0) * t)
          s = pole_integration_s + pole_integration_radius * exp((0.d0, 1.d0) * t)
       else
-         s = t * cmplx(1.d0, -s_sc1, kind=kind(0.0d0)) &
-             + cmplx(0.d0, -1.d0, kind=kind(0.0d0)) * s_sc2
-         dsdt = cmplx(1.d0, -s_sc1, kind=kind(0.0d0))
+         s = t * cmplx(1.d0, -s_sc1, kind=real64) &
+             + cmplx(0.d0, -1.d0, kind=real64) * s_sc2
+         dsdt = cmplx(1.d0, -s_sc1, kind=real64)
       end if
       call layer_green_function(s, source_z, target_z, gfunc, sourcekz, targetkz, include_direct_source)
       sourceri = layer_ref_index(source_layer)
@@ -542,12 +544,12 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       integer :: m, m1, k, k1, mk, n, l, p, q, mn, kl, pol, tsign, ssign, mmax, sourceorder(2), &
                  nmax, spol, tlay, ntot
       integer, save :: count
-      real(8) :: t, sourcez(2), targetz, const3(3, 2)
-      complex(8) :: kernmat(ntot), bfunc(0:source_order + source_order2), &
-                    s, const, const2, sr, cscale, &
-                    pivec1(2, source_order * (source_order + 2), 2), &
-                    pivec2(2, source_order2 * (source_order2 + 2), 2), bvec(2, 2), &
-                    bvec1(2), bvec2(2), sourcekz(2), targetkz, gfunc1(2, 2, 2), gfunc2(2, 2, 2), sourceri(2), targetri
+      real(real64) :: t, sourcez(2), targetz, const3(3, 2)
+      complex(real64) :: kernmat(ntot), bfunc(0:source_order + source_order2), &
+                         s, const, const2, sr, cscale, &
+                         pivec1(2, source_order * (source_order + 2), 2), &
+                         pivec2(2, source_order2 * (source_order2 + 2), 2), bvec(2, 2), &
+                         bvec1(2), bvec2(2), sourcekz(2), targetkz, gfunc1(2, 2, 2), gfunc2(2, 2, 2), sourceri(2), targetri
       data count/0/
       sourcez(1) = source_z
       sourcez(2) = source_z2
@@ -628,17 +630,17 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       end do
    end subroutine energy_kernel
 
-   pure real(8) function mode_vector_norm(n, m)
+   pure real(real64) function mode_vector_norm(n, m)
       implicit none
       integer, intent(in) :: n
-      complex(8), intent(in) :: m(n)
+      complex(real64), intent(in) :: m(n)
       mode_vector_norm = sqrt(dble(dot_product(m, m)))
    end function mode_vector_norm
 
    pure integer function find_layer_index(z)
       implicit none
       integer :: n
-      real(8), intent(in) :: z
+      real(real64), intent(in) :: z
       find_layer_index = 0
       do n = 1, number_plane_boundaries
          if (z .ge. plane_boundary_position(n)) then
@@ -658,12 +660,13 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       integer :: ntot, ltot, l, k, n, m, p, q, mn, kl, tranmat(2, 2), indexmodel, &
                  mnp, qtot, m1, k1, i, rmatdim, rmataddress
       integer, optional :: index_model
-      real(8) :: x, y, rho, sourcez, targetz, ssc, rail
-      complex(8) :: ephi, ephim, interactionmatrix(*), &
-                    ctemp(2), c2temp(2, 2), c2tempm(2, 2)
-      complex(8), allocatable :: rmat(:)
-      complex(8), optional :: source_vector(2 * ltot * (ltot + 2))
+      real(real64) :: x, y, rho, sourcez, targetz, ssc, rail
+      complex(real64) :: ephi, ephim, interactionmatrix(*), &
+                         ctemp(2), c2temp(2, 2), c2tempm(2, 2)
+      complex(real64), allocatable :: rmat(:)
+      complex(real64), optional :: source_vector(2 * ltot * (ltot + 2))
       tranmat = reshape((/1, 1, 1, -1/), (/2, 2/))
+      rmatdim = 0
       target_order = ntot
       source_order = ltot
       if (present(index_model)) then
@@ -709,8 +712,8 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
          azimuth_angle = 0.d0
       else
          rho = sqrt(x * x + y * y)
-         ephi = cmplx(x, y, kind=kind(0.0d0)) / rho
-         azimuth_angle = datan2(y, x)
+         ephi = cmplx(x, y, kind=real64) / rho
+         azimuth_angle = atan2(y, x)
       end if
       if (rho .le. 0.0001d0) then
          max_azimuth_mode = 0
@@ -851,9 +854,9 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       logical :: lr2mode
       logical, optional :: lr_to_mode
       integer :: ntot1, ntot2, n, m, p, mnp, mn, tranmat(2, 2), nlimits, subdiv, nlimits0, ec
-      real(8) :: rpos1(3), rpos2(3), qsca(2), &
-                 xyvec(2), limits(1:number_plane_boundaries + max_singular_points), s0, s1, errstep, targetz, riscale
-      complex(8) :: scoef1(2 * ntot1 * (ntot1 + 2), 2), scoef2(2 * ntot2 * (ntot2 + 2), 2), ctemp(2, 2), qmat(2)
+      real(real64) :: rpos1(3), rpos2(3), qsca(2), &
+                      xyvec(2), limits(1:number_plane_boundaries + max_singular_points), s0, s1, errstep, targetz, riscale
+      complex(real64) :: scoef1(2 * ntot1 * (ntot1 + 2), 2), scoef2(2 * ntot2 * (ntot2 + 2), 2), ctemp(2, 2), qmat(2)
       tranmat = reshape((/1, 1, 1, -1/), (/2, 2/))
 
       if (present(lr_to_mode)) then
@@ -898,7 +901,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       if (radial_distance .eq. 0.d0) then
          azimuth_angle = 0.d0
       else
-         azimuth_angle = datan2(xyvec(2), xyvec(1))
+         azimuth_angle = atan2(xyvec(2), xyvec(1))
       end if
       riscale = dble(layer_ref_index(target_layer))
       nlimits0 = 1
@@ -984,9 +987,9 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
    subroutine integrate_reflection_matrix_real_axis(qtot, rmat)
       implicit none
       integer :: qtot, n, limit, nseg, seg, n0, subdiv, ec
-      real(8) :: t1, t2, delt, dnorm, norm0, r, &
-                 deltseg, dt1, dt2, errlim, t1t, t2t
-      complex(8) :: rmat(qtot), drmat(qtot)
+      real(real64) :: t1, t2, delt, dnorm, norm0, r, &
+                      deltseg, dt1, dt2, errlim, t1t, t2t
+      complex(real64) :: rmat(qtot), drmat(qtot)
       if (pole_integration) then
          t1 = 0.d0
          t2 = two_pi
@@ -999,6 +1002,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       end if
       r = sqrt(sqrt(radial_distance**2 + (abs(source_z) + abs(target_z))**2))
       delt = .5d0 / r
+      n0 = 1
       do n = 1, number_limits
          if (abs(abs(layer_ref_index(source_layer)) - real_axis_limits(n)) .le. 1.d-8) then
             n0 = n
@@ -1080,9 +1084,9 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
    subroutine boundary_energy_transfer(sinc, sdir, r, t, a, fres_r, fres_t)
       implicit none
       integer :: sdir, rdir, tdir
-      real(8) :: sinc, zref, ztra, r(2), t(2), a(2)
-      complex(8) :: riref, s, rkz, tkz, gfr(2, 2, 2), gft(2, 2, 2), ritra
-      complex(8), optional :: fres_r(2), fres_t(2)
+      real(real64) :: sinc, zref, ztra, r(2), t(2), a(2)
+      complex(real64) :: riref, s, rkz, tkz, gfr(2, 2, 2), gft(2, 2, 2), ritra
+      complex(real64), optional :: fres_r(2), fres_t(2)
       if (sdir .eq. 1) then
          riref = layer_ref_index(0)
          ritra = layer_ref_index(number_plane_boundaries)
@@ -1123,8 +1127,8 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
    subroutine initialize_incident_field(alpha, sinc, sdir)
       implicit none
       integer :: sdir, ssign, p, k, q, klq
-      real(8) :: alpha, sinc, targetz, sourcez
-      complex(8) s, pmnp(6, 2), riinc, skz, tkz, gfs(2, 2, 2)
+      real(real64) :: alpha, sinc, targetz, sourcez
+      complex(real64) s, pmnp(6, 2), riinc, skz, tkz, gfs(2, 2, 2)
       incident_lateral_vector = (/sinc * cos(alpha), sinc * sin(alpha)/)
       if (number_plane_boundaries .eq. 0) then
          incident_field_scale = 1.d0
@@ -1173,11 +1177,11 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       logical, optional :: include_direct
       logical :: incdir, evanescent
       integer :: p, incregion, sdir, nodr, nblk, layer
-      real(8) :: alpha, ca, sa, rpos(3), sourcez, targetz, sinc
-      complex(8) :: pmnp(2 * nodr * (nodr + 2), 2), riinc, cbinc, &
-                    s, phasefaclat, skz, tkz, gfs(2, 2, 2)
-      complex(8), allocatable :: pmnpinc(:, :), pmnpup(:, :), &
-                                 pmnpdn(:, :), pmnptot(:, :)
+      real(real64) :: alpha, ca, sa, rpos(3), sourcez, targetz, sinc
+      complex(real64) :: pmnp(2 * nodr * (nodr + 2), 2), riinc, cbinc, &
+                         s, phasefaclat, skz, tkz, gfs(2, 2, 2)
+      complex(real64), allocatable :: pmnpinc(:, :), pmnpup(:, :), &
+                                      pmnpdn(:, :), pmnptot(:, :)
       if (present(include_direct)) then
          incdir = include_direct
       else
@@ -1237,9 +1241,9 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
    subroutine layer_vector_spherical_harmonics(s, alpha, targetz, tdir, rpos, nodr, pmnp)
       implicit none
       integer :: p, tdir, nodr, nblk, slayer, tlayer, k, l, q, klq, ssign
-      real(8) :: alpha, ca, sa, rpos(3), sourcez, targetz
-      complex(8) :: pmnp(2 * nodr * (nodr + 2), 2), targetri, sourceri, &
-                    s, phasefaclat, skz, tkz, gfs(2, 2, 2)
+      real(real64) :: alpha, ca, sa, rpos(3), sourcez, targetz
+      complex(real64) :: pmnp(2 * nodr * (nodr + 2), 2), targetri, sourceri, &
+                         s, phasefaclat, skz, tkz, gfs(2, 2, 2)
 
       nblk = 2 * nodr * (nodr + 2)
       ca = cos(alpha)

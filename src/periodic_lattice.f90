@@ -1,4 +1,5 @@
 module periodic_lattice_operations
+   use, intrinsic :: iso_fortran_env, only: real64
    use constants
    use numerical_tables
    use special_functions
@@ -9,13 +10,13 @@ module periodic_lattice_operations
    integer :: pl_max_subdivs, pl_rs_nmax, pl_error_codes(6), pl_fs_method, pl_rs_imax, &
               q1d_number_segments, q2d_number_segments, s_max_q2
    integer, target :: pl_integration_method
-   real(8) :: lattice_integration_segment, pl_rs_eps, time_count(4), time_0
-   real(8), target :: cell_width(2), rs_dz_min, pl_integration_error_epsilon, &
-                      pl_integration_limit_epsilon
+   real(real64) :: lattice_integration_segment, pl_rs_eps, time_count(4), time_0
+   real(real64), target :: cell_width(2), rs_dz_min, pl_integration_error_epsilon, &
+                           pl_integration_limit_epsilon
    integer :: qkernel_nodr, qkernel_integration_model
-   real(8) :: qkernel_x, qkernel_y, qkernel_z, qkernel_width, &
-              qkernel_k0y, qkernel_kz
-   complex(8) :: qkernel_ref_index
+   real(real64) :: qkernel_x, qkernel_y, qkernel_z, qkernel_width, &
+                   qkernel_k0y, qkernel_kz
+   complex(real64) :: qkernel_ref_index
    data lattice_integration_segment/1.d0/
    data pl_rs_nmax, pl_rs_eps, pl_rs_imax/200, 1.d-7, 0/
    data time_it, rs_dz_min, s_max_q2/.true., 100.d0, 100/
@@ -33,10 +34,10 @@ contains
       integer :: nodrt, nodrs, i, ix, iy, nmax, nterms, n, p, q, imodl, m, l, k, mnp, klq, mn, kl, tranmat(2, 2), &
                  slay, tlay, np(2)
       integer, optional :: index_model
-      real(8) :: x0, y0, zt, zs, w(2), wx, wy, k0x, k0y, kconst, kx, ky, eps, cerr, asum, asum0, x, y, wcrit
-      complex(8) :: matrix(*), csum(2, 2), ri
-      complex(8), optional :: source_vector(2 * nodrs * (nodrs + 2))
-      complex(8), allocatable :: kernel(:, :, :, :), dkernel(:, :, :, :), fsmat(:, :, :), rsmat(:, :)
+      real(real64) :: x0, y0, zt, zs, w(2), wx, wy, k0x, k0y, kconst, kx, ky, eps, cerr, asum, asum0, x, y, wcrit
+      complex(real64) :: matrix(*), csum(2, 2), ri
+      complex(real64), optional :: source_vector(2 * nodrs * (nodrs + 2))
+      complex(real64), allocatable :: kernel(:, :, :, :), dkernel(:, :, :, :), fsmat(:, :, :), rsmat(:, :)
 
       tranmat = reshape((/1, 1, 1, -1/), (/2, 2/))
       if (present(include_source)) then
@@ -211,12 +212,12 @@ contains
       integer :: nodrt, nodrs, wmax, l, m, mn, n, np(2), &
                  m1m, k, kl, nn1, ll1, v, w, wmin, vw, imodl, nterms, klp, p
       integer, optional :: index_model
-      real(8) :: rpos(3), vc1(0:nodrs + nodrt), vc2(0:nodrs + nodrt), rpos0(3), wcrit
-      complex(8) :: ci, c, a, b, ri, pshift, &
-                    ysum(0:(nodrt + nodrs) * (nodrt + nodrs + 2)), &
-                    swf(0:(nodrt + nodrs) * (nodrt + nodrs + 2)), matrix(*)
-      complex(8), allocatable :: fsmat(:, :, :)
-      complex(8), optional :: source_vector(nodrs * (nodrs + 2) * 2)
+      real(real64) :: rpos(3), vc1(0:nodrs + nodrt), vc2(0:nodrs + nodrt), rpos0(3), wcrit
+      complex(real64) :: ci, c, a, b, ri, pshift, &
+                         ysum(0:(nodrt + nodrs) * (nodrt + nodrs + 2)), &
+                         swf(0:(nodrt + nodrs) * (nodrt + nodrs + 2)), matrix(*)
+      complex(real64), allocatable :: fsmat(:, :, :)
+      complex(real64), optional :: source_vector(nodrs * (nodrs + 2) * 2)
       data ci/(0.d0, 1.d0)/
       if (present(include_source)) then
          incsrc = include_source
@@ -346,12 +347,12 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
                  ll1, nn1, wmax, l, k, m, mn, kl, mnp, klq, tsign, ssign, iw, wmin, v, np(2), imodl, sdir, tdir, &
                  tranmat(2, 2), vw, w, nelem
       integer, optional :: index_model
-      real(8) :: x, y, zt, zs, kx, ky, vc1(0:nodrt + nodrs), &
-                 vcp1m1(0:nodrt + nodrs), vcm1m1(0:nodrt + nodrs), x0, y0, a0mag
-      real(8), allocatable :: asum(:), asum0(:), cerr(:)
-      complex(8) :: ri, c, tmat(-1:2), csum(2, 2), matrix(*)
-      complex(8), allocatable :: qsum(:, :, :, :), dqsum(:, :, :, :), mat(:, :), fsmat(:, :, :)
-      complex(8), optional :: source_vector(2 * nodrs * (nodrs + 2))
+      real(real64) :: x, y, zt, zs, kx, ky, vc1(0:nodrt + nodrs), &
+                      vcp1m1(0:nodrt + nodrs), vcm1m1(0:nodrt + nodrs), x0, y0, a0mag
+      real(real64), allocatable :: asum(:), asum0(:), cerr(:)
+      complex(real64) :: ri, c, tmat(-1:2), csum(2, 2), matrix(*)
+      complex(real64), allocatable :: qsum(:, :, :, :), dqsum(:, :, :, :), mat(:, :), fsmat(:, :, :)
+      complex(real64), optional :: source_vector(2 * nodrs * (nodrs + 2))
       tranmat = reshape((/1, 1, 1, -1/), (/2, 2/))
       if (present(include_source)) then
          incsrc = include_source
@@ -529,8 +530,8 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       logical :: addsource
       logical, optional :: include_source
       integer :: nodr, n, nn1, k, m, mn
-      real(8) :: x, y, z, w(2), k0(2), drot(-nodr:nodr, 0:nodr * (nodr + 2))
-      complex(8) :: ri, swfsum(0:nodr * (nodr + 2)), swf(0:nodr * (nodr + 2)), act(-nodr:nodr), csum
+      real(real64) :: x, y, z, w(2), k0(2), drot(-nodr:nodr, 0:nodr * (nodr + 2))
+      complex(real64) :: ri, swfsum(0:nodr * (nodr + 2)), swf(0:nodr * (nodr + 2)), act(-nodr:nodr), csum
 
       if (present(include_source)) then
          if (x .ne. 0.d0 .or. y .ne. 0.d0 .or. z .ne. 0.d0) then
@@ -567,11 +568,11 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       implicit none
       logical :: convrg
       integer :: nodr, m, n, s, ntz, l, smaxp, smaxn
-      real(8) :: x, k0y, k0z, w(2), y, z, kz, mag, terr(0:nodr * (nodr + 2)), derr(0:nodr * (nodr + 2))
-      complex(8) :: q1d(0:nodr * (nodr + 2)), q2d(-nodr:nodr), &
-                    swfyzsum(0:nodr * (nodr + 2)), ri, ci, &
-                    c, ct, ymn(0:nodr * (nodr + 2))
-      complex(8), allocatable :: sum1(:, :)
+      real(real64) :: x, k0y, k0z, w(2), y, z, kz, mag, terr(0:nodr * (nodr + 2)), derr(0:nodr * (nodr + 2))
+      complex(real64) :: q1d(0:nodr * (nodr + 2)), q2d(-nodr:nodr), &
+                         swfyzsum(0:nodr * (nodr + 2)), ri, ci, &
+                         c, ct, ymn(0:nodr * (nodr + 2))
+      complex(real64), allocatable :: sum1(:, :)
       data ci/(0.d0, 1.d0)/
       ntz = max(s_max_q2, ceiling(w(2) / 2.d0 / pi))
       allocate (sum1(-nodr:nodr, 0:ntz))
@@ -673,11 +674,11 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       implicit none
       logical :: convrg
       integer :: nodr, m, n, s, ntz, l, smaxp, smaxn
-      real(8) :: x, k0y, k0z, w(2), y, z, kz, mag, tmag
-      complex(8) :: q1d(0:nodr * (nodr + 2)), q2d(-nodr:nodr), &
-                    swfyzsum(0:nodr * (nodr + 2)), ri, ci, &
-                    c, ct, ymn(0:nodr * (nodr + 2))
-      complex(8), allocatable :: sum1(:, :)
+      real(real64) :: x, k0y, k0z, w(2), y, z, kz, mag, tmag
+      complex(real64) :: q1d(0:nodr * (nodr + 2)), q2d(-nodr:nodr), &
+                         swfyzsum(0:nodr * (nodr + 2)), ri, ci, &
+                         c, ct, ymn(0:nodr * (nodr + 2))
+      complex(real64), allocatable :: sum1(:, :)
       data ci/(0.d0, 1.d0)/
       ntz = max(20, ceiling(w(2) / 2.d0 / pi))
       allocate (sum1(-nodr:nodr, -ntz:ntz))
@@ -742,8 +743,8 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
    subroutine lattice_integrand_2d(ntot, t, qfunc)
       implicit none
       integer :: ntot, m
-      real(8) :: t, tt, dt
-      complex(8) :: qfunc(ntot), ci, u, efunc1, efunc2, pfunc1, pfunc2, c, du, v, rkz
+      real(real64) :: t, tt, dt
+      complex(real64) :: qfunc(ntot), ci, u, efunc1, efunc2, pfunc1, pfunc2, c, du, v, rkz
       data ci/(0.d0, 1.d0)/
       if (qkernel_integration_model .eq. 0) then
          tt = t
@@ -774,8 +775,8 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
    subroutine integrate_lattice_term_2d(nodr, x, y, w, k0y, kz, ri, qint)
       implicit none
       integer :: nodr, ntot, subdiv, nseg, ec
-      real(8) :: x, y, w, k0y, kz, t0, t1, cerr, dseg
-      complex(8) :: qint(-nodr:nodr), qintt(-nodr:nodr), qintp(-nodr:nodr), ri
+      real(real64) :: x, y, w, k0y, kz, t0, t1, cerr, dseg
+      complex(real64) :: qint(-nodr:nodr), qintt(-nodr:nodr), qintp(-nodr:nodr), ri
       qkernel_nodr = nodr
       qkernel_x = x
       qkernel_y = y
@@ -845,9 +846,9 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
    subroutine lattice_integrand_1d(ntot, t, qfunc)
       implicit none
       integer :: ntot, i, n, m, nodrtemp, mlim
-      real(8) :: t, tt, dt, rho
-      complex(8) :: qfunc(ntot), ymn1(0:qkernel_nodr * (qkernel_nodr + 2)), ci, u, st1, rhos, &
-                    ephi, bfunc(-qkernel_nodr:qkernel_nodr), expzfunc1, expzfunc2, c
+      real(real64) :: t, tt, dt, rho
+      complex(real64) :: qfunc(ntot), ymn1(0:qkernel_nodr * (qkernel_nodr + 2)), ci, u, st1, rhos, &
+                         ephi, bfunc(-qkernel_nodr:qkernel_nodr), expzfunc1, expzfunc2, c
       data ci/(0.d0, 1.d0)/
       if (qkernel_integration_model .eq. 0) then
          tt = t
@@ -856,7 +857,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
          tt = 1.d0 / t
          dt = tt / t
       end if
-      u = cmplx(1.d0, tt, kind=kind(0.0d0))
+      u = cmplx(1.d0, tt, kind=real64)
       rho = sqrt(qkernel_x * qkernel_x + qkernel_y * qkernel_y)
       st1 = sqrt((1.d0 - u) * (1.d0 + u))
       rhos = rho * st1 * qkernel_ref_index
@@ -866,7 +867,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
          bfunc(0) = 1.d0
          nodrtemp = 0
       else
-         ephi = cmplx(qkernel_x, qkernel_y, kind=kind(0.0d0)) / rho
+         ephi = cmplx(qkernel_x, qkernel_y, kind=real64) / rho
          nodrtemp = qkernel_nodr
          call bessel_integer_complex(qkernel_nodr, rhos, nodrtemp, bfunc(0:qkernel_nodr))
          do m = 1, nodrtemp
@@ -892,8 +893,8 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
    subroutine integrate_lattice_term_1d_without_source(nodr, x, y, z, w, kz, ri, qint)
       implicit none
       integer :: nodr, ntot, subdiv, nseg, ec
-      real(8) :: x, y, z, w, kz, t0, t1, cerr, dseg
-      complex(8) :: qint(0:nodr * (nodr + 2)), qintt(0:nodr * (nodr + 2)), ri
+      real(real64) :: x, y, z, w, kz, t0, t1, cerr, dseg
+      complex(real64) :: qint(0:nodr * (nodr + 2)), qintt(0:nodr * (nodr + 2)), ri
       qkernel_nodr = nodr
       qkernel_x = x
       qkernel_y = y
@@ -935,9 +936,9 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
    subroutine reciprocal_space_scalar_wave_function_lattice_sum(nodr, x0, y0, z0, w, k0, ri, nmax, eps, nterms, wf)
       implicit none
       integer :: nodr, i, ix, iy, nmax, nterms, n, p, q
-      real(8) :: x0, y0, z0, w(2), wx, wy, k0(2), kconst, kx, ky, eps, cerr(0:nodr * (nodr + 2)), &
-                 asum(0:nodr * (nodr + 2)), asum0(0:nodr * (nodr + 2)), a0mag
-      complex(8) :: ri, wf(0:nodr * (nodr + 2)), kswf(0:nodr * (nodr + 2)), dwf(0:nodr * (nodr + 2))
+      real(real64) :: x0, y0, z0, w(2), wx, wy, k0(2), kconst, kx, ky, eps, cerr(0:nodr * (nodr + 2)), &
+                      asum(0:nodr * (nodr + 2)), asum0(0:nodr * (nodr + 2)), a0mag
+      complex(real64) :: ri, wf(0:nodr * (nodr + 2)), kswf(0:nodr * (nodr + 2)), dwf(0:nodr * (nodr + 2))
       wx = w(1)
       wy = w(2)
       kconst = two_pi / wx / wy
@@ -984,10 +985,10 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
    subroutine common_layer_lattice_kernel(nodr, kx, ky, x, y, zt, zs, tdirs, sdirs, kernel)
       implicit none
       integer :: nodr, n, m, k, mn, sdirs(2), tdirs(2), sdir, tdir, slay, i, is, id, it
-      real(8) :: kx, ky, x, y, zs, zt, kr
-      complex(8) :: s, gfunc(2, 2, 2), skz, tkz, &
-                    drot(-2:2, 0:nodr * (nodr + 2)), ealpha, ri, c, c2, &
-                    kernel(-1:1, 0:nodr * (nodr + 2), tdirs(1):tdirs(2), sdirs(1):sdirs(2))
+      real(real64) :: kx, ky, x, y, zs, zt, kr
+      complex(real64) :: s, gfunc(2, 2, 2), skz, tkz, &
+                         drot(-2:2, 0:nodr * (nodr + 2)), ealpha, ri, c, c2, &
+                         kernel(-1:1, 0:nodr * (nodr + 2), tdirs(1):tdirs(2), sdirs(1):sdirs(2))
       if (time_it) time_0 = mstm_mpi_wtime()
       slay = find_layer_index(zs)
       ri = layer_ref_index(slay)
@@ -995,7 +996,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       if (kr .eq. 0.d0) then
          ealpha = 1.d0
       else
-         ealpha = cmplx(kx, ky, kind=kind(0.0d0)) / kr
+         ealpha = cmplx(kx, ky, kind=real64) / kr
       end if
       s = kr
       call layer_green_function(s, zs, zt, gfunc, skz, tkz)
@@ -1032,9 +1033,9 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       logical :: incsrc
       logical, optional :: include_source
       integer :: nodrs, nodrt, n, m, p, k, l, q, mn, kl, ssign, tsign, pol
-      real(8) :: kx, ky, x, y, zs, zt, kr
-      complex(8) :: kernel(2, nodrt * (nodrt + 2), 2, nodrs * (nodrs + 2)), s, gfunc(2, 2, 2), skz, tkz, &
-                    pivec(2, nodrs * (nodrs + 2), 2), picvec(2, nodrt * (nodrt + 2), 2), ealpha, ri, ekm, csum(2, 2), c
+      real(real64) :: kx, ky, x, y, zs, zt, kr
+      complex(real64) :: kernel(2, nodrt * (nodrt + 2), 2, nodrs * (nodrs + 2)), s, gfunc(2, 2, 2), skz, tkz, &
+                         pivec(2, nodrs * (nodrs + 2), 2), picvec(2, nodrt * (nodrt + 2), 2), ealpha, ri, ekm, csum(2, 2), c
       if (present(include_source)) then
          incsrc = include_source
       else
@@ -1047,7 +1048,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       if (kr .eq. 0.d0) then
          ealpha = 1.d0
       else
-         ealpha = cmplx(kx, ky, kind=kind(0.0d0)) / kr
+         ealpha = cmplx(kx, ky, kind=real64) / kr
       end if
       s = kr
       call layer_green_function(s, zs, zt, gfunc, skz, tkz, incsrc)

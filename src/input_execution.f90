@@ -1,4 +1,5 @@
 module input_execution
+   use, intrinsic :: iso_fortran_env, only: real64
    use configuration_data
    use constants
    use effective_medium_analysis
@@ -16,9 +17,9 @@ contains
       integer :: file_unit, n, istat, niter, rank, numprocs, i, nodrw, celldim(3), itemp(6), sx, sy, maxt, &
                  mpicomm, lochost
       integer, optional :: mpi_comm
-      real(8) :: alpha, time1, r0(3), rtran, costheta, &
-                 csca, zext, targetvol, timet, tmin(3), tmax(3), rannum
-      complex(8) :: rimedium(2)
+      real(real64) :: alpha, time1, r0(3), rtran, costheta, &
+                      csca, zext, targetvol, timet, tmin(3), tmax(3), rannum
+      complex(real64) :: rimedium(2)
       character(len=256) :: timatrixfile
       if (present(dry_run)) then
          dryrun = dry_run
@@ -87,7 +88,7 @@ contains
       end if
       if (medium_ref_index_specified) then
          if (medium_reim_ref_index_specified) then
-            layer_ref_index(0) = cmplx(medium_re_ref_index, medium_im_ref_index, kind=kind(0.0d0))
+            layer_ref_index(0) = cmplx(medium_re_ref_index, medium_im_ref_index, kind=real64)
          else
             layer_ref_index(0) = medium_ref_index
          end if
@@ -623,8 +624,14 @@ contains
             end if
 !call mstm_mpi(mpi_command='barrier')
             if (gaussian_beam_constant .eq. 0.d0) then
-               call boundary_extinction(amnp_0, alpha, incident_sin_beta, incident_direction, boundary_ext, &
-                                        common_origin=singleorigin)
+               boundary_ext = 0.d0
+               ! A finite cluster without interfaces does not use plane-boundary
+               ! extinction.  Avoid the spectral Green-function normalization at
+               ! exact grazing incidence, where its longitudinal wave number is zero.
+               if (number_plane_boundaries .gt. 0 .or. periodic_lattice .or. reflection_model) then
+                  call boundary_extinction(amnp_0, alpha, incident_sin_beta, incident_direction, boundary_ext, &
+                                           common_origin=singleorigin)
+               end if
             end if
          else
             if (light_up) then
@@ -641,7 +648,10 @@ contains
                call compute_scattering_matrix(amnp_s, scat_mat, mpi_comm=mpicomm)
             end if
             if (gaussian_beam_constant .eq. 0.d0) then
-               call boundary_extinction(amnp_s, alpha, incident_sin_beta, incident_direction, boundary_ext)
+               boundary_ext = 0.d0
+               if (number_plane_boundaries .gt. 0 .or. periodic_lattice .or. reflection_model) then
+                  call boundary_extinction(amnp_s, alpha, incident_sin_beta, incident_direction, boundary_ext)
+               end if
             end if
          end if
 
@@ -760,10 +770,10 @@ contains
       logical :: singleorigin, iframe
       integer :: file_unit, rank, numprocs, m, n, p, mnp, griddim(3), ipos(3), ix, iy, iz, &
                  numprocsperconfig, configcolor, configgroup, configcomm, configrank, config0comm, nconfigave, nsend
-      real(8) :: time1, timet, diffac, csca(1), xspfit, rpos(3), rtemp(1)
-      real(8), allocatable :: texpcoef(:, :, :), spherical_position(:, :)
-      complex(8) :: ritemp(2), aneff, ctemp(1), rieff, e0
-      complex(8), allocatable :: pmnp0(:, :), anp0(:, :), edat(:)
+      real(real64) :: time1, timet, diffac, csca(1), xspfit, rpos(3), rtemp(1)
+      real(real64), allocatable :: texpcoef(:, :, :), spherical_position(:, :)
+      complex(real64) :: ritemp(2), aneff, ctemp(1), rieff, e0
+      complex(real64), allocatable :: pmnp0(:, :), anp0(:, :), edat(:)
       character(len=256) :: tmatchar1, tmatchar2
       data tmatchar1, tmatchar2/'tmat-', '.tmp'/
       first_run = .false.
@@ -1206,9 +1216,9 @@ contains
       implicit none
       integer :: file_unit, rank, numprocs, itemp(1), n, &
                  numprocsperconfig, configcolor, configgroup, configcomm, configrank, config0comm, nconfigave, nsend
-      real(8) :: time1, timet
-      real(8), allocatable :: tpos(:, :)
-      complex(8) :: ctemp(1)
+      real(real64) :: time1, timet
+      real(real64), allocatable :: tpos(:, :)
+      complex(real64) :: ctemp(1)
       character(len=256) :: tmatchar1, tmatchar2
       data tmatchar1, tmatchar2/'tmat-', '.tmp'/
       first_run = .false.
@@ -1405,8 +1415,8 @@ contains
       logical :: singleorigin, prancon, aa, soe, iframe, cuds
       integer :: file_unit, rank, numprocs, &
                  numprocsperconfig, configcolor, configgroup, configcomm, configrank, config0comm, nconfigave, nsend
-      real(8) :: time1, timet
-      real(8), allocatable :: texpcoef(:, :, :)
+      real(real64) :: time1, timet
+      real(real64), allocatable :: texpcoef(:, :, :)
       character(len=256) :: sdatfile
       first_run = .false.
       call mstm_mpi(mpi_command='rank', mpi_rank=rank)
@@ -1662,16 +1672,16 @@ contains
    subroutine common_origin_scattering_cross_section(n, a, c)
       implicit none
       integer :: n
-      real(8) :: c(1)
-      complex(8) :: a(4 * n * (n + 2))
+      real(real64) :: c(1)
+      complex(real64) :: a(4 * n * (n + 2))
       c(1) = sum(a(:) * conjg(a(:)))
    end subroutine common_origin_scattering_cross_section
 
    subroutine subtract_fixed_sphere_from_common_origin()
       implicit none
       integer :: i, i1, mnp0, mnp1, n, m, p
-      real(8) :: fn
-      complex(8) :: a(2, 2), b(2, 2)
+      real(real64) :: fn
+      complex(real64) :: a(2, 2), b(2, 2)
 
       fn = dble(number_spheres - 1) / dble(number_spheres)
       fn = 1.d0
@@ -1701,7 +1711,7 @@ contains
    subroutine calculate_surface_absorptance()
       implicit none
       integer :: i
-      real(8) :: rsamp, r, asamp
+      real(real64) :: rsamp, r, asamp
       if (periodic_lattice) then
          surface_absorptance(1:2) = q_eff_tot(2, 2:3)
       else
@@ -1723,7 +1733,7 @@ contains
       implicit none
       integer :: mpicomm, rank, numprocs
       integer, optional :: mpi_comm
-      real(8) :: rnum(2), sbuf(2), cbeta
+      real(real64) :: rnum(2), sbuf(2), cbeta
       if (present(mpi_comm)) then
          mpicomm = mpi_comm
       else

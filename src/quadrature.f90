@@ -1,12 +1,14 @@
 module quadrature
+   use, intrinsic :: iso_fortran_env, only: real64
    use constants
    implicit none
 
    abstract interface
       subroutine complex_integrand(number_values, argument, values)
+         import :: real64
          integer :: number_values
-         real(8) :: argument
-         complex(8) :: values(number_values)
+         real(real64) :: argument
+         complex(real64) :: values(number_values)
       end subroutine complex_integrand
    end interface
 contains
@@ -14,10 +16,10 @@ contains
    subroutine integrate_gauss_kronrod_nonadaptive(n, a, b, epsabs, epsrel, f, resultf, abserr, neval, ier)
       implicit none
       integer :: n, ier, k, l, neval, ipx
-      real(8) a, absc, abserr, b, centr, dhlgth, epsabs, epsrel, hlgth, w10(5), w21a(5), w21b(6), &
+      real(real64) a, absc, abserr, b, centr, dhlgth, epsabs, epsrel, hlgth, w10(5), w21a(5), w21b(6), &
          w43a(10), w43b(12), w87a(21), w87b(23), x1(5), x2(5), x3(11), x4(22)
-      complex(8) :: fcentr(n), fval(n), fval1(n), fval2(n), fv1(5, n), fv2(5, n), fv3(5, n), fv4(5, n), &
-                    resultf(n), res10(n), res21(n), res43(n), res87(n), savfun(21, n)
+      complex(real64) :: fcentr(n), fval(n), fval1(n), fval2(n), fv1(5, n), fv2(5, n), fv3(5, n), fv4(5, n), &
+                         resultf(n), res10(n), res21(n), res43(n), res87(n), savfun(21, n)
       procedure(complex_integrand) :: f
       data x1(1), x1(2), x1(3), x1(4), x1(5)/ &
          9.739065285171717E-01, 8.650633666889845E-01, &
@@ -195,10 +197,10 @@ contains
       integer, intent(in) :: ntot
       integer, intent(inout) :: subdiv, errorcodes
       integer :: nsteps, ier, subdiv1, subdiv2, maxnumdiv, ec1, ec2
-      real(8), intent(in) :: t0, t1
-      real(8) :: t00, tmid, t11, errstep, inteps, mindiv
-      complex(8), intent(out) :: qint(ntot)
-      complex(8) :: qint1(ntot), qint2(ntot)
+      real(real64), intent(in) :: t0, t1
+      real(real64) :: t00, tmid, t11, errstep, inteps, mindiv
+      complex(real64), intent(out) :: qint(ntot)
+      complex(real64) :: qint1(ntot), qint2(ntot)
       procedure(complex_integrand) :: qsub
 
       errorcodes = 0
@@ -236,14 +238,15 @@ contains
    subroutine gauss_legendre_rule(x1, x2, x, w, n)
       implicit none
       integer :: n, m, j, i
-      real(8) :: x1, x2, x(n), w(n), xm, xl, z, p1, p2, p3, pp, z1, dj
-      real(8), parameter :: eps = 3.d-14
+      real(real64) :: x1, x2, x(n), w(n), xm, xl, z, p1, p2, p3, pp, z1, dj
+      real(real64), parameter :: eps = 3.d-14
       m = (n + 1) / 2
       xm = 0.5d0 * (x2 + x1)
       xl = 0.5d0 * (x2 - x1)
       do i = 1, m
          z = cos(pi * (i - .25d0) / (n + .5d0))
          z1 = z - 1.d0
+         pp = 1.d0
          do while (abs(z - z1) .gt. eps)
             p1 = 1.d0
             p2 = 0.d0
@@ -268,7 +271,7 @@ contains
    subroutine sort_unique_real_values(nlimits0, limits, eps, nlimits)
       implicit none
       integer :: nlimits0, nlimits, imin(1), n
-      real(8) :: limits(1:nlimits0), rtemp(1:nlimits0), eps
+      real(real64) :: limits(1:nlimits0), rtemp(1:nlimits0), eps
       rtemp(1:nlimits0) = limits(1:nlimits0)
       imin = minloc(rtemp(1:nlimits0))
       nlimits = 1

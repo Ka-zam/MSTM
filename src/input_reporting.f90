@@ -1,4 +1,5 @@
 module input_reporting
+   use, intrinsic :: iso_fortran_env, only: real64
    use runtime_support, only: open_update_file, runtime_failed, set_runtime_error
    use constants
    use effective_medium_analysis, only: diffuse_scattering_effective_refractive_index, &
@@ -27,7 +28,7 @@ contains
    subroutine print_run_variables(iunit)
       implicit none
       integer :: iunit, i, n
-      real(8) :: cb, r(2), t(2), a(2), tvol, svol
+      real(real64) :: cb, r(2), t(2), a(2), tvol, svol
 
       write (iunit, '(''****************************************************'')')
       write (iunit, '('' input variables for run '',i5)') run_number
@@ -233,8 +234,8 @@ contains
    subroutine print_calculation_results(fout)
       implicit none
       integer :: io_status, outunit, n, i, j, smvec(6), sx, sy, s, smvec0(16), nsmat, smvecp(16)
-      real(8) :: smt(16), kx, ky, s11scale, r(2), t(2), a(2), scacoef, scarat, &
-                 abscoef, absrat, rl(2), al(2), tl(2), tvol, imrieff, qeeff
+      real(real64) :: smt(16), kx, ky, s11scale, r(2), t(2), a(2), scacoef, scarat, &
+                      abscoef, absrat, rl(2), al(2), tl(2), tvol, imrieff, qeeff
       character(len=2) :: smlabel(16)
       character(len=256) :: fout, chartemp
       smvec = (/1, 5, 6, 11, 15, 16/)
@@ -632,7 +633,7 @@ contains
       subroutine print_scattering_matrix_row(i, smt)
          implicit none
          integer :: i
-         real(8) :: smt(16)
+         real(real64) :: smt(16)
 !            write(outunit,'(f8.2)',advance='no') dble(i)*180.d0/dble(scat_mat_udim-scat_mat_ldim)
          write (outunit, '(f8.2)', advance='no') scat_mat_amin &
             + dble(i - scat_mat_ldim) / dble(scat_mat_udim - scat_mat_ldim) * (scat_mat_amax - scat_mat_amin)
@@ -645,8 +646,8 @@ contains
    end subroutine print_calculation_results
 
    pure function scaled_scattering_matrix(s)
-      real(8), intent(in) :: s(16)
-      real(8) :: scaled_scattering_matrix(16)
+      real(real64), intent(in) :: s(16)
+      real(real64) :: scaled_scattering_matrix(16)
       if (s(1) .eq. 0.d0) then
          scaled_scattering_matrix = 0.d0
       else
@@ -657,9 +658,9 @@ contains
 
    pure subroutine scattering_matrix_to_phase_matrix(smat, u, up, phi, smatrot)
       implicit none
-      real(8), intent(in) :: smat(4, 4), u, up, phi
-      real(8), intent(out) :: smatrot(4, 4)
-      real(8) :: s, sp, us, ss, csig, ssig, c2sig, s2sig, mat1(4, 4), mat2(4, 4)
+      real(real64), intent(in) :: smat(4, 4), u, up, phi
+      real(real64), intent(out) :: smatrot(4, 4)
+      real(real64) :: s, sp, us, ss, csig, ssig, c2sig, s2sig, mat1(4, 4), mat2(4, 4)
 
       s = sqrt(1.d0 - u * u)
       sp = sqrt(1.d0 - up * up)

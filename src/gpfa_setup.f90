@@ -1,4 +1,5 @@
 module gpfa_setup
+   use, intrinsic :: iso_fortran_env, only: real64
    use constants, only: two_pi
    implicit none
 contains
@@ -6,7 +7,7 @@ contains
    subroutine setgpfa(trigs, n)
       implicit none
       integer :: n, nn, ifac, ll, kk, nj(3), ip, iq, ir, ni, irot, kink, k, i
-      real(8) :: trigs(*), del, angle
+      real(real64) :: trigs(*), del, angle
 !
 !     decompose n into factors 2,3,5
 !     ------------------------------

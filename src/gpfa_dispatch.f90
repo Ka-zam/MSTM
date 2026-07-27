@@ -1,4 +1,5 @@
 module gpfa_dispatch
+   use, intrinsic :: iso_fortran_env, only: real64
    use gpfa_radix2, only: gpfa2f
    use gpfa_radix3, only: gpfa3f
    use gpfa_radix5, only: gpfa5f
@@ -8,7 +9,7 @@ contains
    subroutine gpfa(a, b, trigs, inc, jump, n, lot, isign)
       implicit none
       integer :: inc, jump, n, lot, isign, nn, ifac, ll, kk, nj(3), ip, iq, ir, i
-      real(8) :: a(*), b(*), trigs(*)
+      real(real64) :: a(*), b(*), trigs(*)
 !
 !     decompose n into factors 2,3,5
 !     ------------------------------

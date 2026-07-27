@@ -1,4 +1,5 @@
 module input_parser
+   use, intrinsic :: iso_fortran_env, only: real64
    use input_state
    use input_value_parsing
    use runtime_support, only: open_output_file, runtime_failed, set_runtime_error
@@ -16,10 +17,10 @@ contains
       integer, optional :: var_position, var_status
       integer, pointer :: ivarvalue
       integer, optional, pointer :: i_var_pointer
-      real(8), pointer :: rvarvalue, ravarvalue(:)
-      real(8), optional, pointer :: r_var_pointer
-      complex(8), pointer :: cvarvalue
-      complex(8), optional, pointer :: c_var_pointer
+      real(real64), pointer :: rvarvalue, ravarvalue(:)
+      real(real64), optional, pointer :: r_var_pointer
+      complex(real64), pointer :: cvarvalue
+      complex(real64), optional, pointer :: c_var_pointer
       character(len=1) :: vartype
       character(len=1), optional :: var_type
       character(len=*), optional :: var_value, var_operation
@@ -602,8 +603,8 @@ contains
       integer :: readok, n, spherenum, varstat, rank, stopit, istat, lines, temporary_unit
       integer, save :: inputline
       integer, optional :: read_status
-      real(8) :: rtemp(4)
-      complex(8) :: ctemp(4)
+      real(real64) :: rtemp(4)
+      complex(real64) :: ctemp(4)
       character(len=256) :: parmid, parmval, varop, inputfiledata(*)
       data inputline/1/
 
@@ -792,7 +793,7 @@ contains
       subroutine read_real_list(listvar, listnum)
          implicit none
          integer :: listnum
-         real(8) :: listvar(*)
+         real(real64) :: listvar(*)
          parmval = inputfiledata(inputline)
          inputline = inputline + 1
          read (parmval, *, iostat=istat) listvar(1:listnum)
@@ -801,7 +802,7 @@ contains
       subroutine read_complex_list(listvar, listnum)
          implicit none
          integer :: listnum
-         complex(8) :: listvar(*)
+         complex(real64) :: listvar(*)
          parmval = inputfiledata(inputline)
          inputline = inputline + 1
          read (parmval, *, iostat=istat) listvar(1:listnum)

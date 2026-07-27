@@ -1,4 +1,5 @@
 module fft_translation
+   use, intrinsic :: iso_fortran_env, only: real32, real64
    use constants
    use gpfa_controller, only: cgpfa
    use gpfa_setup, only: setgpfa
@@ -19,19 +20,19 @@ module fft_translation
       type(linked_ilist), pointer :: next => null()
    end type linked_ilist
    type coefficient_list
-      complex(8), pointer :: coefficient_vector(:, :)
+      complex(real64), pointer :: coefficient_vector(:, :)
    end type coefficient_list
 
    integer :: cell_dim(3), number_neighbor_nodes
    integer, private :: neighbor_node(3, 0:26), fft_local_host, fft_number_spheres
    integer, target :: node_order, neighbor_node_model
    integer, allocatable, private :: sphere_node(:, :)
-!      real(8) :: d_cell
-   real(8), private :: cell_origin(3), cell_boundary(3)
-   real(8), private :: timedat(10)
-   real(8), target :: cell_volume_fraction, d_cell
-   complex(8), private :: host_ref_index(2)
-   complex(4), allocatable, private :: cell_translation_matrix(:, :, :, :, :, :)
+!      real(real64) :: d_cell
+   real(real64), private :: cell_origin(3), cell_boundary(3)
+   real(real64), private :: timedat(10)
+   real(real64), target :: cell_volume_fraction, d_cell
+   complex(real64), private :: host_ref_index(2)
+   complex(real32), allocatable, private :: cell_translation_matrix(:, :, :, :, :, :)
    type(node_data), allocatable, private :: cell_list(:, :, :), sphere_local_interaction_list(:)
    type(translation_operator_state), target, allocatable, private :: stored_local_j_mat(:), stored_local_h_mat(:)
    data fft_local_host/0/
@@ -90,9 +91,9 @@ contains
       integer, save :: pgroup, pcomm, synccomm1, synccomm2, p1, p2, prank
       integer, allocatable :: grouplist(:)
       integer, optional :: mpi_comm
-      complex(8) :: ain(neqns, nrhs), gout(neqns, nrhs)
-      complex(8), allocatable, save :: anode(:, :, :, :, :), gnode(:, :, :, :, :), &
-                                       gout_loc(:, :), ain_t(:, :), gout_t(:, :)
+      complex(real64) :: ain(neqns, nrhs), gout(neqns, nrhs)
+      complex(real64), allocatable, save :: anode(:, :, :, :, :), gnode(:, :, :, :, :), &
+                                            gout_loc(:, :), ain_t(:, :), gout_t(:, :)
       data firstrun/.true./
       if (present(mpi_comm)) then
          mpicomm = mpi_comm
@@ -355,7 +356,7 @@ contains
       logical, optional :: store_matrix_option, initial_run, &
                            rhs_list(nrhs), con_tran(nrhs), merge_procs
       integer, optional :: mpi_comm, local_host
-      complex(8) :: ain(number_eqns, nrhs), gout(number_eqns, nrhs), rimedium(2)
+      complex(real64) :: ain(number_eqns, nrhs), gout(number_eqns, nrhs), rimedium(2)
       type(translation_operator_state), pointer :: loc_tranmat
       type(translation_operator_state), target :: tranmat
       type(linked_ilist), pointer :: llist
@@ -487,9 +488,9 @@ contains
       logical, optional :: store_matrix_option, initial_run, merge_procs, &
                            rhs_list(nrhs), con_tran(nrhs), sphere_to_node
       integer, optional :: mpi_comm, local_host
-      real(8) :: rtran(3)
-  complex(8) :: asphere(number_eqns, nrhs), anode(cell_dim(1), cell_dim(2), cell_dim(3), node_order * (node_order + 2) * 2, nrhs), &
-                    rimedium(2), anodet(node_order * (node_order + 2) * 2)
+      real(real64) :: rtran(3)
+  complex(real64) :: asphere(number_eqns, nrhs), anode(cell_dim(1), cell_dim(2), cell_dim(3), node_order * (node_order + 2) * 2, nrhs), &
+                         rimedium(2), anodet(node_order * (node_order + 2) * 2)
       type(translation_operator_state), pointer :: loc_tranmat
       type(translation_operator_state), target :: tranmat
       data firstrun/.true./
@@ -637,8 +638,8 @@ contains
       logical, optional :: d_specified
       integer :: nsphere, m, spherenode(3), n, i, node, ix, iy, iz, ir, j, icell, ncell, cell, lochost
       integer, optional :: local_host
-      real(8) :: fva, r, fv, amean, svol, tvol, dd, targetmin(3), targetmax(3)
-      real(8), optional :: target_min(3), target_max(3)
+      real(real64) :: fva, r, fv, amean, svol, tvol, dd, targetmin(3), targetmax(3)
+      real(real64), optional :: target_min(3), target_max(3)
       type(linked_ilist), pointer :: ilist, ilist2
 
       if (present(target_min)) then
@@ -810,11 +811,11 @@ contains
       logical, optional :: tran_op
       integer :: nblk, celldim2(3), n, l, mpicomm, numprocs, rank, ncells, task, proc, nsend, pmode, ncells8
       integer, optional :: mpi_comm
-    complex(4) :: tranmat(8 * cell_dim(1) * cell_dim(2) * cell_dim(3), node_order * (node_order + 2), node_order * (node_order + 2))
-      complex(8) :: acoef(cell_dim(1) * cell_dim(2) * cell_dim(3), node_order * (node_order + 2), 2), &
-                    aft(8 * cell_dim(1) * cell_dim(2) * cell_dim(3)), &
-                    gcoef(cell_dim(1) * cell_dim(2) * cell_dim(3), node_order * (node_order + 2), 2), &
-                    gft(8 * cell_dim(1) * cell_dim(2) * cell_dim(3), node_order * (node_order + 2))
+    complex(real32) :: tranmat(8 * cell_dim(1) * cell_dim(2) * cell_dim(3), node_order * (node_order + 2), node_order * (node_order + 2))
+      complex(real64) :: acoef(cell_dim(1) * cell_dim(2) * cell_dim(3), node_order * (node_order + 2), 2), &
+                         aft(8 * cell_dim(1) * cell_dim(2) * cell_dim(3)), &
+                         gcoef(cell_dim(1) * cell_dim(2) * cell_dim(3), node_order * (node_order + 2), 2), &
+                         gft(8 * cell_dim(1) * cell_dim(2) * cell_dim(3), node_order * (node_order + 2))
 
       if (present(mpi_comm)) then
          mpicomm = mpi_comm
@@ -883,9 +884,9 @@ contains
       logical :: inhole
       integer :: nodr, nx, ny, nz, is, nblk, ncells2(3), isx, isy, isz, nx1, ny1, nz1, &
                  n, i, node(3), p1, p2, p, l
-      real(8) :: x, y, z, xp(3), r
-      complex(8) :: hij(nodr * (nodr + 2), nodr * (nodr + 2), 2), ri(2), &
-                    htemp(1:2 * cell_dim(1), 1:2 * cell_dim(2), 1:2 * cell_dim(3))
+      real(real64) :: x, y, z, xp(3), r
+      complex(real64) :: hij(nodr * (nodr + 2), nodr * (nodr + 2), 2), ri(2), &
+                         htemp(1:2 * cell_dim(1), 1:2 * cell_dim(2), 1:2 * cell_dim(3))
 
       nblk = nodr * (nodr + 2)
       ncells2 = 2 * cell_dim
@@ -960,10 +961,10 @@ contains
                  looporder(3), &
                  triplet(3), ndimin(3), ndimout(3), ntot3, i1, i2, i3
       integer, parameter :: mxtrig = 1000
-      real(8) :: trig(mxtrig), ar_temp(nblk, max(ntot3in, ntot3out)), &
-                 ai_temp(nblk, max(ntot3in, ntot3out))
-      complex(8) :: aout(nblk, ndimout(1), ndimout(2), ndimout(3)), &
-                    ain(nblk, ndimin(1), ndimin(2), ndimin(3))
+      real(real64) :: trig(mxtrig), ar_temp(nblk, max(ntot3in, ntot3out)), &
+                      ai_temp(nblk, max(ntot3in, ntot3out))
+      complex(real64) :: aout(nblk, ndimout(1), ndimout(2), ndimout(3)), &
+                         ain(nblk, ndimin(1), ndimin(2), ndimin(3))
       i1 = looporder(1)
       i2 = looporder(2)
       i3 = looporder(3)
@@ -986,7 +987,7 @@ contains
             do n = 1, ntot3out
                triplet(i3) = n
                aout(1:nblk, triplet(1), triplet(2), triplet(3)) &
-                  = cmplx(ar_temp(1:nblk, n), ai_temp(1:nblk, n), kind=kind(0.0d0))
+                  = cmplx(ar_temp(1:nblk, n), ai_temp(1:nblk, n), kind=real64)
             end do
          end do
       end do
@@ -998,10 +999,10 @@ contains
                  ntotxold, ntotyold, ntotzold, &
                  nblkold
       integer, parameter :: mxtrig = 1000
-      real(8) :: trig(mxtrig, 3)
+      real(real64) :: trig(mxtrig, 3)
       save :: trig, ntotxold, ntotyold, ntotzold, nblkold
-      complex(8) :: amf(nblk, ntot2(1), ntot2(2), ntot2(3)), &
-                    am(nblk, ntot(1), ntot(2), ntot(3))
+      complex(real64) :: amf(nblk, ntot2(1), ntot2(2), ntot2(3)), &
+                         am(nblk, ntot(1), ntot(2), ntot(3))
       data ntotxold, ntotyold, ntotzold, nblkold/0, 0, 0, 0/
       if (ntot2(1) .ne. ntotxold .or. ntot2(2) .ne. ntotyold &
           .or. ntot2(3) .ne. ntotzold) then

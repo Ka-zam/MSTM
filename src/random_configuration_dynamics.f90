@@ -1,4 +1,5 @@
 module random_configuration_dynamics
+   use, intrinsic :: iso_fortran_env, only: real64
    use constants
    use parallel_runtime, only: mstm_mpi_wtime
    use random_configuration_geometry, only: check_position_in_target, modify_cells, position_to_cell_index
@@ -14,10 +15,10 @@ contains
       logical :: collision, wallcollision, pbc(3), intarget
       integer :: nsphere, i, is, js, collisionpair(2), iwall, iswall, m, nwhits, it
       integer, optional :: number_wall_hits
-      real(8) :: pos(3, nsphere), radius(nsphere), maxtime, &
-                 tcmin, tmove, u1new(3), u2new(3), u(1:3, nsphere), &
-                 twallmin, rho, cp, sp, urho, uphi, tpos(3), &
-                 u1pn(3), ct, st, r, tcoll, wallboundaries(3, 2), collpos(3)
+      real(real64) :: pos(3, nsphere), radius(nsphere), maxtime, &
+                      tcmin, tmove, u1new(3), u2new(3), u(1:3, nsphere), &
+                      twallmin, rho, cp, sp, urho, uphi, tpos(3), &
+                      u1pn(3), ct, st, r, tcoll, wallboundaries(3, 2), collpos(3)
       pbc = .false.
       if (target_shape .eq. 0) then
          pbc = periodic_bc
@@ -164,8 +165,8 @@ contains
       implicit none
       integer :: nsphere, is, iwall, i, iswall, i1, i2
       integer, optional :: start_sphere, end_sphere
-      real(8) :: pos(3, nsphere), radius(nsphere), tmove, wallboundaries(3, 2), &
-                 twall, u(3, nsphere), twallmin, vel, rho, dist, cp, sp, ct, st, r, urho
+      real(real64) :: pos(3, nsphere), radius(nsphere), tmove, wallboundaries(3, 2), &
+                      twall, u(3, nsphere), twallmin, vel, rho, dist, cp, sp, ct, st, r, urho
       if (present(start_sphere)) then
          i1 = start_sphere
       else
@@ -280,9 +281,9 @@ contains
       integer :: nsphere, is, j, js, cell(3), ccell(3), scell(3), collisionpair(2), m, n, &
                  istart, iend, i
       integer, optional :: start_sphere, end_sphere
-      real(8) :: pos(3, nsphere), radius(nsphere), maxtime, wallboundaries(3, 2), &
-                 tcmin, rcol, tcollision, u(1:3, nsphere), mindist, tpos(3), collisionpos(3)
-      real(8), optional :: minimum_distance, collision_pos(3)
+      real(real64) :: pos(3, nsphere), radius(nsphere), maxtime, wallboundaries(3, 2), &
+                      tcmin, rcol, tcollision, u(1:3, nsphere), mindist, tpos(3), collisionpos(3)
+      real(real64), optional :: minimum_distance, collision_pos(3)
       type(l_list), pointer :: llist
       if (present(start_sphere)) then
          istart = start_sphere
@@ -299,6 +300,7 @@ contains
       else
          mindist = minimum_gap
       end if
+      pbc = .false.
       if (target_shape .eq. 0) then
          pbc = periodic_bc
       elseif (target_shape .eq. 1) then
@@ -367,10 +369,10 @@ contains
 
    pure subroutine test_pair_collision(pos1, u1, pos2, u2, rcol, collision, tcollision)
       implicit none
-      real(8), intent(in) :: pos1(3), u1(3), pos2(3), u2(3), rcol
+      real(real64), intent(in) :: pos1(3), u1(3), pos2(3), u2(3), rcol
       logical, intent(out) :: collision
-      real(8), intent(out) :: tcollision
-      real(8) :: urel(3), posrel(3), a, b, c, d
+      real(real64), intent(out) :: tcollision
+      real(real64) :: urel(3), posrel(3), a, b, c, d
       urel = u2 - u1
       posrel = pos2 - pos1
       b = 2.d0 * dot_product(urel, posrel)
@@ -398,10 +400,10 @@ contains
 
    pure subroutine resolve_collision_velocities(mass1, pos1, u1, mass2, pos2, u2, u1new, u2new)
       implicit none
-      real(8), intent(in) :: mass1, pos1(3), u1(3), mass2, pos2(3), u2(3)
-      real(8), intent(out) :: u1new(3), u2new(3)
-      real(8) :: posrel(3), rc, cosb, sinb, alpha, cosa, sina, rotmat(3, 3), u1p(3), u2p(3), &
-                 u1pn(3), u2pn(3)
+      real(real64), intent(in) :: mass1, pos1(3), u1(3), mass2, pos2(3), u2(3)
+      real(real64), intent(out) :: u1new(3), u2new(3)
+      real(real64) :: posrel(3), rc, cosb, sinb, alpha, cosa, sina, rotmat(3, 3), u1p(3), u2p(3), &
+                      u1pn(3), u2pn(3)
       posrel = pos2 - pos1
       rc = sqrt(dot_product(posrel, posrel))
       cosb = posrel(3) / rc
@@ -409,7 +411,7 @@ contains
       if (posrel(1) .eq. 0.d0 .and. posrel(2) .eq. 0.d0) then
          alpha = 0.d0
       else
-         alpha = datan2(posrel(2), posrel(1))
+         alpha = atan2(posrel(2), posrel(1))
       end if
       cosa = cos(alpha)
       sina = sin(alpha)
@@ -427,7 +429,7 @@ contains
    subroutine sample_random_velocities(nsphere, u)
       implicit none
       integer :: i, nsphere
-      real(8) :: u(3, nsphere), cb, sb, alpha, ca, sa, rannum(2)
+      real(real64) :: u(3, nsphere), cb, sb, alpha, ca, sa, rannum(2)
       do i = 1, nsphere
          call random_number(rannum)
          cb = -1.d0 + 2.d0 * rannum(1)
@@ -442,8 +444,8 @@ contains
    subroutine sample_particle_radius(sigma, maxradius, x)
       implicit none
       integer :: i
-      real(8) :: sigma, maxradius, f1, fd, x, fmax, s2, xmax, &
-                 t1, rannum(2)
+      real(real64) :: sigma, maxradius, f1, fd, x, fmax, s2, xmax, &
+                      t1, rannum(2)
       if (sigma .eq. 0.d0) then
          x = 1.d0
          return

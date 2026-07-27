@@ -1,4 +1,5 @@
 module runtime_support
+   use, intrinsic :: iso_fortran_env, only: real64
    use parallel_runtime, only: mpi_comm_world, mstm_mpi, mstm_mpi_max
    implicit none
    private
@@ -104,7 +105,7 @@ contains
    subroutine write_elapsed_time(iunit, char1, time, line_break)
       implicit none
       integer :: iunit
-      real(8) :: time, time2
+      real(real64) :: time, time2
       logical :: linebreak
       logical, optional :: line_break
       character(*) :: char1

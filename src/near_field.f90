@@ -1,4 +1,5 @@
 module near_field
+   use, intrinsic :: iso_fortran_env, only: real32, real64
    use parallel_runtime
    use special_functions
    use sphere_data
@@ -17,22 +18,22 @@ module near_field
    type cell_info
       logical :: outside_spheres
       integer :: ncell(3), layer, host, order, nispheres
-      real(8) :: rcell(3)
+      real(real64) :: rcell(3)
       type(linked_sphere_list), pointer :: sphere_list
-      complex(8), pointer :: vector(:, :, :) => null()
-      complex(8), pointer :: reg_source_vector(:, :, :) => null()
-      complex(8), pointer :: gb_vector(:, :, :) => null()
+      complex(real64), pointer :: vector(:, :, :) => null()
+      complex(real64), pointer :: reg_source_vector(:, :, :) => null()
+      complex(real64), pointer :: gb_vector(:, :, :) => null()
    end type cell_info
    type linked_cell_list
       type(cell_info) :: cellinfo
       type(linked_cell_list), pointer :: next => null()
    end type linked_cell_list
    type vector_storage
-      complex(8), pointer :: vector(:, :, :) => null()
+      complex(real64), pointer :: vector(:, :, :) => null()
    end type vector_storage
    type linked_sphere_data
       integer :: sphere, host
-      real(8) :: position(3), radius
+      real(real64) :: position(3), radius
       type(linked_sphere_data), pointer :: next
    end type linked_sphere_data
 
@@ -42,10 +43,10 @@ module near_field
    logical, target :: store_surface_vector, fast_near_field
    integer, private :: local_rank, local_numprocs, local_run_number, total_cells, number_intersecting_spheres
    integer, target :: near_field_expansion_order
-   real(8) :: grid_region(3, 2), grid_spacing(3)
-   real(8), target :: near_field_expansion_spacing
+   real(real64) :: grid_region(3, 2), grid_spacing(3)
+   real(real64), target :: near_field_expansion_spacing
    type(linked_sphere_data), pointer, private :: intersecting_spheres
-   complex(8), private :: vwf_0(3, 3, 2)
+   complex(real64), private :: vwf_0(3, 3, 2)
    data near_field_expansion_order, near_field_expansion_spacing, store_surface_vector/10, 5.d0, .true./
    data local_run_number, fast_near_field/1, .true./
 
@@ -58,18 +59,18 @@ contains
       integer :: incmodel, i, p, outputunit, nblk, l, griddim(3), ix, iy, iz, &
                  layer, host, ipos(3), cellnum, nsend, mpicomm, totpoints, point, dir
       integer, optional :: incident_model, output_unit, mpi_comm
-      real(8) :: gridregion(3, 2), rpos(3), alpha, time1, time0, rtemp, sinc
-      complex(8) :: amnp(number_eqns, 2), evec(3, 2), hvec(3, 2), evec1(3, 2), hvec1(3, 2)
-      complex(8), allocatable :: vector(:, :, :)
-      complex(8), optional :: e_field_ave_array(3, 2, griddim(3))
-      complex(8), target, optional :: e_field_array(3, 2, griddim(1), griddim(2), griddim(3)), &
-                                      h_field_array(3, 2, griddim(1), griddim(2), griddim(3))
-      complex(4) :: earray(3, 2, griddim(1), griddim(2)), &
-                    harray(3, 2, griddim(1), griddim(2))
+      real(real64) :: gridregion(3, 2), rpos(3), alpha, time1, time0, rtemp, sinc
+      complex(real64) :: amnp(number_eqns, 2), evec(3, 2), hvec(3, 2), evec1(3, 2), hvec1(3, 2)
+      complex(real64), allocatable :: vector(:, :, :)
+      complex(real64), optional :: e_field_ave_array(3, 2, griddim(3))
+      complex(real64), target, optional :: e_field_array(3, 2, griddim(1), griddim(2), griddim(3)), &
+                                           h_field_array(3, 2, griddim(1), griddim(2), griddim(3))
+      complex(real32) :: earray(3, 2, griddim(1), griddim(2)), &
+                         harray(3, 2, griddim(1), griddim(2))
       type(grid_info), allocatable :: gridinfo(:, :, :)
       type(cell_info), pointer :: cellinfo
       type(linked_cell_list), pointer :: clist1, clist2
-!         complex(4), pointer :: earray(:,:,:,:,:),harray(:,:,:,:,:)
+!         complex(real32), pointer :: earray(:,:,:,:,:),harray(:,:,:,:,:)
 
       if (present(incident_model)) then
          incmodel = incident_model
@@ -270,9 +271,9 @@ contains
    subroutine calculate_source_field_fast(rpos, sourcevec, cellinfo, evec, hvec)
       implicit none
       integer :: nodr, nblk, i, p, j, cellhost, celllayer
-      real(8) :: rpos(3), rtran(3)
-      complex(8) :: sourcevec(number_eqns, 2), evec(3, 2), hvec(3, 2), ri2(2), ri
-      complex(8), allocatable :: vwf(:, :, :), svec(:, :)
+      real(real64) :: rpos(3), rtran(3)
+      complex(real64) :: sourcevec(number_eqns, 2), evec(3, 2), hvec(3, 2), ri2(2), ri
+      complex(real64), allocatable :: vwf(:, :, :), svec(:, :)
       type(linked_sphere_list), pointer :: slist
       type(cell_info), pointer :: cellinfo
 
@@ -328,9 +329,9 @@ contains
    subroutine calculate_source_field(rpos, sourcevec, host, layer, evec, hvec)
       implicit none
       integer :: layer, host, nodr, nblk, i, p, num, j, np(2), np0(2)
-      real(8) :: rpos(3), rtran(3)
-      complex(8) :: sourcevec(number_eqns, 2), evec(3, 2), hvec(3, 2), ri, ri2(2), pshift, pshift0
-      complex(8), allocatable :: vwf(:, :, :), svec(:, :)
+      real(real64) :: rpos(3), rtran(3)
+      complex(real64) :: sourcevec(number_eqns, 2), evec(3, 2), hvec(3, 2), ri, ri2(2), pshift, pshift0
+      complex(real64), allocatable :: vwf(:, :, :), svec(:, :)
       type(linked_sphere_list), pointer :: slist
 
       evec = 0.d0
@@ -402,9 +403,9 @@ contains
       implicit none
       logical :: storecalc
       integer :: layer, nodr, nblk, i, p
-      real(8) :: rpos(3), rtran(3), rcell(3)
-      complex(8) :: sourcevec(number_eqns, 2), evec(3, 2), hvec(3, 2), ri, rvec(3, 2)
-      complex(8), allocatable :: vwf(:, :, :)
+      real(real64) :: rpos(3), rtran(3), rcell(3)
+      complex(real64) :: sourcevec(number_eqns, 2), evec(3, 2), hvec(3, 2), ri, rvec(3, 2)
+      complex(real64), allocatable :: vwf(:, :, :)
       type(cell_info), pointer :: cellinfo
 
       layer = cellinfo%layer
@@ -463,9 +464,9 @@ contains
    subroutine calculate_incident_field(rpos, layer, alpha, sinc, dir, cellinfo, evec, hvec)
       implicit none
       integer :: p, layer, dir, nodr, nblk
-      real(8) :: alpha, sinc, rpos(3), rcell(3), rtran(3)
-      complex(8) :: riinc, pmnp(3, 2, 2), evec(3, 2), hvec(3, 2)
-      complex(8), allocatable :: vwf(:, :, :)
+      real(real64) :: alpha, sinc, rpos(3), rcell(3), rtran(3)
+      complex(real64) :: riinc, pmnp(3, 2, 2), evec(3, 2), hvec(3, 2)
+      complex(real64), allocatable :: vwf(:, :, :)
       type(cell_info), pointer :: cellinfo
       riinc = layer_ref_index(layer)
       if (incident_gb) then
@@ -511,10 +512,10 @@ contains
    subroutine calculate_stored_surface_vector(nodr, rc, sourcevec, storedvector)
       implicit none
       integer :: nodr, nblk, i, p
-      real(8) :: rc(3), rhovec(2)
-      complex(8) :: sourcevec(number_eqns, 2)
-      complex(8), allocatable :: vector(:, :, :)
-      complex(8), pointer :: storedvector(:, :, :)
+      real(real64) :: rc(3), rhovec(2)
+      complex(real64) :: sourcevec(number_eqns, 2)
+      complex(real64), allocatable :: vector(:, :, :)
+      complex(real64), pointer :: storedvector(:, :, :)
 
       nblk = nodr * (nodr + 2)
       allocate (vector(nblk, 2, 2), storedvector(nblk, 2, 2))
@@ -547,8 +548,8 @@ contains
    subroutine calculate_stored_source_vector(sourcevec, cellinfo)
       implicit none
       integer :: nodr, nblk, i, p, cellhost, vswf_type
-      real(8) :: rc(3), r
-      complex(8) :: sourcevec(number_eqns, 2), ri2(2)
+      real(real64) :: rc(3), r
+      complex(real64) :: sourcevec(number_eqns, 2), ri2(2)
       type(cell_info), pointer :: cellinfo
       type(linked_sphere_list), pointer :: slist
       type(translation_operator_state) :: tranmat
@@ -610,7 +611,7 @@ contains
       logical :: ingrid
       integer :: depth, i, l, layer, griddim(3), ix, iy, iz, nodr, nbound, zbsign, ncell(3), jy, jx, jlim(2)
       type(grid_info) :: gridinfo(griddim(1), griddim(2), griddim(3))
-      real(8) :: x, y, z, pbcellsize(1:max(1, number_plane_boundaries)), zbound, zbcell, rcell(3), cellsize, spos(3)
+      real(real64) :: x, y, z, pbcellsize(1:max(1, number_plane_boundaries)), zbound, zbcell, rcell(3), cellsize, spos(3)
       type(cell_info) :: cellinfo
       type(linked_sphere_data), pointer :: slist
 
@@ -758,7 +759,7 @@ contains
       implicit none
       logical :: ingrid, skip
       integer :: sphere, ic(3), i, limits(3, 2), ix, iy, iz, griddim(3), n1, n2
-      real(8) :: rpos(3), rc(3), r, r1, r2, spos(3)
+      real(real64) :: rpos(3), rc(3), r, r1, r2, spos(3)
       type(grid_info) :: gridinfo(griddim(1), griddim(2), griddim(3))
       type(cell_info) :: cellinfo
 

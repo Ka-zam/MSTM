@@ -35,6 +35,7 @@ if(MSTM_ENABLE_WARNINGS)
     -Wno-compare-reals
     -Wno-conversion
     -Wno-do-subscript
+    -Wno-maybe-uninitialized
     -Wno-unused-dummy-argument
     -Wno-unused-variable
     -Wsurprising
@@ -207,7 +208,18 @@ if(BUILD_TESTING)
   add_executable(translation_expansion_test tests/translation_expansion_test.f90)
   mstm_apply_fortran_options(translation_expansion_test)
   target_link_libraries(translation_expansion_test PRIVATE mstm_core)
-  add_test(NAME translation_expansion_unit COMMAND translation_expansion_test)
+  if(MSTM_ENABLE_MPI)
+    add_test(
+      NAME translation_expansion_unit
+      COMMAND
+        "${MPIEXEC_EXECUTABLE}"
+        "${MPIEXEC_NUMPROC_FLAG}"
+        1
+        $<TARGET_FILE:translation_expansion_test>
+    )
+  else()
+    add_test(NAME translation_expansion_unit COMMAND translation_expansion_test)
+  endif()
 
   add_executable(concurrent_kernels_test tests/concurrent_kernels_test.f90)
   mstm_apply_fortran_options(concurrent_kernels_test)
@@ -217,18 +229,42 @@ if(BUILD_TESTING)
   add_executable(output_regression_test tests/output_regression_test.f90)
   mstm_apply_fortran_options(output_regression_test)
 
-  add_test(NAME cli_help COMMAND $<TARGET_FILE:mstm>)
+  function(add_mstm_cli_test test_name)
+    if(MSTM_ENABLE_MPI)
+      add_test(
+        NAME "${test_name}"
+        COMMAND
+          "${MPIEXEC_EXECUTABLE}"
+          "${MPIEXEC_NUMPROC_FLAG}"
+          1
+          $<TARGET_FILE:mstm>
+          ${ARGN}
+      )
+    else()
+      add_test(NAME "${test_name}" COMMAND $<TARGET_FILE:mstm> ${ARGN})
+    endif()
+  endfunction()
+
+  add_mstm_cli_test(cli_help)
   set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "Usage:")
 
-  add_test(NAME cli_help_alias COMMAND $<TARGET_FILE:mstm> help)
+  add_mstm_cli_test(cli_help_alias help)
   set_tests_properties(cli_help_alias PROPERTIES PASS_REGULAR_EXPRESSION "Usage:")
 
-  add_test(NAME cli_version COMMAND $<TARGET_FILE:mstm> --version)
+  add_mstm_cli_test(cli_version --version)
   set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "MSTM ${PROJECT_VERSION}")
 
   function(add_mstm_failure_test test_name input_name expected_error)
     set(test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/${test_name}")
     file(MAKE_DIRECTORY "${test_work_dir}")
+    set(mpi_test_arguments)
+    if(MSTM_ENABLE_MPI)
+      list(APPEND mpi_test_arguments
+        "-DMSTM_MPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMSTM_MPI_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMSTM_MPI_RANKS=1"
+      )
+    endif()
     add_test(
       NAME "${test_name}"
       COMMAND "${CMAKE_COMMAND}"
@@ -236,6 +272,7 @@ if(BUILD_TESTING)
         "-DMSTM_INPUT=${CMAKE_CURRENT_SOURCE_DIR}/tests/${input_name}"
         "-DMSTM_WORK_DIR=${test_work_dir}"
         "-DMSTM_EXPECTED_ERROR=${expected_error}"
+        ${mpi_test_arguments}
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunExpectedFailure.cmake"
     )
   endfunction()
@@ -243,33 +280,48 @@ if(BUILD_TESTING)
   add_mstm_failure_test(invalid_input_error invalid-option.inp "Unknown input parameter")
   add_mstm_failure_test(missing_sphere_file_error missing-sphere-file.inp "Cannot open input file 'does-not-exist.pos'")
 
-  function(add_mstm_example_test test_name input_name expected_outputs regression_case)
+  function(add_mstm_regression_test test_name input_path expected_outputs regression_case)
     set(test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/${test_name}")
     file(MAKE_DIRECTORY "${test_work_dir}")
+    set(mpi_test_arguments)
+    if(MSTM_ENABLE_MPI)
+      list(APPEND mpi_test_arguments
+        "-DMSTM_MPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMSTM_MPI_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMSTM_MPI_RANKS=1"
+      )
+    endif()
     add_test(
       NAME "${test_name}"
       COMMAND "${CMAKE_COMMAND}"
         "-DMSTM_EXECUTABLE=$<TARGET_FILE:mstm>"
-        "-DMSTM_INPUT=${CMAKE_CURRENT_SOURCE_DIR}/examples/${input_name}"
+        "-DMSTM_INPUT=${input_path}"
         "-DMSTM_WORK_DIR=${test_work_dir}"
         "-DMSTM_EXPECTED_OUTPUTS=${expected_outputs}"
         "-DMSTM_REGRESSION_EXECUTABLE=$<TARGET_FILE:output_regression_test>"
         "-DMSTM_REGRESSION_CASE=${regression_case}"
+        ${mpi_test_arguments}
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunSmokeTest.cmake"
     )
   endfunction()
 
-  add_mstm_example_test(
+  add_mstm_regression_test(
     smoke
-    mstm-2022b-fig1.inp
+    "${CMAKE_CURRENT_SOURCE_DIR}/examples/mstm-2022b-fig1.inp"
     "mstm-2022b-fig1.dat,nf-fig1.dat"
     figure1
   )
-  add_mstm_example_test(
+  add_mstm_regression_test(
     effective_medium_smoke
-    effective-medium-smoke.inp
+    "${CMAKE_CURRENT_SOURCE_DIR}/examples/effective-medium-smoke.inp"
     "effective-medium-smoke.dat,anpeff.dat"
     effective_medium
+  )
+  add_mstm_regression_test(
+    two_sphere_broadside
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/two-sphere-broadside.inp"
+    two-sphere-broadside.dat
+    two_sphere_broadside
   )
 
   if(MSTM_ENABLE_MPI)

@@ -5,6 +5,7 @@
 !  last revised: 15 January 2011
 !
 module parallel_runtime
+   use, intrinsic :: iso_fortran_env, only: real32, real64
    implicit none
    integer :: mpi_comm_world, mstm_mpi_comm_world, mstm_mpi_sum, mstm_mpi_max, mstm_mpi_min, &
               mpi_comm_null, mstm_global_rank
@@ -12,7 +13,7 @@ module parallel_runtime
 
 contains
 
-   real(8) function mstm_mpi_wtime()
+   real(real64) function mstm_mpi_wtime()
       implicit none
       call cpu_time(mstm_mpi_wtime)
    end function mstm_mpi_wtime
@@ -27,10 +28,10 @@ contains
                            mpi_color, mpi_key, mpi_tag
       integer :: stat(1)
       logical, optional :: mpi_flag
-      real(4), optional :: mpi_recv_buf_r(*), mpi_send_buf_r(*)
-      real(8), optional :: mpi_recv_buf_dp(*), mpi_send_buf_dp(*)
-      complex(4), optional :: mpi_recv_buf_c(*), mpi_send_buf_c(*)
-      complex(8), optional :: mpi_recv_buf_dc(*), mpi_send_buf_dc(*)
+      real(real32), optional :: mpi_recv_buf_r(*), mpi_send_buf_r(*)
+      real(real64), optional :: mpi_recv_buf_dp(*), mpi_send_buf_dp(*)
+      complex(real32), optional :: mpi_recv_buf_c(*), mpi_send_buf_c(*)
+      complex(real64), optional :: mpi_recv_buf_dc(*), mpi_send_buf_dc(*)
       character(*) :: mpi_command
       integer :: type, comm, size, rank, newcomm
 

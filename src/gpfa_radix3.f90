@@ -1,4 +1,5 @@
 module gpfa_radix3
+   use, intrinsic :: iso_fortran_env, only: real64
    implicit none
 contains
 
@@ -8,9 +9,9 @@ contains
                  m, mh, nblox, left, nb, nvex, la, mu, ipass, jstep, jstepl, &
                  jjj, ja, nu, jb, jc, jd, j, l, kk, k, je, jf, jg, jh, laincl, ji, &
                  n3, istart, ll
-      real(8) :: a(*), b(*), trigs(*), s, t2, t1, t3, u2, u1, u3, co1, si1, &
-                 co2, si2, c1, &
-                 sin60
+      real(real64) :: a(*), b(*), trigs(*), s, t2, t1, t3, u2, u1, u3, co1, si1, &
+                      co2, si2, c1, &
+                      sin60
       data sin60/0.866025403784437/
       data lvr/64/
 !
@@ -31,13 +32,13 @@ contains
       if (isign .eq. -1) mu = 3 - mu
       m = mm
       mh = (m + 1) / 2
-      s = float(isign)
+      s = real(isign, kind=real64)
       c1 = sin60
       if (mu .eq. 2) c1 = -c1
 !
       nblox = 1 + (lot - 1) / lvr
       left = lot
-      s = float(isign)
+      s = real(isign, kind=real64)
       istart = 1
 !
 !  loop on blocks of lvr transforms

@@ -1,4 +1,5 @@
 module parallel_runtime
+   use, intrinsic :: iso_fortran_env, only: real32, real64
    use mpi
    implicit none
 
@@ -7,7 +8,7 @@ module parallel_runtime
 
 contains
 
-   real(8) function mstm_mpi_wtime()
+   real(real64) function mstm_mpi_wtime()
       implicit none
       mstm_mpi_wtime = mpi_wtime()
    end function mstm_mpi_wtime
@@ -23,13 +24,13 @@ contains
       integer :: stat(MPI_STATUS_SIZE), mpitag, mpisource
       integer :: i
       logical, optional :: mpi_flag
-      real(4), optional :: mpi_recv_buf_r(*), mpi_send_buf_r(*)
-      real(8), optional :: mpi_recv_buf_dp(*), mpi_send_buf_dp(*)
-      real(8), allocatable :: dptemp(:)
-      complex(4), optional :: mpi_recv_buf_c(*), mpi_send_buf_c(*)
-      complex(4), allocatable :: ctemp(:)
-      complex(8), optional :: mpi_recv_buf_dc(*), mpi_send_buf_dc(*)
-      complex(8), allocatable :: dctemp(:)
+      real(real32), optional :: mpi_recv_buf_r(*), mpi_send_buf_r(*)
+      real(real64), optional :: mpi_recv_buf_dp(*), mpi_send_buf_dp(*)
+      real(real64), allocatable :: dptemp(:)
+      complex(real32), optional :: mpi_recv_buf_c(*), mpi_send_buf_c(*)
+      complex(real32), allocatable :: ctemp(:)
+      complex(real64), optional :: mpi_recv_buf_dc(*), mpi_send_buf_dc(*)
+      complex(real64), allocatable :: dctemp(:)
       character, optional :: mpi_recv_buf_char(*), mpi_send_buf_char(*)
       character(*) :: mpi_command
       integer :: ntype, ierr, comm, size, rank, group, newcomm, trank

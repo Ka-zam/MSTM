@@ -1,4 +1,5 @@
 module gpfa_radix2
+   use, intrinsic :: iso_fortran_env, only: real64
    implicit none
 contains
 
@@ -8,8 +9,8 @@ contains
                  m2, m8, m, mh, nblox, left, nb, nvex, la, mu, ipass, jstep, jstepl, &
                  jjj, ja, nu, jb, jc, jd, j, l, kk, k, je, jf, jg, jh, laincl, ji, jj, jk, &
                  jl, jm, jn, jo, jp, istart, ll
-      real(8) :: a(*), b(*), trigs(*), s, ss, t0, t2, t1, t3, u0, u2, u1, u3, co1, si1, &
-                 co2, si2, co3, si3, c1, c2, c3, co4, si4, co5, si5, co6, si6, co7, si7
+      real(real64) :: a(*), b(*), trigs(*), s, ss, t0, t2, t1, t3, u0, u2, u1, u3, co1, si1, &
+                      co2, si2, co3, si3, c1, c2, c3, co4, si4, co5, si5, co6, si6, co7, si7
       data lvr/64/
 !
 !     ***************************************************************
@@ -28,6 +29,7 @@ contains
 !
       m2 = 0
       m8 = 0
+      m = 0
       if (mod(mm, 2) .eq. 0) then
          m = mm / 2
       else if (mod(mm, 4) .eq. 1) then

@@ -1,4 +1,5 @@
 module scattering_efficiencies
+   use, intrinsic :: iso_fortran_env, only: real64
    use constants
    use fft_translation
    use mie
@@ -19,7 +20,7 @@ module scattering_efficiencies
              hemispherical_scattering, sphere_efficiency_factors, total_efficiency_factors, &
              waveguide_mode_scattering
    logical :: hemispherical_single_origin
-   complex(8), allocatable :: hemispherical_amnp(:)
+   complex(real64), allocatable :: hemispherical_amnp(:)
 contains
 
 !
@@ -31,12 +32,12 @@ contains
    subroutine sphere_efficiency_factors(ri0, nodr, npol, xsp, anp, gnpinc, gnp, qe, qs, qa)
       implicit none
       integer :: nodr, npol, m, n, p, p1, p2, k, ma, na, s, t, ss, st
-      real(8) :: qe(2 * npol - 1), qa(2 * npol - 1), qs(2 * npol - 1), const, xsp, qi(2 * npol - 1)
-      complex(8) :: anp(0:nodr + 1, nodr, 2, npol), gnp(0:nodr + 1, nodr, 2, npol), &
-                    gnpinc(0:nodr + 1, nodr, 2, npol), &
-                    psi(0:nodr, 2), xi(0:nodr, 2), psip(2), xip(2), xri(2), &
-                    rib, aamat(2, 2), ggmat(2, 2), agmat(2, 2), &
-                    gamat(2, 2), cterm, ri0(2)
+      real(real64) :: qe(2 * npol - 1), qa(2 * npol - 1), qs(2 * npol - 1), const, xsp, qi(2 * npol - 1)
+      complex(real64) :: anp(0:nodr + 1, nodr, 2, npol), gnp(0:nodr + 1, nodr, 2, npol), &
+                         gnpinc(0:nodr + 1, nodr, 2, npol), &
+                         psi(0:nodr, 2), xi(0:nodr, 2), psip(2), xip(2), xri(2), &
+                         rib, aamat(2, 2), ggmat(2, 2), agmat(2, 2), &
+                         gamat(2, 2), cterm, ri0(2)
       qe = 0.d0
       qa = 0.d0
       qs = 0.d0
@@ -56,7 +57,7 @@ contains
             ss = (-1)**s
             do t = 1, 2
                st = (-1)**t
-               cterm = cmplx(0.d0, 1.d0, kind=kind(0.0d0)) * conjg(1./ri0(t)) / ri0(s)
+               cterm = cmplx(0.d0, 1.d0, kind=real64) * conjg(1./ri0(t)) / ri0(s)
                aamat(s, t) = cterm * (xip(s) * conjg(xi(n, t)) &
                                       - ss * st * xi(n, s) * conjg(xip(t)))
                ggmat(s, t) = cterm * (psip(s) * conjg(psi(n, t)) &
@@ -141,11 +142,11 @@ contains
                  npol, mpicomm, p, &
                  b11, b12, rank, numprocs
       integer, optional :: mpi_comm
-      real(8) :: qeff(3, 2 * npol - 1, nsphere), qe(2 * npol - 1), qa(2 * npol - 1), qs(2 * npol - 1)
-      real(8), allocatable :: qeffi(:, :)
-      complex(8) :: amnp(number_eqns, npol), gmnp0(number_eqns, npol), ri0(2)
-      complex(8), allocatable :: amnpi(:, :, :, :), gmnpi(:, :, :, :), fmnpi(:, :, :, :), &
-                                 gmnp(:, :)
+      real(real64) :: qeff(3, 2 * npol - 1, nsphere), qe(2 * npol - 1), qa(2 * npol - 1), qs(2 * npol - 1)
+      real(real64), allocatable :: qeffi(:, :)
+      complex(real64) :: amnp(number_eqns, npol), gmnp0(number_eqns, npol), ri0(2)
+      complex(real64), allocatable :: amnpi(:, :, :, :), gmnpi(:, :, :, :), fmnpi(:, :, :, :), &
+                                      gmnp(:, :)
       if (present(mpi_comm)) then
          mpicomm = mpi_comm
       else
@@ -227,7 +228,7 @@ contains
    subroutine total_efficiency_factors(nsphere, nrow, xgeff, qeffp, qabsvol, qefftot)
       implicit none
       integer :: nsphere, nrow, i, j
-      real(8) :: qeffp(3, nrow, nsphere), qefftot(3, nrow), qabsvol(nrow, nsphere), xgeff
+      real(real64) :: qeffp(3, nrow, nsphere), qefftot(3, nrow), qabsvol(nrow, nsphere), xgeff
       do i = 1, nsphere
          qabsvol(:, i) = qeffp(2, :, i)
          do j = 1, nsphere
@@ -270,9 +271,9 @@ contains
       implicit none
       integer :: i, p, pole, mpicomm
       integer, optional :: mpi_comm
-      real(8) :: qsevan(2)
-      complex(8) :: amnp(number_eqns, 2)
-      complex(8), allocatable :: amn(:), gmn(:)
+      real(real64) :: qsevan(2)
+      complex(real64) :: amnp(number_eqns, 2)
+      complex(real64), allocatable :: amn(:), gmn(:)
       if (present(mpi_comm)) then
          mpicomm = mpi_comm
       else
@@ -313,9 +314,9 @@ contains
       implicit none
       integer :: i, j, rank, numprocs, mpicomm, task, nsend, k
       integer, optional :: mpi_comm
-      real(8) :: qbsca(2, 0:1), qt(2), targetz, qt2(2, 0:1)
-      complex(8) :: amn(number_eqns, 2)
-      complex(8), allocatable :: amn1(:, :), amn2(:, :)
+      real(real64) :: qbsca(2, 0:1), qt(2), targetz, qt2(2, 0:1)
+      complex(real64) :: amn(number_eqns, 2)
+      complex(real64), allocatable :: amn1(:, :), amn2(:, :)
       if (present(mpi_comm)) then
          mpicomm = mpi_comm
       else
@@ -375,8 +376,8 @@ contains
       logical :: comorg
       logical, optional :: common_origin
       integer :: k, dir
-      real(8) :: qt(2), targetz, qbext(2, 0:1), alpha, sinc
-      complex(8) :: amn(*)
+      real(real64) :: qt(2), targetz, qbext(2, 0:1), alpha, sinc
+      complex(real64) :: amn(*)
       if (present(common_origin)) then
          comorg = common_origin
       else
@@ -404,8 +405,8 @@ contains
    subroutine common_origin_hemispherical_scattering(amn, qbsca)
       implicit none
       integer :: k
-      real(8) :: qbsca(2, 0:1), targetz
-      complex(8) :: amn(2 * t_matrix_order * (t_matrix_order + 2), 2)
+      real(real64) :: qbsca(2, 0:1), targetz
+      complex(real64) :: amn(2 * t_matrix_order * (t_matrix_order + 2), 2)
 
       qbsca = 0.d0
       do k = 0, 1
@@ -427,8 +428,8 @@ contains
       logical :: singleorigin, numerical
       integer :: mpicomm, rank, numprocs, maxnumdiv, subdiv, errorcodes, p, p1, p2, ncoef
       integer, optional :: mpi_comm
-      real(8) :: qbsca(2, 2), inteps, mindiv, c0, c1
-      complex(8) :: amnp(*), cq(2, 2)
+      real(real64) :: qbsca(2, 2), inteps, mindiv, c0, c1
+      complex(real64) :: amnp(*), cq(2, 2)
       data maxnumdiv, inteps, mindiv, c0, c1/3, 1.d-6, 1.d-4, 0.d0, 1.d0/
       if (present(mpi_comm)) then
          mpicomm = mpi_comm
@@ -499,8 +500,8 @@ contains
    subroutine hemispherical_integrand(ntot, ct, q)
       implicit none
       integer :: ntot
-      real(8) :: ct, sm(2)
-      complex(8) :: q(ntot)
+      real(real64) :: ct, sm(2)
+      complex(real64) :: q(ntot)
       q = 0.d0
       if (hemispherical_single_origin) then
          call numerical_scattering_matrix_azimuthal_average_single_origin( &
@@ -519,8 +520,8 @@ contains
       logical :: comorg
       logical, optional :: common_origin
       integer :: sdir, p, tlay
-      real(8) :: sinc, alpha, qe(2), targetz, sourcez, const3(3, 2)
-      complex(8) :: amnp(*), s, sourceri, targetri, gfs(2, 2, 2), skz, tkz, sa(4), amp(2, 2)
+      real(real64) :: sinc, alpha, qe(2), targetz, sourcez, const3(3, 2)
+      complex(real64) :: amnp(*), s, sourceri, targetri, gfs(2, 2, 2), skz, tkz, sa(4), amp(2, 2)
       if (present(common_origin)) then
          comorg = common_origin
       else

@@ -1,4 +1,5 @@
 module sphere_data
+   use, intrinsic :: iso_fortran_env, only: real64
    use special_functions
    use numerical_tables
    use surface
@@ -22,15 +23,15 @@ module sphere_data
    integer, allocatable, target :: host_sphere(:), sphere_order(:), sphere_block(:), sphere_offset(:)
    integer, allocatable :: translation_order(:), number_field_expansions(:), mie_offset(:), &
                            mie_block_offset(:), sphere_layer(:), sphere_depth(:)
-   real(8) :: cluster_origin(3), vol_radius, sphere_mean_position(3), area_mean_radius, &
-              sphere_min_position(3), sphere_max_position(3), mean_qext_mie, mean_qabs_mie, &
-              circumscribing_radius, cross_section_radius, effective_cluster_radius
-   real(8), target :: gaussian_beam_constant, gaussian_beam_focal_point(3)
-   real(8), allocatable :: qext_mie(:), qabs_mie(:)
-   real(8), allocatable, target :: sphere_radius(:), sphere_position(:, :)
-   complex(8) :: effective_ref_index
-   complex(8), allocatable :: an_mie(:), cn_mie(:), un_mie(:), vn_mie(:), dn_mie(:), an_inv_mie(:)
-   complex(8), allocatable, target :: sphere_ref_index(:, :)
+   real(real64) :: cluster_origin(3), vol_radius, sphere_mean_position(3), area_mean_radius, &
+                   sphere_min_position(3), sphere_max_position(3), mean_qext_mie, mean_qabs_mie, &
+                   circumscribing_radius, cross_section_radius, effective_cluster_radius
+   real(real64), target :: gaussian_beam_constant, gaussian_beam_focal_point(3)
+   real(real64), allocatable :: qext_mie(:), qabs_mie(:)
+   real(real64), allocatable, target :: sphere_radius(:), sphere_position(:, :)
+   complex(real64) :: effective_ref_index
+   complex(real64), allocatable :: an_mie(:), cn_mie(:), un_mie(:), vn_mie(:), dn_mie(:), an_inv_mie(:)
+   complex(real64), allocatable, target :: sphere_ref_index(:, :)
 
    data run_print_unit/6/
    data store_translation_matrix, store_surface_matrix/.false., .true./
@@ -142,7 +143,7 @@ contains
    subroutine find_host_spheres()
       implicit none
       integer :: i, j, m
-      real(8) :: xij(3), rij, xspmin, zmax, zmin
+      real(real64) :: xij(3), rij, xspmin, zmax, zmin
 
       host_sphere = 0
       sphere_mean_position = 0.d0

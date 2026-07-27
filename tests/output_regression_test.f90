@@ -1,5 +1,6 @@
 program output_regression_test
    use, intrinsic :: iso_fortran_env, only: error_unit, real64
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    implicit none
 
    character(len=64) :: case_name
@@ -15,6 +16,8 @@ program output_regression_test
       call check_figure1(trim(work_directory), failures)
    case ('effective_medium')
       call check_effective_medium(trim(work_directory), failures)
+   case ('two_sphere_broadside')
+      call check_two_sphere_broadside(trim(work_directory), failures)
    case default
       write (error_unit, '(a)') 'Unknown regression case: '//trim(case_name)
       error stop 2
@@ -91,6 +94,22 @@ contains
                         2.92016e-3_real64, failure_count)
    end subroutine check_effective_medium
 
+   subroutine check_two_sphere_broadside(directory, failure_count)
+      character(len=*), intent(in) :: directory
+      integer, intent(inout) :: failure_count
+      real(real64) :: efficiency(9)
+      integer :: unit
+
+      call open_regression_file(directory//'/two-sphere-broadside.dat', unit)
+      call find_line(unit, 'total extinction, absorption, scattering efficiencies', .true.)
+      read (unit, *) efficiency
+      close (unit)
+
+      call assert_close('Broadside total extinction', efficiency(1), 3.6038e-2_real64, failure_count)
+      call assert_close('Broadside parallel extinction', efficiency(4), 4.1080e-2_real64, failure_count)
+      call assert_close('Broadside perpendicular extinction', efficiency(7), 3.0996e-2_real64, failure_count)
+   end subroutine check_two_sphere_broadside
+
    subroutine open_regression_file(path, unit)
       character(len=*), intent(in) :: path
       integer, intent(out) :: unit
@@ -129,7 +148,10 @@ contains
       real(real64), parameter :: absolute_tolerance = 2.0e-7_real64
       real(real64), parameter :: relative_tolerance = 2.0e-4_real64
 
-      if (abs(actual - expected) > absolute_tolerance + relative_tolerance * abs(expected)) then
+      if (.not. ieee_is_finite(actual)) then
+         write (error_unit, '(a,es14.6)') trim(label)//' is not finite: actual=', actual
+         failure_count = failure_count + 1
+      elseif (abs(actual - expected) > absolute_tolerance + relative_tolerance * abs(expected)) then
          write (error_unit, '(a,2(a,es14.6))') trim(label)//' changed:', ' actual=', actual, ' expected=', expected
          failure_count = failure_count + 1
       end if
