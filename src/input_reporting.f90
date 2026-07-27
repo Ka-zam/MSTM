@@ -154,7 +154,7 @@ contains
             write (iunit, '(i3,3es12.4)') i, plane_boundary_position(i), layer_ref_index(i)
          end do
          if (.not. incidence_average) then
-            cb = cos(incident_beta_deg * degrees_to_radians)
+            cb = cosd(incident_beta_deg)
             call boundary_energy_transfer(incident_sin_beta, incident_direction, r, t, a)
             write (iunit, '('' Fresnel boundary reflectance, transmittance, absorptance (par, perp)'')')
             write (iunit, '(3es12.4)') r(1), t(1), a(1)

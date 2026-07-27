@@ -8,6 +8,7 @@ module nearfield
    use surface_subroutines
    use periodic_lattice_subroutines
    use scatprops
+   use translation, only: coefficient_translation, translation_data
    implicit none
    type grid_info
       logical :: initialized

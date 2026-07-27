@@ -45,9 +45,17 @@ set(mstm_sources
   src/mie.f90
   src/translation.f90
   src/fft_translation.f90
+  src/scattering_interactions.f90
+  src/scattering_amplitudes.f90
+  src/scattering_efficiencies.f90
+  src/random_orientation_scattering.f90
   src/scattering.f90
   src/near_field.f90
   src/solver.f90
+  src/random_configuration_state.f90
+  src/random_configuration_sorting.f90
+  src/random_configuration_geometry.f90
+  src/random_configuration_dynamics.f90
   src/random_configuration.f90
   src/lmfit.f90
   src/input_value_parsing.f90
@@ -55,6 +63,8 @@ set(mstm_sources
   src/input_parser.f90
   src/effective_medium_analysis.f90
   src/input_reporting.f90
+  src/configuration_data.f90
+  src/scattering_matrix_driver.f90
   src/input_execution.f90
   src/input.f90
   src/main.f90

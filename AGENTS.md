@@ -18,7 +18,7 @@ Build MPI mode with `-DMSTM_ENABLE_MPI=ON -DCMAKE_Fortran_COMPILER=mpifort`. Run
 
 ## Coding Style & Naming Conventions
 
-Use free-form, standard-conforming Fortran 2023 in `.f90` files. Match the existing lowercase `snake_case` identifiers, three-space indentation, and `implicit none` in every program unit. Run `fprettify --config-file .fprettify.rc --silent src/*.f90` before review. Clang-format does not support Fortran, and `.clang-format-ignore` protects these sources from its C++ parser. Prefer generic standard intrinsics (`abs`, `conjg`, `cmplx`) and standard I/O specifiers. Do not add compiler extensions or restore `-fallow-argument-mismatch`.
+Use free-form, standard-conforming Fortran 2023 in `.f90` files. Match the existing lowercase `snake_case` identifiers, three-space indentation, and `implicit none` in every program unit. Run `fprettify --config-file .fprettify.rc --silent src/*.f90` before review. Clang-format does not support Fortran, and `.clang-format-ignore` protects these sources from its C++ parser. Prefer generic standard intrinsics (`abs`, `conjg`, `cmplx`) and Fortran 2023 degree intrinsics when inputs are degrees. Do not add compiler extensions or restore `-fallow-argument-mismatch`.
 
 Define shared mathematical constants only in `src/constants.f90`; runtime coefficient tables belong in `src/numerical_tables.f90`. Use standard Fortran intrinsics where their argument domains match the algorithm, but retain the complex-argument Bessel implementations because the standard intrinsics accept real arguments only.
 

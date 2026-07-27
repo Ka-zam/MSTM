@@ -1,0 +1,206 @@
+module configuration_data
+   use input_state
+   implicit none
+   private
+   public :: checkpositions, generate_random_configuration, read_sphere_data_input_file
+contains
+
+   subroutine read_sphere_data_input_file(mpi_comm)
+      implicit none
+      integer :: mpicomm, rank, istat, n
+      integer, optional :: mpi_comm
+      real(8) :: rtemp(4)
+      complex(8) :: ctemp(2)
+      character(len=256) :: parmval
+
+      if (present(mpi_comm)) then
+         mpicomm = mpi_comm
+      else
+         mpicomm = mpi_comm_world
+      end if
+      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
+
+      open (1, file=sphere_data_input_file)
+      do n = 1, number_spheres
+         sphere_radius(n) = 1.d0
+         sphere_ref_index(1, n) = (1.d0, 0.d0)
+         sphere_ref_index(2, n) = (0.d0, 0.d0)
+         read (1, '(a)', iostat=istat) parmval
+         if (istat .ne. 0) then
+            if (rank .eq. 0) then
+               write (run_print_unit, '('' insufficient data in input file: '', i4,'' lines, need '',i4)') &
+                  n, number_spheres
+            end if
+            stop
+         end if
+         read (parmval, *, iostat=istat) sphere_position(:, n)
+         if (istat .ne. 0) then
+            if (rank .eq. 0) then
+               write (run_print_unit, '('' read error in sphere data input file'')')
+            end if
+            stop
+         end if
+         read (parmval, *, iostat=istat) rtemp(1:4)
+         if (istat .eq. 0) sphere_radius(n) = rtemp(4)
+         read (parmval, *, iostat=istat) rtemp(1:4), ctemp(1)
+         if (istat .eq. 0) sphere_ref_index(1, n) = ctemp(1)
+         read (parmval, *, iostat=istat) rtemp(1:4), ctemp(1:2)
+         if (istat .eq. 0) then
+            sphere_ref_index(2, n) = ctemp(2)
+         else
+            sphere_ref_index(2, n) = sphere_ref_index(1, n)
+         end if
+      end do
+      number_spheres = min(n, number_spheres)
+      close (1)
+      do n = 1, number_spheres
+         sphere_radius(n) = sphere_radius(n) * length_scale_factor
+         sphere_position(:, n) = sphere_position(:, n) * length_scale_factor
+         sphere_ref_index(:, n) = sphere_ref_index(:, n) * ref_index_scale_factor
+      end do
+   end subroutine read_sphere_data_input_file
+
+   subroutine generate_random_configuration(mpi_comm, skip_diffusion)
+      implicit none
+      logical :: skipdif, firstrun, frozen
+      logical, optional :: skip_diffusion
+      integer :: mpicomm, rank, nsend, nsphere, nspheresamp, i
+      integer, optional :: mpi_comm
+      integer, allocatable, save :: sphereindex(:)
+      real(8) :: targetdimensions(3), crad
+      real(8), allocatable, save :: sphereradius(:), sphereposition(:, :)
+      data firstrun/.true./
+      if (present(skip_diffusion)) then
+         skipdif = skip_diffusion
+      else
+         skipdif = .false.
+      end if
+      if (present(mpi_comm)) then
+         mpicomm = mpi_comm
+      else
+         mpicomm = mpi_comm_world
+      end if
+      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
+      nsphere = number_spheres
+      if (random_configuration_host) nsphere = nsphere - 1
+      if (rank .eq. 0) then
+         frozen = ((.not. firstrun) .and. (frozen_configuration .or. use_previous_configuration))
+         if (frozen) then
+            sphere_position(:, 1:nsphere) = sphereposition(:, 1:nsphere)
+            sphere_radius(1:nsphere) = sphereradius(1:nsphere)
+         else
+            if (auto_target_radius .and. target_shape .eq. 2) then
+               targetdimensions = target_dimensions + target_radius_padding
+!                  nspheresamp=ceiling(sphere_volume_fraction*(targetdimensions(1)-1.d0)**3.d0)
+               nspheresamp = ceiling(sphere_volume_fraction * (targetdimensions(1))**3.d0)
+               nspheresamp = max(nspheresamp, nsphere)
+               if (mstm_global_rank .eq. 0) then
+                  write (run_print_unit, '('' set, sampled number spheres:'',2i6)') nsphere, nspheresamp
+               end if
+            else
+               targetdimensions = target_dimensions
+               nspheresamp = nsphere
+            end if
+            if (allocated(sphereradius)) deallocate (sphereradius, sphereposition, sphereindex)
+            allocate (sphereradius(nspheresamp), sphereposition(3, nspheresamp), sphereindex(nspheresamp))
+            call random_cluster_of_spheres(nspheresamp, targetdimensions, sphereposition, sphereradius, &
+                                           sphereindex, run_print_unit, ran_config_stat, ran_config_time_steps, &
+                                           skip_diffusion=skipdif, print_progress=.true.)
+            firstrun = .false.
+            if (ran_config_stat .ge. 3) then
+               write (run_print_unit, '('' unable to generate random configuration'')')
+               stop
+            end if
+            sphere_position(:, 1:nsphere) = sphereposition(:, 1:nsphere)
+            sphere_radius(1:nsphere) = sphereradius(1:nsphere)
+            sphere_index(1:nsphere) = sphereindex(1:nsphere)
+         end if
+      end if
+!         call mstm_mpi(mpi_command='barrier')
+      nsend = nsphere
+      call mstm_mpi(mpi_command='bcast', mpi_send_buf_dp=sphere_radius, &
+                    mpi_number=nsend, mpi_rank=0, mpi_comm=mpicomm)
+      call mstm_mpi(mpi_command='bcast', mpi_send_buf_i=sphere_index, &
+                    mpi_number=nsend, mpi_rank=0, mpi_comm=mpicomm)
+      nsend = nsphere * 3
+      call mstm_mpi(mpi_command='bcast', mpi_send_buf_dp=sphere_position, &
+                    mpi_number=nsend, mpi_rank=0, mpi_comm=mpicomm)
+      sphere_radius(1:nsphere) = sphere_radius(1:nsphere) * length_scale_factor
+      sphere_position(:, 1:nsphere) = sphere_position(:, 1:nsphere) * length_scale_factor
+      do i = 1, nsphere
+         sphere_ref_index(:, i) = ref_index_scale_factor &
+                                  * component_ref_index(sphere_index(i))
+      end do
+      if (erase_sphere_1) sphere_ref_index(:, 1) = (1.000001d0, 0.d0)
+      if (random_configuration_host) then
+         crad = maxval(sqrt(sum(sphere_position(:, 1:nsphere)**2, 1))) + 0.01d0
+         if (auto_target_radius .and. target_shape .eq. 2) then
+            sphere_radius(number_spheres) &
+               = (sum(sphere_radius(1:number_spheres - 1)**3.) / sphere_volume_fraction)**0.33333
+         else
+            if (random_configuration_host_model .eq. 1) then
+               sphere_radius(number_spheres) = target_dimensions(1) * length_scale_factor
+            elseif (random_configuration_host_model .eq. 2) then
+               sphere_radius(number_spheres) = (sum(sphere_radius(1:number_spheres - 1)**3.) / sphere_volume_fraction)**0.33333
+            end if
+         end if
+         sphere_position(:, number_spheres) = 0.d0
+         sphere_ref_index(:, number_spheres) = host_sphere_ref_index
+      end if
+   end subroutine generate_random_configuration
+
+   subroutine checkpositions()
+      implicit none
+      logical :: check
+      integer :: i, j, imin, jmin
+      real(8) :: r, amax, amin, rmingap
+
+      check = .true.
+      rmingap = -1.d10
+      do i = 1, number_spheres - 1
+         do j = i + 1, number_spheres
+            amax = max(sphere_radius(i), sphere_radius(j))
+            amin = min(sphere_radius(i), sphere_radius(j))
+            r = sqrt(sum((sphere_position(:, i) - sphere_position(:, j))**2))
+            if (r .ge. amax + amin) then
+               cycle
+            else
+               if (amin + amax - r .gt. rmingap) then
+                  rmingap = amin + amax - r
+                  imin = i
+                  jmin = j
+               end if
+            end if
+            if (r .le. amax - amin) cycle
+            check = .false.
+!               write(run_print_unit,'('' spheres '',i4,'' and '',i4,'' intersect'')') i,j
+!               write(2,'('' spheres '',i4,'' and '',i4,'' intersect'')') i,j
+         end do
+      end do
+      if (.not. check) then
+         write (run_print_unit, '('' warning: sphere-sphere intersections detected, max overlap:'',es12.4, &
+            &''  Results might be garbage!'')') rmingap
+         write (run_print_unit, '('' positions:'',i5,3es12.4,i5,3es12.4)') imin, sphere_position(:, imin), &
+            jmin, sphere_position(:, jmin)
+         flush (run_print_unit)
+      end if
+      check = .true.
+      rmingap = -1.d10
+      do i = 1, number_spheres
+         do j = 1, number_plane_boundaries
+            if (abs(sphere_position(3, i) - plane_boundary_position(j)) .ge. sphere_radius(i)) cycle
+            check = .false.
+            rmingap = max(rmingap, sphere_radius(i) - abs(sphere_position(3, i) - plane_boundary_position(j)))
+!               write(run_print_unit,'('' sphere '',i4,'' and plane boundary'',i4,'' intersect'')') i,j
+!               write(2,'('' sphere '',i4,'' and plane boundary'',i4,'' intersect'')') i,j
+         end do
+      end do
+      if (.not. check) then
+         write (run_print_unit, '('' warning: sphere-plane boundary intersections detected, max overlap:'',es12.4, &
+            &''  Results might be garbage!'')') rmingap
+!            write(run_print_unit,'('' positions:'',i5,3es12.4,i5,3es12.4)') imin,sphere_position(:,imin), &
+!               jmin,sphere_position(:,jmin)
+         flush (run_print_unit)
+      end if
+   end subroutine checkpositions
+end module configuration_data
