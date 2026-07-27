@@ -213,7 +213,7 @@ contains
                                               origin_position=r0, &
                                               mpi_comm=pcomm, &
                                               sphere_translation_list=exlist)
-                  ka = amnpaddress(k, l, q, l, 2)
+                  ka = polarized_mode_index(k, l, q, l, 2)
                   dqteff(1) = -2.d0 / vol_radius**2 * dble(amnp0(ka))
                   dqteff(3) = 2.d0 / vol_radius**2 &
                               * dble(sum(amnp0(:) * conjg(amnp0(:))))
@@ -245,7 +245,7 @@ contains
                      do n = 1, l
                         do m = -n, n
                            do p = 1, 2
-                              ka = amnpaddress(m, n, p, l, 2)
+                              ka = polarized_mode_index(m, n, p, l, 2)
                               write (20, '(''('',e18.10,'','',e18.10,'')'')') amnp0(ka)
                            end do
                         end do

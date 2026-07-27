@@ -3,7 +3,7 @@ program concurrent_kernels_test
    use iso_fortran_env, only: real64
    use random_configuration_geometry, only: circumscribing_sphere
    use scattering_amplitudes, only: amplitude_to_scattering_matrix
-   use wave_functions, only: degree_transformation, twobytwoinverse
+   use wave_functions, only: invert_two_by_two_matrix, reverse_azimuthal_modes
 
    implicit none(type, external)
 
@@ -38,7 +38,7 @@ program concurrent_kernels_test
                      cmplx(1.0_real64, -1.0_real64, kind=real64), &
                      cmplx(0.5_real64, 0.25_real64, kind=real64), &
                      cmplx(3.0_real64, 0.0_real64, kind=real64)], shape(matrix))
-   call twobytwoinverse(matrix, inverse)
+   call invert_two_by_two_matrix(matrix, inverse)
    identity = cmplx(0.0_real64, 0.0_real64, kind=real64)
    identity(1, 1) = cmplx(1.0_real64, 0.0_real64, kind=real64)
    identity(2, 2) = cmplx(1.0_real64, 0.0_real64, kind=real64)
@@ -47,8 +47,8 @@ program concurrent_kernels_test
    do coefficient = 1, coefficient_count
       coefficients(coefficient) = cmplx(0.25_real64 * coefficient, -0.125_real64 * coefficient, kind=real64)
    end do
-   call degree_transformation(order, coefficients, transformed)
-   call degree_transformation(order, transformed, restored)
+   call reverse_azimuthal_modes(order, coefficients, transformed)
+   call reverse_azimuthal_modes(order, transformed, restored)
    if (maxval(abs(restored - coefficients)) > tolerance) error stop 'Concurrent degree transformation failed'
 
    amplitudes = cmplx(0.0_real64, 0.0_real64, kind=real64)

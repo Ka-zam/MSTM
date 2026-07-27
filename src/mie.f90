@@ -221,8 +221,8 @@ contains
 !write(*,'(8e12.4)') gmat
 !flush(6)
 
-         call twobytwoinverse(gmat, gmatinv)
-         call twobytwoinverse(bmat, bmatinv)
+         call invert_two_by_two_matrix(gmat, gmatinv)
+         call invert_two_by_two_matrix(bmat, bmatinv)
 
          amat = -matmul(gmatinv, amat)
          umat = -matmul(gmatinv, umat)
@@ -242,22 +242,22 @@ contains
             vnp_mie(:, :, n) = vmat(:, :)
          end if
          if (present(cnp_mie)) then
-            call twobytwoinverse(amat, amatinv)
+            call invert_two_by_two_matrix(amat, amatinv)
             amatinv = matmul(dmat, amatinv)
             cnp_mie(:, :, n) = amatinv(:, :)
          end if
          if (present(anp_inv_mie)) then
-            call twobytwoinverse(amat, amatinv)
+            call invert_two_by_two_matrix(amat, amatinv)
             anp_inv_mie(:, :, n) = amatinv(:, :)
          end if
          if (present(dnp_eff_mie)) then
-            call twobytwoinverse(umat, amatinv)
+            call invert_two_by_two_matrix(umat, amatinv)
             amatinv = matmul(amatinv, amat)
             amatinv = matmul(vmat, amatinv)
             dnp_eff_mie(:, :, n) = dmat - amatinv
          end if
          if (present(anp_eff_mie)) then
-            call twobytwoinverse(umat, amatinv)
+            call invert_two_by_two_matrix(umat, amatinv)
             amatinv = matmul(amatinv, amat)
             anp_eff_mie(:, :, n) = -amatinv
          end if

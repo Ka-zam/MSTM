@@ -1,6 +1,6 @@
 module angular_functions
    use bessel_functions, only: riccati_bessel, riccati_hankel
-   use coefficient_indexing, only: amnaddress, amnpaddress
+   use coefficient_indexing, only: mode_index, polarized_mode_index
    use constants
    implicit none
 contains
@@ -354,19 +354,19 @@ contains
             tau(1) = -fnm * (-drot(-1, mn) + drot(1, mn)) * ephi
             tau(2) = -fnm * (drot(-1, mn) + drot(1, mn)) * ephi
             do p = 1, 2
-               mnp = amnpaddress(m, n, p, nodr, imod)
+               mnp = polarized_mode_index(m, n, p, nodr, imod)
                pivec(mnp, 1) = cin * tau(p)
                pivec(mnp, 2) = i * ci * cin * tau(3 - p)
             end do
             if (lrmod) then
                do q = 1, 2
                   do p = 1, 2
-                     mnp = amnpaddress(m, n, p, nodr, imod)
+                     mnp = polarized_mode_index(m, n, p, nodr, imod)
                      tau(p) = pivec(mnp, q)
                   end do
-                  mnp = amnpaddress(m, n, 1, nodr, imod)
+                  mnp = polarized_mode_index(m, n, 1, nodr, imod)
                   pivec(mnp, q) = tau(1) + tau(2)
-                  mnp = amnpaddress(m, n, 2, nodr, imod)
+                  mnp = polarized_mode_index(m, n, 2, nodr, imod)
                   pivec(mnp, q) = tau(1) - tau(2)
                end do
             end if
@@ -909,12 +909,12 @@ contains
          end do
          do n = 1, nodr_s
             do m = -n, n
-               mna = amnaddress(m, n, nodr_s, imodel)
+               mna = mode_index(m, n, nodr_s, imodel)
                mn = n * (n + 1) + m
                do l = 1, nodr_t
                   wmax = n + l
                   do k = -l, l
-                     kla = amnaddress(k, l, nodr_t, imodel)
+                     kla = mode_index(k, l, nodr_t, imodel)
                      kl = l * (l + 1) + k
                      v = m - k
                      wmin = max(abs(v), abs(n - l))

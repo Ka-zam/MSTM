@@ -693,7 +693,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
             do m = -n, n
                mn = n * (n + 1) + m
                do p = 1, 2
-                  mnp = amnpaddress(m, n, p, ltot, indexmodel)
+                  mnp = polarized_mode_index(m, n, p, ltot, indexmodel)
                   ctemp(p) = source_vector(mnp)
                end do
                if (lrtran) ctemp = matmul(tranmat, ctemp)
@@ -784,7 +784,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
                end do
                if (lrtran) ctemp = matmul(tranmat, ctemp) / 2.d0
                do p = 1, 2
-                  mnp = amnpaddress(m, n, p, ntot, indexmodel)
+                  mnp = polarized_mode_index(m, n, p, ntot, indexmodel)
                   interactionmatrix(mnp) = ctemp(p)
                end do
             end do
@@ -818,8 +818,8 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
                               rmataddress = 2 * axial_translation_offset(m, ntot, ltot) + p &
                                             + 2 * (n - m1) + 2 * (ntot - m1 + 1) * (q - 1 + 2 * (l - m1))
                            else
-                              mn = amnpaddress(m, n, p, ntot, indexmodel)
-                              kl = amnpaddress(k, l, q, ltot, indexmodel)
+                              mn = polarized_mode_index(m, n, p, ntot, indexmodel)
+                              kl = polarized_mode_index(k, l, q, ltot, indexmodel)
                               rmataddress = mn + (kl - 1) * 2 * ntot * (ntot + 2)
                            end if
                            interactionmatrix(rmataddress) = c2temp(p, q)
@@ -828,8 +828,8 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
                                  rmataddress = 2 * axial_translation_offset(-m, ntot, ltot) + p &
                                                + 2 * (n - m1) + 2 * (ntot - m1 + 1) * (q - 1 + 2 * (l - m1))
                               else
-                                 mn = amnpaddress(-m, n, p, ntot, indexmodel)
-                                 kl = amnpaddress(-k, l, q, ltot, indexmodel)
+                                 mn = polarized_mode_index(-m, n, p, ntot, indexmodel)
+                                 kl = polarized_mode_index(-k, l, q, ltot, indexmodel)
                                  rmataddress = mn + (kl - 1) * 2 * ntot * (ntot + 2)
                               end if
                               interactionmatrix(rmataddress) = c2tempm(p, q)
@@ -867,7 +867,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
          do m = -n, n
             mn = n * (n + 1) + m
             do p = 1, 2
-               mnp = amnpaddress(m, n, p, ntot1, 2)
+               mnp = polarized_mode_index(m, n, p, ntot1, 2)
                ctemp(p, :) = scoef1(mnp, :)
             end do
             if (lr2mode) ctemp = matmul(tranmat, ctemp)
@@ -878,7 +878,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
          do m = -n, n
             mn = n * (n + 1) + m
             do p = 1, 2
-               mnp = amnpaddress(m, n, p, ntot2, 2)
+               mnp = polarized_mode_index(m, n, p, ntot2, 2)
                ctemp(p, :) = scoef2(mnp, :)
             end do
             if (lr2mode) ctemp = matmul(tranmat, ctemp)
@@ -1149,7 +1149,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
          do p = 1, 2
             do k = -1, 1
                do q = 1, 2
-                  klq = amnpaddress(k, 1, q, 1, 2)
+                  klq = polarized_mode_index(k, 1, q, 1, 2)
                   ssign = (-1)**(k + q + p)
                   pmnp(klq, p) = pmnp(klq, p) * (gfs(1, sdir, p) + ssign * gfs(2, sdir, p))
                end do
@@ -1256,7 +1256,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
          do l = 1, nodr
             do k = -l, l
                do q = 1, 2
-                  klq = amnpaddress(k, l, q, nodr, 2)
+                  klq = polarized_mode_index(k, l, q, nodr, 2)
                   ssign = (-1)**(k + l + q - 1 + p)
                   pmnp(klq, p) = conjg(pmnp(klq, p)) * (gfs(tdir, 1, p) + ssign * gfs(tdir, 2, p))
                end do

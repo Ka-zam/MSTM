@@ -159,9 +159,9 @@ contains
                      csum = matmul(tranmat, matmul(csum, tranmat)) / 2.d0
                   end if
                   do q = 1, 2
-                     klq = amnpaddress(k, l, q, nodrs, imodl)
+                     klq = polarized_mode_index(k, l, q, nodrs, imodl)
                      do p = 1, 2
-                        mnp = amnpaddress(m, n, p, nodrt, imodl)
+                        mnp = polarized_mode_index(m, n, p, nodrt, imodl)
                         rsmat(mnp, klq) = csum(p, q) * kconst
                      end do
                   end do
@@ -177,13 +177,13 @@ contains
                                                     ri, fsmat, include_source=fsincsrc, lr_transformation=lrtran, index_model=imodl)
          do l = 1, nodrs
             do k = -l, l
-               kl = amnaddress(k, l, nodrs, imodl)
+               kl = mode_index(k, l, nodrs, imodl)
                do n = 1, nodrt
                   do m = -n, n
-                     mn = amnaddress(m, n, nodrt, imodl)
+                     mn = mode_index(m, n, nodrt, imodl)
                      do p = 1, 2
-                        klq = amnpaddress(k, l, p, nodrs, imodl)
-                        mnp = amnpaddress(m, n, p, nodrt, imodl)
+                        klq = polarized_mode_index(k, l, p, nodrs, imodl)
+                        mnp = polarized_mode_index(m, n, p, nodrt, imodl)
                         rsmat(mnp, klq) = rsmat(mnp, klq) + fsmat(mn, kl, p)
                      end do
                   end do
@@ -283,10 +283,10 @@ contains
                call vector_coupling_coefficients(-1, n, 1, l, vc2)
                c = -sqrt(four_pi) * ci**(n - l) * fnr(n + n + 1) * fnr(l + l + 1)
                do k = -l, l
-                  kl = amnaddress(k, l, nodrs, imodl)
+                  kl = mode_index(k, l, nodrs, imodl)
                   do m = -n, n
                      m1m = (-1)**m
-                     mn = amnaddress(m, n, nodrt, imodl)
+                     mn = mode_index(m, n, nodrt, imodl)
                      v = k - m
                      call vector_coupling_coefficients(-m, n, k, l, vc1)
                      wmin = max(abs(v), abs(n - l))
@@ -316,16 +316,16 @@ contains
          do p = 1, 2
             do n = 1, nodrt
                do m = -n, n
-                  mn = amnaddress(m, n, nodrt, imodl)
+                  mn = mode_index(m, n, nodrt, imodl)
                   c = 0.d0
                   do l = 1, nodrs
                      do k = -l, l
-                        kl = amnaddress(k, l, nodrs, imodl)
-                        klp = amnpaddress(k, l, p, nodrs, imodl)
+                        kl = mode_index(k, l, nodrs, imodl)
+                        klp = polarized_mode_index(k, l, p, nodrs, imodl)
                         c = c + fsmat(mn, kl, p) * source_vector(klp)
                      end do
                   end do
-                  mn = amnpaddress(m, n, p, nodrt, imodl)
+                  mn = polarized_mode_index(m, n, p, nodrt, imodl)
                   matrix(mn) = c * pshift
                end do
             end do
@@ -446,9 +446,9 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
                   wmin = max(abs(v), abs(n - l))
                   csum = 0.d0
                   do q = 1, 2
-                     klq = amnpaddress(k, l, q, nodrs, imodl)
+                     klq = polarized_mode_index(k, l, q, nodrs, imodl)
                      do p = 1, 2
-                        mnp = amnpaddress(m, n, p, nodrt, imodl)
+                        mnp = polarized_mode_index(m, n, p, nodrt, imodl)
                         tmat = 0.d0
                         do sdir = sdirs(1), sdirs(2)
                            if (sdir .eq. 1) then
@@ -482,9 +482,9 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
                      csum = matmul(tranmat, matmul(csum, tranmat)) / 2.d0
                   end if
                   do q = 1, 2
-                     klq = amnpaddress(k, l, q, nodrs, imodl)
+                     klq = polarized_mode_index(k, l, q, nodrs, imodl)
                      do p = 1, 2
-                        mnp = amnpaddress(m, n, p, nodrt, imodl)
+                        mnp = polarized_mode_index(m, n, p, nodrt, imodl)
                         mat(mnp, klq) = csum(p, q)
                      end do
                   end do
@@ -498,13 +498,13 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
                                                  ri, fsmat, include_source=incsrc, lr_transformation=lrtran, index_model=imodl)
       do l = 1, nodrs
          do k = -l, l
-            kl = amnaddress(k, l, nodrs, imodl)
+            kl = mode_index(k, l, nodrs, imodl)
             do n = 1, nodrt
                do m = -n, n
-                  mn = amnaddress(m, n, nodrt, imodl)
+                  mn = mode_index(m, n, nodrt, imodl)
                   do p = 1, 2
-                     klq = amnpaddress(k, l, p, nodrs, imodl)
-                     mnp = amnpaddress(m, n, p, nodrt, imodl)
+                     klq = polarized_mode_index(k, l, p, nodrs, imodl)
+                     mnp = polarized_mode_index(m, n, p, nodrt, imodl)
                      mat(mnp, klq) = mat(mnp, klq) + fsmat(mn, kl, p)
                   end do
                end do

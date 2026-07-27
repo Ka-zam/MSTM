@@ -1069,7 +1069,7 @@ contains
 !                     do m=-n,n
 !                        do p=1,2
 !                           if(abs(m).ne.1) then
-!                              amnp_0(amnpaddress(m,n,p,t_matrix_order,2),:)=0.d0
+!                              amnp_0(polarized_mode_index(m,n,p,t_matrix_order,2),:)=0.d0
 !                           endif
 !                        enddo
 !                     enddo
@@ -1109,7 +1109,7 @@ contains
                   do p = 1, 2
                      aneff = 0.d0
                      do m = -1, 1, 2
-                        mnp = amnpaddress(m, n, p, t_matrix_order, 2)
+                        mnp = polarized_mode_index(m, n, p, t_matrix_order, 2)
                         aneff = aneff + 0.5d0 * sum(amnp_0(mnp, :) / pmnp0(mnp, :))
                      end do
                      aneff = aneff / 2.d0
@@ -1226,7 +1226,7 @@ contains
 !singleorigin=.true.
 
       call main_calling_program(print_output=.false., set_t_matrix_order=.true., dry_run=.true.)
-      call groupfilename(tmatchar1, configgroup, tmatchar2, t_matrix_output_file)
+      call compose_group_filename(tmatchar1, configgroup, tmatchar2, t_matrix_output_file)
 
       if (allocated(q_eff_ave)) deallocate (q_eff_ave, q_eff_tot_ave, q_vabs_ave, sphere_position_ave)
       if (allocated(mean_t_ave)) deallocate (mean_t_ave)
@@ -1662,13 +1662,13 @@ contains
       do n = 1, sphere_order(i1)
          do m = -n, n
             do p = 1, 2
-               mnp1 = amnpaddress(m, n, p, sphere_order(i1), 2)
+               mnp1 = polarized_mode_index(m, n, p, sphere_order(i1), 2)
                a(p, :) = amnp_s(mnp1 + sphere_offset(i1), :)
             end do
             b(1, :) = a(1, :) + a(2, :)
             b(2, :) = a(1, :) - a(2, :)
             do p = 1, 2
-               mnp0 = amnpaddress(m, n, p, t_matrix_order, 2)
+               mnp0 = polarized_mode_index(m, n, p, t_matrix_order, 2)
                amnp_0(mnp0, :) = amnp_0(mnp0, :) - fn * b(p, :)
 !                  amnp_0=amnp_0*dble(number_spheres)/dble(number_spheres-1)
             end do

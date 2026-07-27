@@ -3,7 +3,7 @@ module translation_operator
                                 axial_translation_size, azimuthal_phase_factors, cartesian_to_spherical, &
                                 generate_translation_matrix, rotation_coefficients
    use iso_fortran_env, only: real64
-   use wave_functions, only: mtransfer
+   use wave_functions, only: resize_mode_coefficients
 
    implicit none(type, external)
    private
@@ -150,7 +150,7 @@ contains
       end if
       if (tranmat%zero_translation) then
          if (tranmat%vswf_type .eq. 1) then
-            call mtransfer(nodra, nodrg, acoef(1:lengtha), g_t)
+            call resize_mode_coefficients(nodra, nodrg, acoef(1:lengtha), g_t)
             gcoef(1:lengthg) = gcoef(1:lengthg) &
                                + reshape(g_t(0:nodrg + 1, 1:nodrg, 1:nmodeg), (/lengthg/))
          end if

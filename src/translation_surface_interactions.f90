@@ -1,6 +1,6 @@
 module translation_surface_interactions
    use angular_functions, only: axial_translation_offset, axial_translation_size
-   use coefficient_indexing, only: amnpaddress
+   use coefficient_indexing, only: polarized_mode_index
    use iso_fortran_env, only: real64
    use mpidefs, only: mpi_comm_world, mstm_mpi, mstm_mpi_wtime
    use periodic_lattice_subroutines, only: periodic_lattice, plane_boundary_lattice_interaction
@@ -8,7 +8,7 @@ module translation_surface_interactions
                          run_print_unit, sphere_block, sphere_layer, sphere_offset, sphere_order, sphere_position, &
                          store_surface_matrix, store_translation_matrix
    use surface_subroutines, only: layer_ref_index, plane_interaction, plane_surface_present
-   use wave_functions, only: degree_transformation
+   use wave_functions, only: reverse_azimuthal_modes
 
    implicit none(type, external)
    private
@@ -407,19 +407,19 @@ contains
                      end if
                      if ((j .ne. i) .and. one_side_only) then
                         if (.not. contran(rhs)) then
-                           call degree_transformation(sphere_order(i), &
-                                                      ain(i1:i2, rhs), atempi)
+                           call reverse_azimuthal_modes(sphere_order(i), &
+                                                        ain(i1:i2, rhs), atempi)
                            call surface_interaction_matrix_mult(sphere_order(i), sphere_order(j), atempi, atempj, loc_rmat, 2)
-                           call degree_transformation(sphere_order(j), &
-                                                      atempj, atempj2)
+                           call reverse_azimuthal_modes(sphere_order(j), &
+                                                        atempj, atempj2)
                            aout(j1:j2, rhs) = aout(j1:j2, rhs) &
                                               + atempj2(1:sphere_block(j))
                         else
-                           call degree_transformation(sphere_order(j), &
-                                                      ain(j1:j2, rhs), atempj)
+                           call reverse_azimuthal_modes(sphere_order(j), &
+                                                        ain(j1:j2, rhs), atempj)
                            call surface_interaction_matrix_mult(sphere_order(j), sphere_order(i), atempj, atempi, loc_rmat, 1)
-                           call degree_transformation(sphere_order(i), &
-                                                      atempi, atempi2)
+                           call reverse_azimuthal_modes(sphere_order(i), &
+                                                        atempi, atempi2)
                            aout(i1:i2, rhs) = aout(i1:i2, rhs) + atempi2(1:sphere_block(i))
                         end if
                      end if
@@ -450,10 +450,10 @@ contains
             moff = 2 * axial_translation_offset(m, nin, nout)
             do n = m1, nout
                do p = 1, 2
-                  mnp = amnpaddress(m, n, p, nout, 2)
+                  mnp = polarized_mode_index(m, n, p, nout, 2)
                   do l = m1, nin
                      do q = 1, 2
-                        klq = amnpaddress(m, l, q, nin, 2)
+                        klq = polarized_mode_index(m, l, q, nin, 2)
                         if (dir .eq. 1) then
                            i = moff + p + 2 * (n - m1) + 2 * (nout - m1 + 1) * (q - 1 + 2 * (l - m1))
                         else

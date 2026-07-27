@@ -3,11 +3,11 @@ module wave_functions
    use angular_functions, only: azimuthal_phase_factors, cartesian_to_spherical, &
                                 complex_rotation_coefficients, rotation_coefficients
    use bessel_functions, only: riccati_bessel, riccati_hankel
-   use coefficient_indexing, only: amnpaddress
+   use coefficient_indexing, only: polarized_mode_index
    implicit none
 contains
 
-   subroutine vwhcalc(rpos, ri, nodr, itype, vwh, index_model, lr_to_mode)
+   subroutine vector_spherical_wave_functions(rpos, ri, nodr, itype, vwh, index_model, lr_to_mode)
       use numerical_tables
       implicit none
       logical, optional :: lr_to_mode
@@ -42,11 +42,11 @@ contains
          vwh(:, 1:2 * nodr * (nodr + 2)) = (0.d0, 0.d0)
          if (itype .eq. 3) return
          do p = 1, 2
-            vwh(1, amnpaddress(-1, 1, p, nodr, imod)) = .5d0 * fnr(2) / fnr(3)
-            vwh(2, amnpaddress(-1, 1, p, nodr, imod)) = -.5d0 * ci * fnr(2) / fnr(3)
-            vwh(3, amnpaddress(0, 1, p, nodr, imod)) = 1.d0 * fnr(2) / fnr(6)
-            vwh(1, amnpaddress(1, 1, p, nodr, imod)) = -.5d0 * fnr(2) / fnr(3)
-            vwh(2, amnpaddress(1, 1, p, nodr, imod)) = -.5d0 * ci * fnr(2) / fnr(3)
+            vwh(1, polarized_mode_index(-1, 1, p, nodr, imod)) = .5d0 * fnr(2) / fnr(3)
+            vwh(2, polarized_mode_index(-1, 1, p, nodr, imod)) = -.5d0 * ci * fnr(2) / fnr(3)
+            vwh(3, polarized_mode_index(0, 1, p, nodr, imod)) = 1.d0 * fnr(2) / fnr(6)
+            vwh(1, polarized_mode_index(1, 1, p, nodr, imod)) = -.5d0 * fnr(2) / fnr(3)
+            vwh(2, polarized_mode_index(1, 1, p, nodr, imod)) = -.5d0 * ci * fnr(2) / fnr(3)
             if (lrtomode) exit
          end do
          return
@@ -85,7 +85,7 @@ contains
          sp = -(-1)**p
          do n = 1, nodr
             do m = -n, n
-               iadd(m) = amnpaddress(m, n, p, nodr, imod)
+               iadd(m) = polarized_mode_index(m, n, p, nodr, imod)
             end do
             nn1 = n * (n + 1)
             np1 = n + 1
@@ -111,14 +111,14 @@ contains
          do n = 1, nodr
             do m = -n, n
                do p = 1, 2
-                  vtemp(:, p) = vwh(:, amnpaddress(m, n, p, nodr, imod))
+                  vtemp(:, p) = vwh(:, polarized_mode_index(m, n, p, nodr, imod))
                end do
-               vwh(:, amnpaddress(m, n, 1, nodr, imod)) = (vtemp(:, 1) + vtemp(:, 2)) * 0.5d0
-               vwh(:, amnpaddress(m, n, 2, nodr, imod)) = (vtemp(:, 1) - vtemp(:, 2)) * 0.5d0
+               vwh(:, polarized_mode_index(m, n, 1, nodr, imod)) = (vtemp(:, 1) + vtemp(:, 2)) * 0.5d0
+               vwh(:, polarized_mode_index(m, n, 2, nodr, imod)) = (vtemp(:, 1) - vtemp(:, 2)) * 0.5d0
             end do
          end do
       end if
-   end subroutine vwhcalc
+   end subroutine vector_spherical_wave_functions
 
    subroutine scalar_wave_function(nodr, itype, x, y, z, ri, swf)
       use numerical_tables
@@ -196,7 +196,7 @@ contains
 ! inverse of a 2 X 2 complex matrix.
 ! March 2013
 !
-   pure subroutine twobytwoinverse(mat, imat)
+   pure subroutine invert_two_by_two_matrix(mat, imat)
       implicit none
       complex(8), intent(in) :: mat(2, 2)
       complex(8), intent(out) :: imat(2, 2)
@@ -207,12 +207,12 @@ contains
       do concurrent(s=1:2, t=1:2)
          imat(s, t) = (-1)**(s + t) * tmat(3 - t, 3 - s) / det
       end do
-   end subroutine twobytwoinverse
+   end subroutine invert_two_by_two_matrix
 !
 ! move between unequal size matrices.
 ! March 2013
 !
-   pure subroutine mtransfer(nin, nout, cin, cout)
+   pure subroutine resize_mode_coefficients(nin, nout, cin, cout)
       implicit none
       integer, intent(in) :: nin, nout
       complex(8), intent(in) :: cin(0:nin + 1, nin, 2)
@@ -222,8 +222,8 @@ contains
       ct(0:nin + 1, 1:nin, 1:2) = cin(0:nin + 1, 1:nin, 1:2)
       cout = 0.d0
       cout(0:nout + 1, 1:nout, 1:2) = ct(0:nout + 1, 1:nout, 1:2)
-   end subroutine mtransfer
-   subroutine lr_mode_transformation(nodr, alr, amode, lr_to_mode)
+   end subroutine resize_mode_coefficients
+   subroutine left_right_mode_transformation(nodr, alr, amode, lr_to_mode)
       implicit none
       logical :: lrtomode
       logical, optional :: lr_to_mode
@@ -243,9 +243,9 @@ contains
          alr(:, 1) = .5d0 * (at(:, 1) + at(:, 2))
          alr(:, 2) = .5d0 * (at(:, 1) - at(:, 2))
       end if
-   end subroutine lr_mode_transformation
+   end subroutine left_right_mode_transformation
 
-   pure subroutine degree_transformation(nodr, ain, aout)
+   pure subroutine reverse_azimuthal_modes(nodr, ain, aout)
       implicit none
       integer, intent(in) :: nodr
       complex(8), intent(in) :: ain(2 * nodr * (nodr + 2))
@@ -256,15 +256,15 @@ contains
          im = (-1)**m
          do n = m1, nodr
             do p = 1, 2
-               mnp = amnpaddress(m, n, p, nodr, 2)
-               mnp2 = amnpaddress(-m, n, p, nodr, 2)
+               mnp = polarized_mode_index(m, n, p, nodr, 2)
+               mnp2 = polarized_mode_index(-m, n, p, nodr, 2)
                aout(mnp2) = im * ain(mnp)
             end do
          end do
       end do
-   end subroutine degree_transformation
+   end subroutine reverse_azimuthal_modes
 
-   subroutine groupfilename(firststring, number, laststring, newstring)
+   subroutine compose_group_filename(firststring, number, laststring, newstring)
       implicit none
       integer :: number
       character(len=256) :: firststring, laststring, newstring, sform, intfile
@@ -279,5 +279,5 @@ contains
       end if
       write (intfile, fmt=sform) trim(firststring), number, '_', trim(laststring)
       read (intfile, '(a)') newstring
-   end subroutine groupfilename
+   end subroutine compose_group_filename
 end module wave_functions

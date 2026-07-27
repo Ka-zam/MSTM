@@ -149,7 +149,7 @@ contains
          call layervsh(s, phi, targetz, dir, sphere_position(:, i), sphere_order(i), pmnpi)
          amnpi(:, :) = amnp(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), :)
          do p = 1, 2
-            call lr_mode_transformation(sphere_order(i), amnpi(:, p), amnpi(:, p))
+            call left_right_mode_transformation(sphere_order(i), amnpi(:, p), amnpi(:, p))
          end do
          sat(1) = sum(pmnpi(:, 2) * amnpi(:, 2)) * 0.5d0
          sat(2) = sum(pmnpi(:, 1) * amnpi(:, 1)) * 0.5d0

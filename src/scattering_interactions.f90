@@ -245,7 +245,7 @@ contains
                                  pmnp0)
          do n = 1, t_matrix_order
             do m = -n, n
-               mn = amnaddress(m, n, t_matrix_order, 2)
+               mn = mode_index(m, n, t_matrix_order, 2)
                pt = pmnp0(mn, 1:2, 1:2)
                do p = 1, 2
                   pmnp0(mn, p, :) = dnpeff(p, 1, n) * pt(1, :) + dnpeff(p, 2, n) * pt(2, :)

@@ -291,10 +291,12 @@ contains
                                    mpi_comm=mpicomm)
             do i = 1, number_spheres
                if (host_sphere(i) .ne. 0) cycle
-               call lr_mode_transformation(sphere_order(i), amn(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i)), &
-                                           amn(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i)))
-               call lr_mode_transformation(sphere_order(i), gmn(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i)), &
-                                           gmn(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i)))
+               call left_right_mode_transformation(sphere_order(i), &
+                                                   amn(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i)), &
+                                                   amn(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i)))
+               call left_right_mode_transformation(sphere_order(i), &
+                                                   gmn(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i)), &
+                                                   gmn(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i)))
                qsevan(p) = qsevan(p) + sum(dble(conjg(amn(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i))) &
                                                 * gmn(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i)))) &
                            / layer_ref_index(sphere_layer(i))

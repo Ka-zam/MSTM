@@ -103,7 +103,8 @@ contains
       end do
       totpoints = product(griddim)
 
-      call vwhcalc((/0.d0, 0.d0, 0.d0/), (/(1.d0, 0.d0), (1.d0, 0.d0)/), 1, 1, vwf_0, index_model=2)
+      call vector_spherical_wave_functions((/0.d0, 0.d0, 0.d0/), &
+                                           (/(1.d0, 0.d0), (1.d0, 0.d0)/), 1, 1, vwf_0, index_model=2)
 
       allocate (gridinfo(griddim(1), griddim(2), griddim(3)))
       call grid_point_initialize(griddim, gridinfo)
@@ -298,7 +299,7 @@ contains
             nblk = nodr * (nodr + 2)
             allocate (vwf(3, nblk, 2), svec(nblk, 2))
             rtran(:) = rpos(:) - sphere_position(:, j)
-            call vwhcalc(rtran, ri2, nodr, 3, vwf, index_model=2)
+            call vector_spherical_wave_functions(rtran, ri2, nodr, 3, vwf, index_model=2)
             do p = 1, 2
                svec = reshape(sourcevec(sphere_offset(j) + 1:sphere_offset(j) + sphere_block(j), p), &
                               (/nblk, 2/))
@@ -313,7 +314,7 @@ contains
          nblk = nodr * (nodr + 2)
          allocate (vwf(3, nblk, 2))
          rtran(:) = rpos(:) - cellinfo%rcell(:)
-         call vwhcalc(rtran, ri2, nodr, 1, vwf, index_model=2)
+         call vector_spherical_wave_functions(rtran, ri2, nodr, 1, vwf, index_model=2)
          do p = 1, 2
             evec(:, p) = evec(:, p) + (matmul(vwf(:, :, 1), cellinfo%reg_source_vector(:, 1, p)) &
                                        + matmul(vwf(:, :, 2), cellinfo%reg_source_vector(:, 2, p)))
@@ -372,7 +373,7 @@ contains
             else
                pshift = pshift0
             end if
-            call vwhcalc(rtran, ri2, nodr, 3, vwf, index_model=2)
+            call vector_spherical_wave_functions(rtran, ri2, nodr, 3, vwf, index_model=2)
             do p = 1, 2
                svec = reshape(sourcevec(sphere_offset(j) + 1:sphere_offset(j) + sphere_block(j), p), &
                               (/nblk, 2/))
@@ -388,7 +389,7 @@ contains
          allocate (vwf(3, nblk, 2), svec(nblk, 2))
          rtran = rpos - sphere_position(:, host)
          rtran(1:2) = rtran(1:2) - cell_width(1:2) * dble(np0(1:2))
-         call vwhcalc(rtran, ri2, nodr, 1, vwf, index_model=2)
+         call vector_spherical_wave_functions(rtran, ri2, nodr, 1, vwf, index_model=2)
          do p = 1, 2
             svec(:, :) = internal_field_vector(host)%vector(:, :, p)
             evec(:, p) = evec(:, p) + (matmul(vwf(:, :, 1), svec(:, 1)) + matmul(vwf(:, :, 2), svec(:, 2))) * pshift0
@@ -425,7 +426,7 @@ contains
             call stored_surface_vector_calculate(nodr, rcell, sourcevec, cellinfo%vector)
          end if
          rtran(:) = rpos(:) - rcell(:)
-         call vwhcalc(rtran, (/ri, ri/), nodr, 1, vwf, index_model=2)
+         call vector_spherical_wave_functions(rtran, (/ri, ri/), nodr, 1, vwf, index_model=2)
          do p = 1, 2
             evec(:, p) = matmul(vwf(:, :, 1), cellinfo%vector(1:nblk, 1, p)) &
                          + matmul(vwf(:, :, 2), cellinfo%vector(1:nblk, 2, p))
@@ -481,7 +482,7 @@ contains
                                        include_indirect=.true.)
             end if
             rtran(:) = rpos(:) - rcell(:)
-            call vwhcalc(rtran, (/riinc, riinc/), nodr, 1, vwf, index_model=2)
+            call vector_spherical_wave_functions(rtran, (/riinc, riinc/), nodr, 1, vwf, index_model=2)
             do p = 1, 2
                evec(:, p) = matmul(vwf(:, :, 1), cellinfo%gb_vector(1:nblk, 1, p)) &
                             + matmul(vwf(:, :, 2), cellinfo%gb_vector(1:nblk, 2, p))
