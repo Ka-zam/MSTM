@@ -346,6 +346,7 @@ The generator starts from random sequential placement or a close-packed lattice,
 | Option | Meaning |
 |---|---|
 | `random_configuration` | Generate a configuration (`f`). |
+| `random_seed` | Seed the generator reproducibly; a negative value selects system-dependent seeding (`-1`). |
 | `target_shape` | `0`: rectangular; `1`: cylindrical; `2`: spherical. |
 | `target_dimensions` | Three half-dimensions. For a cylinder, the first is radius and third is half-thickness; for a sphere, the first is radius. |
 | `target_width`, `target_thickness` | Shorthand width/radius and half-thickness controls. |

@@ -18,7 +18,7 @@ module random_configuration_state
    logical, target :: sphere_1_fixed, periodic_bc(3), random_lattice_configuration
    integer :: cell_dim(3)
    integer, allocatable :: sphere_cell(:, :)
-   integer, target :: target_shape, wall_boundary_model, max_number_time_steps, number_components
+   integer, target :: target_shape, wall_boundary_model, max_number_time_steps, number_components, random_seed_value
    real(8) :: fv_crit, time_step
    real(8) :: minimum_gap, d_cell, target_boundaries(3, 2)
    real(8), target :: target_dimensions(3), psd_sigma(4), target_width, target_thickness, max_collisions_per_sphere, &
@@ -36,4 +36,5 @@ module random_configuration_state
    data max_diffusion_cpu_time/100.d0/
    data number_components, component_radii, component_number_fraction, psd_sigma/1, 4*1.d0, &
       1.d0, 0.d0, 0.d0, 0.d0, 4*0.d0/
+   data random_seed_value/-1/
 end module random_configuration_state

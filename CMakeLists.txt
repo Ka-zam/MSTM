@@ -147,6 +147,7 @@ if(FPRETTIFY_EXECUTABLE)
       tests/bessel_test.f90
       tests/concurrent_kernels_test.f90
       tests/gpfa_test.f90
+      tests/output_regression_test.f90
       tests/translation_expansion_test.f90
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     COMMENT "Formatting Fortran sources"
@@ -176,6 +177,9 @@ if(BUILD_TESTING)
   target_link_libraries(concurrent_kernels_test PRIVATE mstm_core)
   add_test(NAME concurrent_kernels_unit COMMAND concurrent_kernels_test)
 
+  add_executable(output_regression_test tests/output_regression_test.f90)
+  target_compile_options(output_regression_test PRIVATE -std=f2023)
+
   add_test(NAME cli_help COMMAND $<TARGET_FILE:mstm>)
   set_tests_properties(cli_help PROPERTIES PASS_REGULAR_EXPRESSION "Usage:")
 
@@ -185,7 +189,7 @@ if(BUILD_TESTING)
   add_test(NAME cli_version COMMAND $<TARGET_FILE:mstm> --version)
   set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "MSTM ${PROJECT_VERSION}")
 
-  function(add_mstm_example_test test_name input_name expected_outputs)
+  function(add_mstm_example_test test_name input_name expected_outputs regression_case)
     set(test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/${test_name}")
     file(MAKE_DIRECTORY "${test_work_dir}")
     add_test(
@@ -195,6 +199,8 @@ if(BUILD_TESTING)
         "-DMSTM_INPUT=${CMAKE_CURRENT_SOURCE_DIR}/examples/${input_name}"
         "-DMSTM_WORK_DIR=${test_work_dir}"
         "-DMSTM_EXPECTED_OUTPUTS=${expected_outputs}"
+        "-DMSTM_REGRESSION_EXECUTABLE=$<TARGET_FILE:output_regression_test>"
+        "-DMSTM_REGRESSION_CASE=${regression_case}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunSmokeTest.cmake"
     )
   endfunction()
@@ -203,12 +209,33 @@ if(BUILD_TESTING)
     smoke
     mstm-2022b-fig1.inp
     "mstm-2022b-fig1.dat,nf-fig1.dat"
+    figure1
   )
   add_mstm_example_test(
     effective_medium_smoke
     effective-medium-smoke.inp
     "effective-medium-smoke.dat,anpeff.dat"
+    effective_medium
   )
+
+  if(MSTM_ENABLE_MPI)
+    set(mpi_test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/mpi_two_rank_effective_medium")
+    file(MAKE_DIRECTORY "${mpi_test_work_dir}")
+    add_test(
+      NAME mpi_two_rank_effective_medium
+      COMMAND "${CMAKE_COMMAND}"
+        "-DMSTM_EXECUTABLE=$<TARGET_FILE:mstm>"
+        "-DMSTM_INPUT=${CMAKE_CURRENT_SOURCE_DIR}/examples/effective-medium-smoke.inp"
+        "-DMSTM_WORK_DIR=${mpi_test_work_dir}"
+        "-DMSTM_EXPECTED_OUTPUTS=effective-medium-smoke.dat,anpeff.dat"
+        "-DMSTM_REGRESSION_EXECUTABLE=$<TARGET_FILE:output_regression_test>"
+        "-DMSTM_REGRESSION_CASE=effective_medium"
+        "-DMSTM_MPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMSTM_MPI_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMSTM_MPI_RANKS=2"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunSmokeTest.cmake"
+    )
+  endif()
 endif()
 
 install(TARGETS mstm RUNTIME DESTINATION bin)

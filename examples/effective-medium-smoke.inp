@@ -5,6 +5,8 @@ number_spheres
 2
 random_configuration
 t
+random_seed
+12345
 target_shape
 2
 target_width

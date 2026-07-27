@@ -18,6 +18,7 @@ module random_sphere_configuration
    public :: c_list, c_temp, cell_list, coll_data, coll_list, component_number_fraction, component_radii, &
              l_list, max_collisions_per_sphere, max_diffusion_cpu_time, max_diffusion_simulation_time, &
              max_number_time_steps, number_components, periodic_bc, psd_sigma, random_lattice_configuration, &
+             random_seed_value, &
              sim_timings, sphere_1_fixed, sphere_cell, target_dimensions, target_shape, target_thickness, &
              target_width, target_width_specified, time_0, wall_boundary_model
 contains
@@ -57,7 +58,7 @@ contains
       end if
       printsim = (present(simulation_file) .and. mstm_global_rank .eq. 0)
       if (firstrun) then
-         call random_seed()
+         call initialize_random_seed(random_seed_value)
          firstrun = .false.
       end if
       allocate (coll_data(numberspheres))
@@ -259,4 +260,20 @@ contains
       call clear_cells()
       deallocate (coll_data)
    end subroutine generate_random_sphere_cluster
+
+   subroutine initialize_random_seed(seed_value)
+      integer, intent(in) :: seed_value
+      integer :: i, seed_size
+      integer, allocatable :: seed(:)
+
+      if (seed_value < 0) then
+         call random_seed()
+         return
+      end if
+
+      call random_seed(size=seed_size)
+      allocate (seed(seed_size))
+      seed = seed_value + 104729*[(i - 1, i=1, seed_size)]
+      call random_seed(put=seed)
+   end subroutine initialize_random_seed
 end module random_sphere_configuration

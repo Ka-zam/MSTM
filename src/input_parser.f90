@@ -399,6 +399,10 @@ contains
          vartype = 'i'
          ivarvalue => number_components
 
+      elseif (varlabel .eq. 'random_seed') then
+         vartype = 'i'
+         ivarvalue => random_seed_value
+
       elseif (varlabel .eq. 'max_diffusion_simulation_time') then
          vartype = 'r'
          rvarvalue => max_diffusion_simulation_time
