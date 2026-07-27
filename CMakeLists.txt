@@ -385,6 +385,36 @@ if(BUILD_TESTING)
     fft-translation-validation.dat
     fft_translation_validation
   )
+  add_mstm_regression_test(
+    random_orientation_average
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/random-orientation-average.inp"
+    random-orientation-average.dat
+    random_orientation_average
+  )
+  add_mstm_regression_test(
+    incidence_average
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/incidence-average.inp"
+    incidence-average.dat
+    incidence_average
+  )
+  add_mstm_regression_test(
+    periodic_surface
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/periodic-surface.inp"
+    periodic-surface.dat
+    periodic_surface
+  )
+  add_mstm_regression_test(
+    nested_sphere
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/nested-sphere.inp"
+    nested-sphere.dat
+    nested_sphere
+  )
+  add_mstm_regression_test(
+    near_field_modes
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/near-field-modes.inp"
+    "near-field-modes.dat,near-field-total.dat,near-field-scattered.dat"
+    near_field_modes
+  )
 
   if(MSTM_ENABLE_MPI)
     set(mpi_test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/mpi_two_rank_effective_medium")

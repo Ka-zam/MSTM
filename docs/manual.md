@@ -330,7 +330,7 @@ FFT translation batches repeated 3-D transforms and reports phase timings when `
 | `near_field_minimum_border` | Minimum $(x,y,z)$ grid corner. |
 | `near_field_maximum_border` | Maximum corner. Equal min/max values collapse an axis. |
 | `near_field_step_size` | Grid spacing (`0.2`). |
-| `near_field_calculation_model` | `1`: external total field and internal field; other values remove the external incident contribution (`1`). |
+| `near_field_calculation_model` | `2`: omit the external incident field; other values calculate the external total field (`0`). |
 | `store_surface_vector` | Cache boundary/periodic contributions for faster evaluation (`t`). |
 | `near_field_expansion_spacing` | Re-expansion grid spacing (`5`). |
 | `near_field_expansion_order` | Re-expansion truncation order (`10`). |

@@ -26,6 +26,16 @@ program output_regression_test
       call check_solver_reciprocity(trim(work_directory), failures)
    case ('fft_translation_validation')
       call check_fft_translation_validation(trim(work_directory), failures)
+   case ('random_orientation_average')
+      call check_random_orientation_average(trim(work_directory), failures)
+   case ('incidence_average')
+      call check_incidence_average(trim(work_directory), failures)
+   case ('periodic_surface')
+      call check_periodic_surface(trim(work_directory), failures)
+   case ('nested_sphere')
+      call check_nested_sphere(trim(work_directory), failures)
+   case ('near_field_modes')
+      call check_near_field_modes(trim(work_directory), failures)
    case default
       write (error_unit, '(a)') 'Unknown regression case: '//trim(case_name)
       error stop 2
@@ -245,6 +255,106 @@ contains
       end do
    end subroutine check_fft_translation_validation
 
+   subroutine check_random_orientation_average(directory, failure_count)
+      character(len=*), intent(in) :: directory
+      integer, intent(inout) :: failure_count
+      real(real64) :: efficiency(3)
+      integer :: unit
+
+      call open_regression_file(directory//'/random-orientation-average.dat', unit)
+      call find_line(unit, 'total extinction, absorption, scattering efficiencies', .true.)
+      read (unit, *) efficiency
+      close (unit)
+
+      call require_finite('Random-orientation efficiencies', efficiency, failure_count)
+      call assert_close('Random-orientation extinction', efficiency(1), 8.8930e-4_real64, failure_count)
+      call assert_close('Random-orientation lossless energy balance', efficiency(1), &
+                        efficiency(2) + efficiency(3), failure_count)
+   end subroutine check_random_orientation_average
+
+   subroutine check_incidence_average(directory, failure_count)
+      character(len=*), intent(in) :: directory
+      integer, intent(inout) :: failure_count
+      real(real64) :: efficiency(3)
+      integer :: unit
+
+      call open_regression_file(directory//'/incidence-average.dat', unit)
+      call find_line(unit, 'total extinction, absorption, scattering efficiencies', .true.)
+      read (unit, *) efficiency
+      close (unit)
+
+      call require_finite('Incidence-average efficiencies', efficiency, failure_count)
+      call assert_close('Incidence-average analytical sphere extinction', efficiency(1), &
+                        2.1510e-1_real64, failure_count)
+      call assert_close('Incidence-average lossless energy balance', efficiency(1), &
+                        efficiency(2) + efficiency(3), failure_count)
+   end subroutine check_incidence_average
+
+   subroutine check_periodic_surface(directory, failure_count)
+      character(len=*), intent(in) :: directory
+      integer, intent(inout) :: failure_count
+      real(real64) :: flux(9)
+      integer :: polarization, unit
+
+      call open_regression_file(directory//'/periodic-surface.dat', unit)
+      call find_line(unit, 'unit cell reflectance, absorptance, transmittance', .true.)
+      read (unit, *) flux
+      close (unit)
+
+      call require_finite('Periodic-surface fluxes', flux, failure_count)
+      call assert_close('Periodic-surface unpolarized reflectance', flux(1), 7.8075e-3_real64, failure_count)
+      do polarization = 0, 2
+         call assert_close('Periodic-surface energy balance', &
+                           sum(flux(3 * polarization + 1:3 * polarization + 3)), &
+                           1.0_real64, failure_count)
+      end do
+   end subroutine check_periodic_surface
+
+   subroutine check_nested_sphere(directory, failure_count)
+      character(len=*), intent(in) :: directory
+      integer, intent(inout) :: failure_count
+      real(real64) :: efficiency(9)
+      integer :: polarization, unit
+
+      call open_regression_file(directory//'/nested-sphere.dat', unit)
+      call find_line(unit, 'total extinction, absorption, scattering efficiencies', .true.)
+      read (unit, *) efficiency
+      close (unit)
+
+      call require_finite('Nested-sphere efficiencies', efficiency, failure_count)
+      call assert_close('Nested-sphere unpolarized extinction', efficiency(1), &
+                        1.8049e-1_real64, failure_count)
+      do polarization = 0, 2
+         call assert_close('Nested-sphere lossless energy balance', efficiency(3 * polarization + 1), &
+                           efficiency(3 * polarization + 2) + efficiency(3 * polarization + 3), &
+                           failure_count)
+      end do
+   end subroutine check_nested_sphere
+
+   subroutine check_near_field_modes(directory, failure_count)
+      character(len=*), intent(in) :: directory
+      integer, intent(inout) :: failure_count
+      real(real64) :: scattered_field(29), total_field(29)
+      integer :: unit
+
+      call open_regression_file(directory//'/near-field-total.dat', unit)
+      call skip_lines(unit, 7)
+      read (unit, *) total_field
+      close (unit)
+      call open_regression_file(directory//'/near-field-scattered.dat', unit)
+      call skip_lines(unit, 7)
+      read (unit, *) scattered_field
+      close (unit)
+
+      call require_finite('Total near field', total_field, failure_count)
+      call require_finite('Scattered near field', scattered_field, failure_count)
+      call assert_close('Near-field sample x coordinate', total_field(1), 2.05_real64, failure_count)
+      call assert_close('Near-field electric incident contribution', &
+                        total_field(4) - scattered_field(4), 1.0_real64, failure_count)
+      call assert_close('Near-field magnetic incident contribution', &
+                        total_field(22) - scattered_field(22), -1.0_real64, failure_count)
+   end subroutine check_near_field_modes
+
    subroutine open_regression_file(path, unit)
       character(len=*), intent(in) :: path
       integer, intent(out) :: unit
@@ -295,6 +405,26 @@ contains
       write (error_unit, '(a,f8.2)') 'Could not find scattering angle ', requested_angle
       error stop 2
    end subroutine find_scattering_row
+
+   subroutine skip_lines(unit, number_lines)
+      integer, intent(in) :: unit, number_lines
+      integer :: line
+
+      do line = 1, number_lines
+         read (unit, *)
+      end do
+   end subroutine skip_lines
+
+   subroutine require_finite(label, values, failure_count)
+      character(len=*), intent(in) :: label
+      real(real64), intent(in) :: values(:)
+      integer, intent(inout) :: failure_count
+
+      if (.not. all(ieee_is_finite(values))) then
+         write (error_unit, '(a)') trim(label)//' contain a non-finite value'
+         failure_count = failure_count + 1
+      end if
+   end subroutine require_finite
 
    subroutine assert_close(label, actual, expected, failure_count)
       character(len=*), intent(in) :: label

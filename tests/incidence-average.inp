@@ -1,0 +1,21 @@
+! A sphere is rotationally invariant, so Monte Carlo incidence averaging has an exact reference.
+output_file
+incidence-average.dat
+number_spheres
+1
+sphere_data
+0.d0,0.d0,0.d0,1.d0,(1.5d0,0.d0)
+end_of_sphere_data
+incidence_average
+t
+number_incident_directions
+4
+random_seed
+13579
+calculate_scattering_matrix
+f
+print_sphere_data
+f
+print_timings
+f
+end_of_options
