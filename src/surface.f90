@@ -733,7 +733,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       target_layer = layer_id(targetz)
       allocate (real_axis_limits(number_plane_boundaries + 1))
       real_axis_limits(1:number_plane_boundaries + 1) = abs(layer_ref_index(0:number_plane_boundaries))
-      call realsort(number_plane_boundaries + 1, real_axis_limits, 1.d-10, number_limits)
+      call sort_unique_real_values(number_plane_boundaries + 1, real_axis_limits, 1.d-10, number_limits)
       if (source_sum) then
          qtot = 2 * ntot * (ntot + 2)
       else
@@ -917,7 +917,7 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
                                     * (1.d0 + singular_points(n) / riscale))
          end if
       end do
-      call realsort(nlimits0, limits, 1.d-10, nlimits)
+      call sort_unique_real_values(nlimits0, limits, 1.d-10, nlimits)
       qsca = 0.d0
       integration_error = 0.d0
       s1 = 0.d0
@@ -928,8 +928,8 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
          s1 = limits(n)
          subdiv = 0
          ec = 0
-         call gkintegrate(2, s0, s1, energy_kernel, qmat, subdiv, ec, &
-                          integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
+         call integrate_gauss_kronrod_adaptive(2, s0, s1, energy_kernel, qmat, subdiv, ec, &
+                                           integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
          if (ec .eq. 1) error_codes(4) = 1
          if (ec .eq. 2) error_codes(3) = 1
          qsca = qsca + qmat
@@ -950,15 +950,15 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
       s1 = 0.d0
       energy_kernel_region = 1
       if (nlimits0 .gt. 0) then
-         call realsort(nlimits0, limits, 1.d-10, nlimits)
+         call sort_unique_real_values(nlimits0, limits, 1.d-10, nlimits)
          do n = 1, nlimits
             qmat = 0.d0
             s0 = s1
             s1 = limits(n)
             subdiv = 0
             ec = 0
-            call gkintegrate(2, s0, s1, energy_kernel, qmat, subdiv, ec, &
-                             integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
+            call integrate_gauss_kronrod_adaptive(2, s0, s1, energy_kernel, qmat, subdiv, ec, &
+                                           integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
             if (ec .eq. 1) error_codes(4) = 1
             if (ec .eq. 2) error_codes(3) = 1
             qsca = qsca + qmat
@@ -971,8 +971,8 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
          qmat = 0.d0
          subdiv = 0
          ec = 0
-         call gkintegrate(2, s0, s1, energy_kernel, qmat, subdiv, ec, &
-                          integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
+         call integrate_gauss_kronrod_adaptive(2, s0, s1, energy_kernel, qmat, subdiv, ec, &
+                                           integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
          if (ec .eq. 1) error_codes(4) = 1
          if (ec .eq. 2) error_codes(3) = 1
          qsca = qsca + qmat
@@ -993,8 +993,8 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
          subdiv = 0.d0
          rmat = 0.d0
          ec = 0
-         call gkintegrate(qtot, t1, t2, real_axis_kernel, rmat, subdiv, ec, &
-                          integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
+         call integrate_gauss_kronrod_adaptive(qtot, t1, t2, real_axis_kernel, rmat, subdiv, ec, &
+                                           integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
          return
       end if
       r = sqrt(sqrt(radial_distance**2 + (abs(source_z) + abs(target_z))**2))
@@ -1023,8 +1023,8 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
             drmat = 0.d0
             subdiv = 0
             ec = 0
-            call gkintegrate(qtot, dt1, dt2, real_axis_kernel, drmat, subdiv, ec, &
-                             integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
+            call integrate_gauss_kronrod_adaptive(qtot, dt1, dt2, real_axis_kernel, drmat, subdiv, ec, &
+                                           integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
 !if(mstm_global_rank.eq.0) write(*,'('' p1 '',2es12.4,2i6)') dt1,dt2,ec,subdiv
             if (ec .eq. 1) error_codes(4) = 1
             if (ec .eq. 2) error_codes(3) = 1
@@ -1046,8 +1046,8 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
             drmat = 0.d0
             subdiv = 0
             ec = 0
-            call gkintegrate(qtot, dt1, dt2, real_axis_kernel, drmat, subdiv, ec, &
-                             integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
+            call integrate_gauss_kronrod_adaptive(qtot, dt1, dt2, real_axis_kernel, drmat, subdiv, ec, &
+                                           integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
 !if(mstm_global_rank.eq.0) write(*,'('' p2 '',2es12.4,2i6)') dt1,dt2,ec,subdiv
             if (ec .eq. 1) error_codes(4) = 1
             if (ec .eq. 2) error_codes(3) = 1
@@ -1063,8 +1063,8 @@ tm(2, 2, 0:number_plane_boundaries + 1, 2), gfs(2, 2, 2), gp(2, number_plane_bou
          t1t = t1
          t2t = t2
          ec = 0
-         call gkintegrate(qtot, t1t, t2t, real_axis_kernel, drmat, subdiv, ec, &
-                          integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
+         call integrate_gauss_kronrod_adaptive(qtot, t1t, t2t, real_axis_kernel, drmat, subdiv, ec, &
+                                           integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
 !if(mstm_global_rank.eq.0) write(*,'('' p3 '',2es12.4,2i6)') t1t,t2t,ec,subdiv
          if (ec .eq. 1) error_codes(4) = 1
          if (ec .eq. 2) error_codes(3) = 1

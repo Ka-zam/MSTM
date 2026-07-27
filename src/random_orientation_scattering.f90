@@ -214,7 +214,7 @@ contains
          dm = (0.d0, 0.d0)
          dmcf = (0.d0, 0.d0)
          sizedm = size(dm)
-         call init(nodr2)
+         call initialize_numerical_tables(nodr2)
 !
 !  compute the GB modified T matrix
 !

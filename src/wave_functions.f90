@@ -25,7 +25,7 @@ contains
       data ci, nodrmax/(0.d0, 1.d0), 0/
       if (nodr .gt. nodrmax) then
          nodrmax = nodr
-         call init(nodr + 2)
+         call initialize_numerical_tables(nodr + 2)
       end if
       if (present(index_model)) then
          imod = index_model

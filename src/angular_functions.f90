@@ -417,7 +417,7 @@ contains
       complex(8) :: ealpha, amn(0:nmax + 1, nmax, 2), ealpham(-nmax:nmax), &
                     amnt(2, -nmax:nmax), a, b, ci, egamma, egammam(-nmax:nmax)
       data ci/(0.d0, 1.d0)/
-      call init(nmax)
+      call initialize_numerical_tables(nmax)
       dc = 0.d0
       dk01 = 0.d0
       dk0 = 0.d0
@@ -968,7 +968,7 @@ contains
       z = r * dble(ri)
       sum = 0.d0
       do n = 1, nlim
-         call init(n + lmax)
+         call initialize_numerical_tables(n + lmax)
          call riccati_bessel(n + lmax, z, xi)
          do l = 0, n + lmax
             xi(l) = xi(l) / z * ci**l

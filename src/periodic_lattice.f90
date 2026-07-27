@@ -802,8 +802,8 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
             t1 = 0.d0
          end if
          ec = 0
-         call gkintegrate(ntot, t0, t1, lattice_integrand_2d, qintt, subdiv, ec, &
-                          pl_integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
+         call integrate_gauss_kronrod_adaptive(ntot, t0, t1, lattice_integrand_2d, qintt, subdiv, ec, &
+                                        pl_integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
          if (ec .ne. 0) pl_error_codes(4) = 1
          cerr = sum(abs(qintt))
          qint = qint + qintt
@@ -829,8 +829,8 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
             t0 = 0.d0
          end if
          ec = 0
-         call gkintegrate(ntot, t0, t1, lattice_integrand_2d, qintt, subdiv, ec, &
-                          pl_integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
+         call integrate_gauss_kronrod_adaptive(ntot, t0, t1, lattice_integrand_2d, qintt, subdiv, ec, &
+                                        pl_integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
          if (ec .ne. 0) pl_error_codes(4) = 1
          cerr = sum(abs(qintt))
          qintp = qintp + qintt
@@ -920,8 +920,8 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
             t0 = 0.d0
          end if
          ec = 0
-         call gkintegrate(ntot, t0, t1, lattice_integrand_1d, qintt, subdiv, ec, &
-                          pl_integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
+         call integrate_gauss_kronrod_adaptive(ntot, t0, t1, lattice_integrand_1d, qintt, subdiv, ec, &
+                                        pl_integration_error_epsilon, minimum_integration_spacing, maximum_integration_subdivisions)
          if (ec .ne. 0) pl_error_codes(5) = 1
          cerr = sum(abs(qintt))
          qint = qint + qintt

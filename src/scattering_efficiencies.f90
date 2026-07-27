@@ -476,8 +476,8 @@ contains
             if (p .eq. 0) cycle
             c0 = -2.d0 + dble(p)
             c1 = c0 + 1.d0
-            call gkintegrate(2, c0, c1, hemispherical_integrand, cq(:, p), subdiv, &
-                             errorcodes, inteps, mindiv, maxnumdiv)
+            call integrate_gauss_kronrod_adaptive(2, c0, c1, hemispherical_integrand, cq(:, p), subdiv, &
+                                                  errorcodes, inteps, mindiv, maxnumdiv)
          end do
          if (numprocs .gt. 1) then
             if (rank .eq. 1) then

@@ -3,7 +3,7 @@ module quadrature_functions
    implicit none
 contains
 
-   subroutine qng(n, a, b, epsabs, epsrel, f, resultf, abserr, neval, ier)
+   subroutine integrate_gauss_kronrod_nonadaptive(n, a, b, epsabs, epsrel, f, resultf, abserr, neval, ier)
       implicit none
       integer :: n, ier, k, l, neval, ipx
       real(8) a, absc, abserr, b, centr, dhlgth, epsabs, epsrel, hlgth, w10(5), w21a(5), w21b(6), &
@@ -179,10 +179,10 @@ contains
             exit
          end if
       end do
-   end subroutine qng
+   end subroutine integrate_gauss_kronrod_nonadaptive
 
-   recursive subroutine gkintegrate(ntot, t0, t1, qsub, qint, subdiv, &
-                                    errorcodes, inteps, mindiv, maxnumdiv)
+   recursive subroutine integrate_gauss_kronrod_adaptive(ntot, t0, t1, qsub, qint, subdiv, &
+                                                         errorcodes, inteps, mindiv, maxnumdiv)
       implicit none
       integer, intent(in) :: ntot
       integer, intent(inout) :: subdiv, errorcodes
@@ -194,7 +194,7 @@ contains
       external :: qsub
 
       errorcodes = 0
-      call qng(ntot, t0, t1, inteps, inteps, qsub, qint, errstep, nsteps, ier)
+      call integrate_gauss_kronrod_nonadaptive(ntot, t0, t1, inteps, inteps, qsub, qint, errstep, nsteps, ier)
       if (abs(t1 - t0) .lt. mindiv) then
          errorcodes = 2
 !            write(*,'('' min delta: subdiv,t0,t1,err,steps:'',i5,5es12.4,i4)') &
@@ -213,17 +213,19 @@ contains
             t00 = t0
             tmid = (t0 + t1) * 0.5d0
             t11 = t1
-            call gkintegrate(ntot, t00, tmid, qsub, qint1, subdiv1, ec1, inteps, mindiv, maxnumdiv)
-            call gkintegrate(ntot, tmid, t11, qsub, qint2, subdiv2, ec2, inteps, mindiv, maxnumdiv)
+            call integrate_gauss_kronrod_adaptive(ntot, t00, tmid, qsub, qint1, subdiv1, ec1, &
+                                                  inteps, mindiv, maxnumdiv)
+            call integrate_gauss_kronrod_adaptive(ntot, tmid, t11, qsub, qint2, subdiv2, ec2, &
+                                                  inteps, mindiv, maxnumdiv)
             subdiv = max(subdiv1, subdiv2)
             errorcodes = max(ec1, ec2)
             qint = qint1 + qint2
          end if
       end if
       return
-   end subroutine gkintegrate
+   end subroutine integrate_gauss_kronrod_adaptive
 
-   subroutine gauleg(x1, x2, x, w, n)
+   subroutine gauss_legendre_rule(x1, x2, x, w, n)
       implicit none
       integer :: n, m, j, i
       real(8) :: x1, x2, x(n), w(n), xm, xl, z, p1, p2, p3, pp, z1, dj
@@ -253,9 +255,9 @@ contains
          w(n + 1 - i) = w(i)
       end do
       return
-   end subroutine gauleg
+   end subroutine gauss_legendre_rule
 
-   subroutine realsort(nlimits0, limits, eps, nlimits)
+   subroutine sort_unique_real_values(nlimits0, limits, eps, nlimits)
       implicit none
       integer :: nlimits0, nlimits, imin(1), n
       real(8) :: limits(1:nlimits0), rtemp(1:nlimits0), eps
@@ -272,6 +274,6 @@ contains
          end if
          rtemp(imin(1)) = 1.d10
       end do
-   end subroutine realsort
+   end subroutine sort_unique_real_values
 
 end module quadrature_functions

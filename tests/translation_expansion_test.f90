@@ -1,7 +1,7 @@
 program translation_expansion_test
    use iso_fortran_env, only: real64
    use mpidefs, only: mstm_mpi
-   use numerical_tables, only: init
+   use numerical_tables, only: initialize_numerical_tables
    use translation, only: external_to_internal_expansion, nested_sphere_geometry_view
 
    implicit none(type, external)
@@ -64,7 +64,7 @@ contains
       refractive_indices = cmplx(1.0_real64, 0.0_real64, kind=real64)
       refractive_indices(:, 2) = cmplx(1.4_real64, 0.0_real64, kind=real64)
 
-      call init(2 * test_order)
+      call initialize_numerical_tables(2 * test_order)
       call geometry%configure(hosts, blocks, offsets, orders, positions, refractive_indices)
    end subroutine configure_nested_spheres
 

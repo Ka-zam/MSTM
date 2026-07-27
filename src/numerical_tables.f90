@@ -18,7 +18,7 @@ module numerical_tables
 
 contains
 
-   subroutine init(notd)
+   subroutine initialize_numerical_tables(notd)
       implicit none
       integer :: notd, l, n, ierr, nbc, m, mm1, mp1, np1, nm1, nn1
       real(8) :: fnorm1, fnorm2
@@ -108,6 +108,6 @@ contains
          vwh_coef(m, n, -1, 0) = -fnorm2 * fnr(n + m) * fnr(np1 - m)
          vwh_coef(m, n, 0, 0) = -fnorm2 * m
       end do
-   end subroutine init
+   end subroutine initialize_numerical_tables
 
 end module numerical_tables

@@ -223,7 +223,7 @@ contains
       end if
       call initialize_sphere_layers()
       call calculate_mie_coefficients(mie_epsilon)
-      call init(max_mie_order)
+      call initialize_numerical_tables(max_mie_order)
       if (light_up) then
          write (*, '('' s4 '',i3)') mstm_global_rank
          flush (6)

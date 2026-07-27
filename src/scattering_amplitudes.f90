@@ -601,7 +601,7 @@ contains
       else
          mpicomm = mpi_comm_world
       end if
-      call init(2 * ntot)
+      call initialize_numerical_tables(2 * ntot)
       runprintunit = run_print_unit
       call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
       call mstm_mpi(mpi_command='size', mpi_size=numprocs, mpi_comm=mpicomm)
