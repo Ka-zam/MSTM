@@ -51,32 +51,32 @@ contains
 
       if (varlabel .eq. 'output_file') then
          vartype = 'a'
-         avarvalue => output_file
+         avarvalue => simulation_config%output%output_file
 
       elseif (varlabel .eq. 'append_output_file') then
          vartype = 'l'
-         lvarvalue => append_output_file
+         lvarvalue => simulation_config%output%append
 
       elseif (varlabel .eq. 'copy_input_file') then
          vartype = 'l'
-         lvarvalue => copy_input_file
+         lvarvalue => simulation_config%output%copy_input
 
       elseif (varlabel .eq. 'run_file') then
          vartype = 'a'
-         avarvalue => run_file
+         avarvalue => simulation_config%output%run_file
 
       elseif (varlabel .eq. 'sphere_data_input_file') then
          vartype = 'a'
-         avarvalue => sphere_data_input_file
+         avarvalue => simulation_config%output%sphere_data_file
          sphere_cluster%recalculate_surface_matrix = .true.
 
       elseif (varlabel .eq. 'max_iterations') then
          vartype = 'i'
-         ivarvalue => max_iterations
+         ivarvalue => simulation_config%solver%max_iterations
 
       elseif (varlabel .eq. 'solution_epsilon') then
          vartype = 'r'
-         rvarvalue => solution_epsilon
+         rvarvalue => simulation_config%solver%solution_epsilon
 
       elseif (varlabel .eq. 'normalize_solution_error') then
          vartype = 'l'
@@ -84,31 +84,31 @@ contains
 
       elseif (varlabel .eq. 'mie_epsilon') then
          vartype = 'r'
-         rvarvalue => mie_epsilon
+         rvarvalue => simulation_config%solver%mie_epsilon
 
       elseif (varlabel .eq. 'translation_epsilon') then
          vartype = 'r'
-         rvarvalue => translation_epsilon
+         rvarvalue => simulation_config%solver%translation_epsilon
 
       elseif (varlabel .eq. 'random_orientation') then
          vartype = 'l'
-         lvarvalue => random_orientation
+         lvarvalue => simulation_config%random_orientation
 
       elseif (varlabel .eq. 't_matrix_centered_on_1') then
          vartype = 'l'
-         lvarvalue => t_matrix_centered_on_1
+         lvarvalue => simulation_config%t_matrix_centered_on_1
 
       elseif (varlabel .eq. 't_matrix_convergence_epsilon') then
          vartype = 'r'
-         rvarvalue => t_matrix_convergence_epsilon
+         rvarvalue => simulation_config%solver%t_matrix_convergence_epsilon
 
       elseif (varlabel .eq. 'solution_method') then
          vartype = 'a'
-         avarvalue => solution_method
+         avarvalue => simulation_config%solver%solution_method
 
       elseif (varlabel .eq. 't_matrix_procs_per_solution') then
          vartype = 'i'
-         ivarvalue => t_matrix_procs_per_solution
+         ivarvalue => simulation_config%solver%t_matrix_procs_per_solution
 
       elseif (varlabel .eq. 'max_t_matrix_order') then
          vartype = 'i'
@@ -116,47 +116,47 @@ contains
 
       elseif (varlabel .eq. 'fft_translation_option') then
          vartype = 'l'
-         lvarvalue => input_fft_translation_option
+         lvarvalue => simulation_config%fft%enabled
 
       elseif (varlabel .eq. 'node_order') then
          vartype = 'i'
-         ivarvalue => input_node_order
+         ivarvalue => simulation_config%fft%node_order
 
       elseif (varlabel .eq. 'min_fft_nsphere') then
          vartype = 'i'
-         ivarvalue => min_fft_nsphere
+         ivarvalue => simulation_config%fft%minimum_spheres
 
       elseif (varlabel .eq. 'neighbor_node_model') then
          vartype = 'i'
-         ivarvalue => input_neighbor_node_model
+         ivarvalue => simulation_config%fft%neighbor_node_model
 
       elseif (varlabel .eq. 'cell_volume_fraction') then
          vartype = 'r'
-         rvarvalue => input_cell_volume_fraction
-         d_cell_specified = .false.
+         rvarvalue => simulation_config%fft%cell_volume_fraction
+         simulation_config%fft%cell_size_specified = .false.
 
       elseif (varlabel .eq. 'd_cell') then
          vartype = 'r'
-         rvarvalue => input_d_cell
-         d_cell_specified = .true.
+         rvarvalue => simulation_config%fft%cell_size
+         simulation_config%fft%cell_size_specified = .true.
 
       elseif (varlabel .eq. 'incident_beta_deg') then
          vartype = 'r'
-         rvarvalue => incident_beta_deg
-         incident_beta_specified = .true.
+         rvarvalue => simulation_config%incident_beta_degrees
+         simulation_config%incident_beta_specified = .true.
 
       elseif (varlabel .eq. 'incident_sin_beta') then
          vartype = 'r'
-         rvarvalue => incident_sin_beta
-         incident_beta_specified = .false.
+         rvarvalue => simulation_result%incident_sin_beta
+         simulation_config%incident_beta_specified = .false.
 
       elseif (varlabel .eq. 'incident_direction') then
          vartype = 'i'
-         ivarvalue => incident_direction
+         ivarvalue => simulation_config%incident_direction
 
       elseif (varlabel .eq. 'incident_alpha_deg') then
          vartype = 'r'
-         rvarvalue => incident_alpha_deg
+         rvarvalue => simulation_config%incident_alpha_degrees
 
       elseif (varlabel .eq. 'gaussian_beam_constant') then
          vartype = 'r'
@@ -164,7 +164,7 @@ contains
 
       elseif (varlabel .eq. 'excitation_radius') then
          vartype = 'r'
-         rvarvalue => excitation_radius
+         rvarvalue => simulation_config%excitation_radius
 
       elseif (varlabel .eq. 'interaction_radius') then
          vartype = 'r'
@@ -172,11 +172,11 @@ contains
 
       elseif (varlabel .eq. 'incidence_average') then
          vartype = 'l'
-         lvarvalue => incidence_average
+         lvarvalue => simulation_config%incidence_average
 
       elseif (varlabel .eq. 'number_incident_directions') then
          vartype = 'i'
-         ivarvalue => number_incident_directions
+         ivarvalue => simulation_config%number_incident_directions
 
       elseif (varlabel .eq. 'gaussian_beam_focal_point') then
          vartype = 'r'
@@ -185,54 +185,54 @@ contains
 
       elseif (varlabel .eq. 'calculate_scattering_matrix') then
          vartype = 'l'
-         lvarvalue => calculate_scattering_matrix
+         lvarvalue => simulation_config%calculate_scattering_matrix
 
       elseif (varlabel .eq. 'single_origin_expansion') then
          vartype = 'l'
-         lvarvalue => single_origin_expansion
+         lvarvalue => simulation_config%single_origin_expansion
 
       elseif (varlabel .eq. 'scattering_map_model') then
          vartype = 'i'
-         ivarvalue => scattering_map_model
+         ivarvalue => simulation_config%scattering_map_model
 
       elseif (varlabel .eq. 'scattering_map_dimension') then
          vartype = 'i'
-         ivarvalue => scattering_map_dimension
+         ivarvalue => simulation_config%scattering_map_dimension
 
       elseif (varlabel .eq. 'scattering_map_increment') then
          vartype = 'r'
-         rvarvalue => scattering_map_increment
+         rvarvalue => simulation_config%scattering_map_increment
 
       elseif (varlabel .eq. 'azimuthal_average') then
          vartype = 'l'
-         lvarvalue => azimuthal_average
+         lvarvalue => simulation_config%azimuthal_average
 
       elseif (varlabel .eq. 'numerical_azimuthal_average') then
          vartype = 'l'
-         lvarvalue => numerical_azimuthal_average
+         lvarvalue => simulation_config%numerical_azimuthal_average
 
       elseif (varlabel .eq. 'incident_frame') then
          vartype = 'l'
-         lvarvalue => incident_frame
+         lvarvalue => simulation_config%incident_frame
 
       elseif (varlabel .eq. 'print_sphere_data') then
          vartype = 'l'
-         lvarvalue => print_sphere_data
+         lvarvalue => simulation_config%output%print_sphere_data
 
       elseif (varlabel .eq. 'number_spheres') then
          vartype = 'i'
-         ivarvalue => input_number_spheres
+         ivarvalue => simulation_config%input_number_spheres
          sphere_cluster%recalculate_surface_matrix = .true.
-         number_spheres_specified = .true.
+         simulation_config%number_spheres_specified = .true.
 
       elseif (varlabel .eq. 'length_scale_factor') then
          vartype = 'r'
-         rvarvalue => length_scale_factor
+         rvarvalue => simulation_config%length_scale_factor
          sphere_cluster%recalculate_surface_matrix = .true.
 
       elseif (varlabel .eq. 'ref_index_scale_factor') then
          vartype = 'c'
-         cvarvalue => ref_index_scale_factor
+         cvarvalue => simulation_config%ref_index_scale_factor
          sphere_cluster%recalculate_surface_matrix = .true.
 
       elseif (varlabel .eq. 'number_plane_boundaries') then
@@ -282,11 +282,11 @@ contains
 
       elseif (varlabel .eq. 'move_to_front') then
          vartype = 'l'
-         lvarvalue => move_to_front
+         lvarvalue => simulation_config%move_to_front
 
       elseif (varlabel .eq. 'move_to_back') then
          vartype = 'l'
-         lvarvalue => move_to_back
+         lvarvalue => simulation_config%move_to_back
 
       elseif (varlabel .eq. 'store_translation_matrix') then
          vartype = 'l'
@@ -298,7 +298,7 @@ contains
 
       elseif (varlabel .eq. 'calculate_near_field') then
          vartype = 'l'
-         lvarvalue => calculate_near_field
+         lvarvalue => simulation_config%calculate_near_field
 
       elseif (varlabel .eq. 'store_surface_vector') then
          vartype = 'l'
@@ -310,12 +310,12 @@ contains
 
       elseif (varlabel .eq. 'near_field_output_file') then
          vartype = 'a'
-         avarvalue => near_field_output_file
-         append_near_field_output_file = .false.
+         avarvalue => simulation_config%output%near_field_file
+         simulation_config%output%append_near_field = .false.
 
       elseif (varlabel .eq. 'near_field_calculation_model') then
          vartype = 'i'
-         ivarvalue => near_field_calculation_model
+         ivarvalue => simulation_config%near_field_calculation_model
 
       elseif (varlabel .eq. 'near_field_expansion_order') then
          vartype = 'i'
@@ -327,21 +327,21 @@ contains
 
       elseif (varlabel .eq. 'near_field_step_size') then
          vartype = 'r'
-         rvarvalue => near_field_step_size
+         rvarvalue => simulation_config%near_field_step_size
 
       elseif (varlabel .eq. 'near_field_minimum_border') then
          vartype = 'r'
          varlen = 3
-         ravarvalue => near_field_plane_vertices(1:3, 1)
+         ravarvalue => simulation_config%near_field_plane_vertices(1:3, 1)
 
       elseif (varlabel .eq. 'near_field_maximum_border') then
          vartype = 'r'
          varlen = 3
-         ravarvalue => near_field_plane_vertices(1:3, 2)
+         ravarvalue => simulation_config%near_field_plane_vertices(1:3, 2)
 
       elseif (varlabel .eq. 'normalize_s11') then
          vartype = 'l'
-         lvarvalue => normalize_s11
+         lvarvalue => simulation_config%output%normalize_s11
 
       elseif (varlabel .eq. 'periodic_lattice') then
          vartype = 'l'
@@ -358,21 +358,21 @@ contains
       elseif (varlabel .eq. 'cell_width') then
          vartype = 'r'
          varlen = 2
-         ravarvalue => input_cell_width(1:2)
-         square_cell = .false.
+         ravarvalue => simulation_config%input_cell_width(1:2)
+         simulation_config%square_cell = .false.
 
       elseif (varlabel .eq. 'cell_width_x') then
          vartype = 'r'
-         rvarvalue => input_cell_width_x
-         square_cell = .true.
+         rvarvalue => simulation_config%input_cell_width_x
+         simulation_config%square_cell = .true.
 
       elseif (varlabel .eq. 'random_configuration') then
          vartype = 'l'
-         lvarvalue => random_configuration
+         lvarvalue => simulation_config%random_configuration
 
       elseif (varlabel .eq. 'random_configuration_output_file') then
          vartype = 'a'
-         avarvalue => random_configuration_output_file
+         avarvalue => simulation_config%output%random_configuration_file
 
       elseif (varlabel .eq. 'target_dimensions') then
          vartype = 'r'
@@ -420,12 +420,12 @@ contains
 
       elseif (varlabel .eq. 'number_configurations') then
          vartype = 'i'
-         ivarvalue => number_configurations
+         ivarvalue => simulation_config%number_configurations
 
       elseif (varlabel .eq. 'sphere_volume_fraction') then
          vartype = 'r'
-         rvarvalue => sphere_volume_fraction
-         number_spheres_specified = .false.
+         rvarvalue => simulation_config%sphere_volume_fraction
+         simulation_config%number_spheres_specified = .false.
 
       elseif (varlabel .eq. 'periodic_bc') then
          vartype = 'l'
@@ -438,11 +438,11 @@ contains
 
       elseif (varlabel .eq. 'auto_target_radius') then
          vartype = 'l'
-         lvarvalue => auto_target_radius
+         lvarvalue => simulation_config%auto_target_radius
 
       elseif (varlabel .eq. 'target_radius_padding') then
          vartype = 'r'
-         rvarvalue => target_radius_padding
+         rvarvalue => simulation_config%target_radius_padding
 
       elseif (varlabel .eq. 'sphere_1_fixed') then
          vartype = 'l'
@@ -454,105 +454,105 @@ contains
 
       elseif (varlabel .eq. 'erase_sphere_1') then
          vartype = 'l'
-         lvarvalue => erase_sphere_1
+         lvarvalue => simulation_config%erase_sphere_1
 
       elseif (varlabel .eq. 'configuration_average') then
          vartype = 'l'
-         lvarvalue => configuration_average
+         lvarvalue => simulation_config%configuration_average
 
       elseif (varlabel .eq. 'frozen_configuration') then
          vartype = 'l'
-         lvarvalue => frozen_configuration
+         lvarvalue => simulation_config%frozen_configuration
 
       elseif (varlabel .eq. 'random_configuration_host') then
          vartype = 'l'
-         lvarvalue => random_configuration_host
+         lvarvalue => simulation_config%random_configuration_host
 
       elseif (varlabel .eq. 'host_sphere_ref_index') then
          vartype = 'c'
-         cvarvalue => host_sphere_ref_index
+         cvarvalue => simulation_config%host_sphere_ref_index
 
       elseif (varlabel .eq. 'random_configuration_host_model') then
          vartype = 'i'
-         ivarvalue => random_configuration_host_model
+         ivarvalue => simulation_config%random_configuration_host_model
 
       elseif (varlabel .eq. 'fit_for_radius') then
          vartype = 'l'
-         lvarvalue => fit_for_radius
+         lvarvalue => simulation_config%fit_for_radius
 
       elseif (varlabel .eq. 'effective_medium_simulation') then
          vartype = 'l'
-         lvarvalue => input_effective_medium_simulation
+         lvarvalue => simulation_config%effective_medium_simulation
 
       elseif (varlabel .eq. 'reflection_model') then
          vartype = 'l'
-         lvarvalue => reflection_model
+         lvarvalue => simulation_config%reflection_model
 
       elseif (varlabel .eq. 'absorption_sample_radius') then
          vartype = 'r'
-         rvarvalue => absorption_sample_radius
+         rvarvalue => simulation_config%absorption_sample_radius
 
       elseif (varlabel .eq. 'absorption_sample_radius_fraction') then
          vartype = 'r'
-         rvarvalue => absorption_sample_radius_fraction
+         rvarvalue => simulation_config%absorption_sample_radius_fraction
 
       elseif (varlabel .eq. 'auto_absorption_sample_radius') then
          vartype = 'l'
-         lvarvalue => auto_absorption_sample_radius
+         lvarvalue => simulation_config%auto_absorption_sample_radius
 
       elseif (varlabel .eq. 'print_random_configuration') then
          vartype = 'l'
-         lvarvalue => print_random_configuration
+         lvarvalue => simulation_config%output%print_random_configuration
 
       elseif (varlabel .eq. 'print_timings') then
          vartype = 'l'
-         lvarvalue => print_timings
+         lvarvalue => simulation_config%output%print_timings
 
       elseif (varlabel .eq. 'calculate_up_down_scattering') then
          vartype = 'l'
-         lvarvalue => input_calculate_up_down_scattering
+         lvarvalue => simulation_config%input_calculate_up_down_scattering
 
       elseif (varlabel .eq. 'numerical_hemispherical_integration') then
          vartype = 'l'
-         lvarvalue => numerical_hemispherical_integration
+         lvarvalue => simulation_config%numerical_hemispherical_integration
 
       elseif (varlabel .eq. 'x_shift') then
          vartype = 'r'
-         rvarvalue => x_shift
+         rvarvalue => simulation_config%x_shift
 
       elseif (varlabel .eq. 'y_shift') then
          vartype = 'r'
-         rvarvalue => y_shift
+         rvarvalue => simulation_config%y_shift
 
       elseif (varlabel .eq. 'z_shift') then
          vartype = 'r'
-         rvarvalue => z_shift
+         rvarvalue => simulation_config%z_shift
 
       elseif (varlabel .eq. 'shifted_sphere') then
          vartype = 'i'
-         ivarvalue => shifted_sphere
+         ivarvalue => simulation_config%shifted_sphere
 
       elseif (varlabel .eq. 'check_positions') then
          vartype = 'l'
-         lvarvalue => check_positions
+         lvarvalue => simulation_config%check_positions
 
       elseif (varlabel .eq. 'medium_ref_index') then
          vartype = 'c'
-         cvarvalue => medium_ref_index
-         medium_ref_index_specified = .true.
-         medium_reim_ref_index_specified = .false.
+         cvarvalue => simulation_config%medium_ref_index
+         simulation_config%medium_ref_index_specified = .true.
+         simulation_config%medium_reim_ref_index_specified = .false.
 
       elseif (varlabel .eq. 'medium_re_ref_index') then
          vartype = 'r'
-         rvarvalue => medium_re_ref_index
-         medium_ref_index_specified = .true.
-         medium_reim_ref_index_specified = .true.
+         rvarvalue => simulation_config%medium_re_ref_index
+         simulation_config%medium_ref_index_specified = .true.
+         simulation_config%medium_reim_ref_index_specified = .true.
 
       elseif (varlabel .eq. 'medium_im_ref_index') then
          vartype = 'r'
-         rvarvalue => medium_im_ref_index
-         medium_ref_index_specified = .true.
-         medium_reim_ref_index_specified = .true.
+         rvarvalue => simulation_config%medium_im_ref_index
+         simulation_config%medium_ref_index_specified = .true.
+         simulation_config%medium_reim_ref_index_specified = .true.
 
       elseif (varlabel .eq. 'light_up') then
          vartype = 'l'
@@ -636,29 +636,29 @@ contains
          end if
 
          if (trim(parmid) .eq. 'loop_variable') then
-            loop_job = .true.
-            n_nest_loops = n_nest_loops + 1
-            n = n_nest_loops
+            simulation_config%loop_job = .true.
+            simulation_config%number_nested_loops = simulation_config%number_nested_loops + 1
+            n = simulation_config%number_nested_loops
             parmid = inputfiledata(inputline)
             inputline = inputline + 1
             if (trim(parmid) .eq. 'sphere_number') then
                read (inputfiledata(inputline), *) spherenum
                inputline = inputline + 1
-               loop_sphere_number(n) = spherenum
+               simulation_config%loop_sphere_number(n) = spherenum
                parmid = inputfiledata(inputline)
                inputline = inputline + 1
             else
                spherenum = 1
             end if
-            loop_var_label(n) = parmid
-            call process_input_variable(loop_var_label(n), &
-                                        var_type=loop_var_type(n), var_position=spherenum)
-            if (loop_var_type(n) .eq. 'i') then
-               read (inputfiledata(inputline), *) i_var_start(n), i_var_stop(n), i_var_step(n)
-            elseif (loop_var_type(n) .eq. 'r') then
-               read (inputfiledata(inputline), *) r_var_start(n), r_var_stop(n), r_var_step(n)
-            elseif (loop_var_type(n) .eq. 'c') then
-               read (inputfiledata(inputline), *) c_var_start(n), c_var_stop(n), c_var_step(n)
+            simulation_config%loop_variable_label(n) = parmid
+            call process_input_variable(simulation_config%loop_variable_label(n), &
+                                        var_type=simulation_config%loop_variable_type(n), var_position=spherenum)
+            if (simulation_config%loop_variable_type(n) .eq. 'i') then
+               read (inputfiledata(inputline), *) simulation_config%integer_loop_start(n), simulation_config%integer_loop_stop(n), simulation_config%integer_loop_step(n)
+            elseif (simulation_config%loop_variable_type(n) .eq. 'r') then
+               read (inputfiledata(inputline), *) simulation_config%real_loop_start(n), simulation_config%real_loop_stop(n), simulation_config%real_loop_step(n)
+            elseif (simulation_config%loop_variable_type(n) .eq. 'c') then
+               read (inputfiledata(inputline), *) simulation_config%complex_loop_start(n), simulation_config%complex_loop_stop(n), simulation_config%complex_loop_step(n)
             end if
             inputline = inputline + 1
             cycle
@@ -673,14 +673,14 @@ contains
                   exit
                end if
             end if
-            sphere_data_input_file = 'temp_pos.dat'
+            simulation_config%output%sphere_data_file = 'temp_pos.dat'
             do
                parmval = inputfiledata(inputline)
                if (trim(parmval) .eq. 'end_of_options') exit
                inputline = inputline + 1
                if (trim(parmval) .eq. 'end_of_sphere_data') exit
                if (parmval(1:1) .eq. '!' .or. parmval(1:1) .eq. '%') cycle
-               if (n .gt. input_number_spheres) cycle
+               if (n .gt. simulation_config%input_number_spheres) cycle
                read (parmval, *, iostat=istat) rtemp(1:4)
                if (istat .ne. 0) then
                   lines = 3
@@ -712,19 +712,19 @@ contains
                end if
                n = n + 1
             end do
-            input_number_spheres = min(n, input_number_spheres)
+            simulation_config%input_number_spheres = min(n, simulation_config%input_number_spheres)
             if (rank .eq. 0) close (temporary_unit)
-            data_scaled = .false.
-            temporary_pos_file = .true.
+            simulation_config%data_scaled = .false.
+            simulation_config%temporary_position_file = .true.
             sphere_cluster%recalculate_surface_matrix = .true.
             cycle
 
          elseif (trim(parmid) .eq. 'new_run') then
-            repeat_run = .true.
+            simulation_config%repeat_run = .true.
             exit
 
          elseif (trim(parmid) .eq. 'end_of_options') then
-            repeat_run = .false.
+            simulation_config%repeat_run = .false.
             readok = -1
             exit
 
@@ -742,13 +742,13 @@ contains
             layer_ref_index(1:max(1, number_plane_boundaries)) = layer_ref_index(0)
             read (parmval, *, iostat=istat) layer_ref_index(0:number_plane_boundaries)
             sphere_cluster%recalculate_surface_matrix = .true.
-            medium_ref_index_specified = .false.
+            simulation_config%medium_ref_index_specified = .false.
 
          elseif (trim(parmid) .eq. 'layer_thickness') then
             parmval = inputfiledata(inputline)
             inputline = inputline + 1
-            input_layer_thickness(1:max(1, number_plane_boundaries)) = 0.d0
-            read (parmval, *, iostat=istat) input_layer_thickness(1:max(1, number_plane_boundaries))
+            simulation_config%input_layer_thickness(1:max(1, number_plane_boundaries)) = 0.d0
+            read (parmval, *, iostat=istat) simulation_config%input_layer_thickness(1:max(1, number_plane_boundaries))
             sphere_cluster%recalculate_surface_matrix = .true.
 
          elseif (trim(parmid) .eq. 'component_radii') then
@@ -761,7 +761,7 @@ contains
             call read_real_list(psd_sigma, number_components)
 
          elseif (trim(parmid) .eq. 'component_ref_index') then
-            call read_complex_list(component_ref_index, number_components)
+            call read_complex_list(simulation_config%component_ref_index, number_components)
 
          else
             varstat = 0

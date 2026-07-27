@@ -10,21 +10,21 @@ contains
       integer :: i
       real(real64) :: miesca, mieabs, scaq, absq, h, scacoef, abscoef, root0, root, func, dfunc, srat, arat, across
 
-!         miesca=(sphere_cluster%mean_qext_mie-sphere_cluster%mean_qabs_mie)*sphere_volume_fraction*3.d0/4.d0/length_scale_factor
-      mieabs = (sphere_cluster%mean_qabs_mie) * sphere_volume_fraction * 3.d0 / 4.d0 / length_scale_factor
-      miesca = (sphere_cluster%mean_qext_mie) * sphere_volume_fraction * 3.d0 / 4.d0 / length_scale_factor
+!         miesca=(sphere_cluster%mean_qext_mie-sphere_cluster%mean_qabs_mie)*simulation_config%sphere_volume_fraction*3.d0/4.d0/simulation_config%length_scale_factor
+      mieabs = (sphere_cluster%mean_qabs_mie) * simulation_config%sphere_volume_fraction * 3.d0 / 4.d0 / simulation_config%length_scale_factor
+      miesca = (sphere_cluster%mean_qext_mie) * simulation_config%sphere_volume_fraction * 3.d0 / 4.d0 / simulation_config%length_scale_factor
       if (target_shape .le. 1) then
-!            scaq=1.d0-0.5d0*(-sum(dif_boundary_sca(:,0))+sum(dif_boundary_sca(:,number_plane_boundaries+1)))
-         scaq = 1.d0 - 0.5d0 * (-sum(dif_boundary_sca(:, 0)) + sum(dif_boundary_sca(:, 1))) - q_eff_tot(2, 1)
-         absq = 1.d0 - q_eff_tot(2, 1)
+!            scaq=1.d0-0.5d0*(-sum(simulation_result%diffuse_boundary_scattering(:,0))+sum(simulation_result%diffuse_boundary_scattering(:,number_plane_boundaries+1)))
+         scaq = 1.d0 - 0.5d0 * (-sum(simulation_result%diffuse_boundary_scattering(:, 0)) + sum(simulation_result%diffuse_boundary_scattering(:, 1))) - simulation_result%total_efficiency(2, 1)
+         absq = 1.d0 - simulation_result%total_efficiency(2, 1)
          scaq = max(1.d-5, scaq)
          absq = max(1.d-5, absq)
          if (target_shape .eq. 0) then
-            across = 4.d0 * product(target_dimensions(1:2)) * length_scale_factor**2
+            across = 4.d0 * product(target_dimensions(1:2)) * simulation_config%length_scale_factor**2
          elseif (target_shape .eq. 1) then
-            across = pi * (target_dimensions(1) * length_scale_factor)**2
+            across = pi * (target_dimensions(1) * simulation_config%length_scale_factor)**2
          end if
-         h = four_pi_over_three * dble(sphere_cluster%number_spheres) * length_scale_factor**3 / (across * sphere_volume_fraction)
+         h = four_pi_over_three * dble(sphere_cluster%number_spheres) * simulation_config%length_scale_factor**3 / (across * simulation_config%sphere_volume_fraction)
          scacoef = -dlog(scaq) / h
          if (abs(mieabs) .lt. 1.d-7) then
             abscoef = 0.d0
@@ -32,10 +32,10 @@ contains
             abscoef = -dlog(absq) / h
          end if
       else
-!            scaq=0.5d0*(-sum(dif_boundary_sca(:,0))+sum(dif_boundary_sca(:,number_plane_boundaries+1)))
-         scaq = 0.5d0 * (-sum(dif_boundary_sca(:, 0)) + sum(dif_boundary_sca(:, 1))) + q_eff_tot(2, 1)
-         absq = q_eff_tot(2, 1)
-         h = length_scale_factor * (target_dimensions(1) - 1.d0)**3 / target_dimensions(1)**2
+!            scaq=0.5d0*(-sum(simulation_result%diffuse_boundary_scattering(:,0))+sum(simulation_result%diffuse_boundary_scattering(:,number_plane_boundaries+1)))
+         scaq = 0.5d0 * (-sum(simulation_result%diffuse_boundary_scattering(:, 0)) + sum(simulation_result%diffuse_boundary_scattering(:, 1))) + simulation_result%total_efficiency(2, 1)
+         absq = simulation_result%total_efficiency(2, 1)
+         h = simulation_config%length_scale_factor * (target_dimensions(1) - 1.d0)**3 / target_dimensions(1)**2
          root0 = scaq
          do i = 1, 100
             root = root0
@@ -132,32 +132,32 @@ contains
       fitorder = min(80, sphere_cluster%t_matrix_order)
 !         fitorder=2*sphere_cluster%max_mie_order
       m0 = 4 * fitorder
-      if (fit_for_radius) then
+      if (simulation_config%fit_for_radius) then
          n0 = 3
       else
          n0 = 2
       end if
-      if (random_configuration_host_model .eq. 1) then
-         xfit = target_dimensions(1) * length_scale_factor
-      elseif (random_configuration_host_model .eq. 2) then
-         xfit = sphere_cluster%vol_radius / (sphere_volume_fraction)**0.33333
+      if (simulation_config%random_configuration_host_model .eq. 1) then
+         xfit = target_dimensions(1) * simulation_config%length_scale_factor
+      elseif (simulation_config%random_configuration_host_model .eq. 2) then
+         xfit = sphere_cluster%vol_radius / (simulation_config%sphere_volume_fraction)**0.33333
       end if
-      fv = (sphere_cluster%vol_radius / (target_dimensions(1) * length_scale_factor))**3.
-      if (random_configuration_host) then
+      fv = (sphere_cluster%vol_radius / (target_dimensions(1) * simulation_config%length_scale_factor))**3.
+      if (simulation_config%random_configuration_host) then
          rifit = rim(1)
       else
          rii = sphere_cluster%mean_qext_mie * sphere_cluster%area_mean_radius**2 * 3.d0 * dble(sphere_cluster%number_spheres) / (4.d0 * xfit**3) / 2.d0
-         rir = (1.d0 - fv) + fv * dble(ref_index_scale_factor)
+         rir = (1.d0 - fv) + fv * dble(simulation_config%ref_index_scale_factor)
          rifit = cmplx(rir, rii / 2.d0, kind=real64)
       end if
       parm = (/dble(rifit), aimag(rifit), xfit/)
-      effective_fit_order = fitorder
-      effective_fit_radius = xfit
-      if (allocated(effective_fit_coefficients)) deallocate (effective_fit_coefficients)
-      allocate (effective_fit_coefficients(2, fitorder))
-      effective_fit_coefficients = anp(:, 1:fitorder)
+      simulation_result%effective_fit_order = fitorder
+      simulation_result%effective_fit_radius = xfit
+      if (allocated(simulation_result%effective_fit_coefficients)) deallocate (simulation_result%effective_fit_coefficients)
+      allocate (simulation_result%effective_fit_coefficients(2, fitorder))
+      simulation_result%effective_fit_coefficients = anp(:, 1:fitorder)
       call lmdif1(effective_refractive_index_residual, m0, n0, parm, vec, 1.d-6, info)
-      deallocate (effective_fit_coefficients)
+      deallocate (simulation_result%effective_fit_coefficients)
       rifit = cmplx(parm(1), parm(2), kind=real64)
       xfit = parm(3)
    end subroutine fit_effective_refractive_index
@@ -166,32 +166,32 @@ contains
       implicit none
       integer :: nparm, ndat, iflag, n, i
       real(real64) :: xparm(nparm), fdat(ndat), xsp, qext, qabs, qsca
-      complex(real64) :: ri(2), anpmie(2, 2, effective_fit_order), a(2), ri0(2)
+      complex(real64) :: ri(2), anpmie(2, 2, simulation_result%effective_fit_order), a(2), ri0(2)
       ri0(:) = layer_ref_index(0)
       ri(:) = cmplx(xparm(1), xparm(2), kind=real64)
       if (nparm .eq. 3) then
          xsp = xparm(3)
       else
-         xsp = effective_fit_radius
+         xsp = simulation_result%effective_fit_radius
       end if
-      if (random_orientation) then
-         call optically_active_mie_coefficients(xsp, ri, effective_fit_order, 0.d0, qext, qsca, qabs, &
+      if (simulation_config%random_orientation) then
+         call optically_active_mie_coefficients(xsp, ri, simulation_result%effective_fit_order, 0.d0, qext, qsca, qabs, &
                                                 anp_mie=anpmie, ri_medium=ri0)
       elseif (sphere_cluster%effective_medium_simulation) then
-         call optically_active_mie_coefficients(xsp, ri0, effective_fit_order, 0.d0, qext, qsca, qabs, &
+         call optically_active_mie_coefficients(xsp, ri0, simulation_result%effective_fit_order, 0.d0, qext, qsca, qabs, &
                                                 ri_medium=ri, anp_eff_mie=anpmie)
       else
-         call optically_active_mie_coefficients(xsp, ri, effective_fit_order, 0.d0, &
+         call optically_active_mie_coefficients(xsp, ri, simulation_result%effective_fit_order, 0.d0, &
                                                 qext, qsca, qabs, anp_mie=anpmie)
       end if
       i = 1
-      do n = 1, effective_fit_order
+      do n = 1, simulation_result%effective_fit_order
          a(1) = anpmie(1, 1, n) + anpmie(2, 1, n)
          a(2) = anpmie(1, 1, n) - anpmie(2, 1, n)
-         fdat(i) = dble(effective_fit_coefficients(1, n) - a(1))
-         fdat(i + 1) = aimag(effective_fit_coefficients(1, n) - a(1))
-         fdat(i + 2) = dble(effective_fit_coefficients(2, n) - a(2))
-         fdat(i + 3) = aimag(effective_fit_coefficients(2, n) - a(2))
+         fdat(i) = dble(simulation_result%effective_fit_coefficients(1, n) - a(1))
+         fdat(i + 1) = aimag(simulation_result%effective_fit_coefficients(1, n) - a(1))
+         fdat(i + 2) = dble(simulation_result%effective_fit_coefficients(2, n) - a(2))
+         fdat(i + 3) = aimag(simulation_result%effective_fit_coefficients(2, n) - a(2))
          i = i + 4
       end do
    end subroutine effective_refractive_index_residual
@@ -200,10 +200,10 @@ contains
       implicit none
       real(real64) :: a, extrat, tvol, rc, ds, dela, qe, delextrat, extrat0
       call calculate_target_volume(target_dimensions, tvol)
-      tvol = tvol * length_scale_factor**3
+      tvol = tvol * simulation_config%length_scale_factor**3
       rc = (tvol * 3.d0 / 4.d0 / pi)**(1.d0 / 3.d0)
-      qe = (dif_csca_ratio(1) * q_eff_tot(3, 1) + q_eff_tot(2, 1)) * sphere_cluster%cross_section_radius**2 / rc**2
-      ds = (dif_csca_ratio(1) * q_eff_tot(3, 1) + q_eff_tot(2, 1)) * sphere_cluster%cross_section_radius**2 * pi / tvol
+      qe = (simulation_result%diffuse_cross_section_ratio(1) * simulation_result%total_efficiency(3, 1) + simulation_result%total_efficiency(2, 1)) * sphere_cluster%cross_section_radius**2 / rc**2
+      ds = (simulation_result%diffuse_cross_section_ratio(1) * simulation_result%total_efficiency(3, 1) + simulation_result%total_efficiency(2, 1)) * sphere_cluster%cross_section_radius**2 * pi / tvol
 !         a=ds/2.d0
 !         dela=1.d0
 !         do while(abs(dela).gt.1.d-10)

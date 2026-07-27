@@ -52,33 +52,33 @@ contains
       else
          mpicomm = mpi_comm_world
       end if
-      averagerun = configuration_average .or. incidence_average
-      calculate_up_down_scattering = input_calculate_up_down_scattering
-      if (reflection_model) then
-         calculate_up_down_scattering = .true.
-         incident_frame = .false.
+      averagerun = simulation_config%configuration_average .or. simulation_config%incidence_average
+      simulation_config%calculate_up_down_scattering = simulation_config%input_calculate_up_down_scattering
+      if (simulation_config%reflection_model) then
+         simulation_config%calculate_up_down_scattering = .true.
+         simulation_config%incident_frame = .false.
       end if
 
-      first_run = .false.
+      simulation_config%first_run = .false.
       call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
       call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
-      if (solution_method(1:1) /= 'i' .and. solution_method(1:1) /= 'd') then
-         call set_runtime_error("Unknown solution method '"//trim(solution_method)//"'; use iteration or direct")
+      if (simulation_config%solver%solution_method(1:1) /= 'i' .and. simulation_config%solver%solution_method(1:1) /= 'd') then
+   call set_runtime_error("Unknown solution method '"//trim(simulation_config%solver%solution_method)//"'; use iteration or direct")
          return
       end if
-      if (max_iterations > 0 .and. solution_epsilon <= 0.0_real64) then
+      if (simulation_config%solver%max_iterations > 0 .and. simulation_config%solver%solution_epsilon <= 0.0_real64) then
          call set_runtime_error('solution_epsilon must be positive')
          return
       end if
 !         if(rank.ne.0) light_up=.false.
-      local_rank = rank
+      simulation_result%local_rank = rank
       global_rank = rank
-      if ((.not. configuration_average) .and. (.not. incidence_average)) n_configuration_groups = 1
-!         random_configuration=(trim(sphere_data_input_file).eq.'random_configuration')
-      if (random_configuration) then
-         if (auto_target_radius .and. target_shape .eq. 2) then
-            sphere_cluster%number_spheres = input_number_spheres
-            target_dimensions(1:3) = (dble(sphere_cluster%number_spheres) / sphere_volume_fraction)**(1.d0 / 3.d0)
+      if ((.not. simulation_config%configuration_average) .and. (.not. simulation_config%incidence_average)) simulation_config%number_configuration_groups = 1
+!         simulation_config%random_configuration=(trim(simulation_config%output%sphere_data_file).eq.'simulation_config%random_configuration')
+      if (simulation_config%random_configuration) then
+         if (simulation_config%auto_target_radius .and. target_shape .eq. 2) then
+            sphere_cluster%number_spheres = simulation_config%input_number_spheres
+            target_dimensions(1:3) = (dble(sphere_cluster%number_spheres) / simulation_config%sphere_volume_fraction)**(1.d0 / 3.d0)
          else
             if (target_width_specified) then
                if (target_shape .eq. 0) then
@@ -92,24 +92,24 @@ contains
                end if
             end if
             call calculate_target_volume(target_dimensions, targetvol)
-            if (number_spheres_specified) then
-               sphere_cluster%number_spheres = input_number_spheres
-               sphere_volume_fraction = dble(input_number_spheres) * four_pi_over_three / targetvol
+            if (simulation_config%number_spheres_specified) then
+               sphere_cluster%number_spheres = simulation_config%input_number_spheres
+            simulation_config%sphere_volume_fraction = dble(simulation_config%input_number_spheres) * four_pi_over_three / targetvol
             else
-               sphere_cluster%number_spheres = ceiling(targetvol * sphere_volume_fraction) / (four_pi_over_three)
+               sphere_cluster%number_spheres = ceiling(targetvol * simulation_config%sphere_volume_fraction) / (four_pi_over_three)
             end if
          end if
-         if (target_shape .eq. 2 .and. random_configuration_host) then
+         if (target_shape .eq. 2 .and. simulation_config%random_configuration_host) then
             sphere_cluster%number_spheres = sphere_cluster%number_spheres + 1
          end if
       else
-         sphere_cluster%number_spheres = input_number_spheres
+         sphere_cluster%number_spheres = simulation_config%input_number_spheres
       end if
-      if (medium_ref_index_specified) then
-         if (medium_reim_ref_index_specified) then
-            layer_ref_index(0) = cmplx(medium_re_ref_index, medium_im_ref_index, kind=real64)
+      if (simulation_config%medium_ref_index_specified) then
+         if (simulation_config%medium_reim_ref_index_specified) then
+            layer_ref_index(0) = cmplx(simulation_config%medium_re_ref_index, simulation_config%medium_im_ref_index, kind=real64)
          else
-            layer_ref_index(0) = medium_ref_index
+            layer_ref_index(0) = simulation_config%medium_ref_index
          end if
       end if
       if (allocated(sphere_cluster%sphere_radius)) then
@@ -118,35 +118,35 @@ contains
                      sphere_cluster%sphere_ref_index, &
                      sphere_cluster%host_sphere, &
                      sphere_cluster%number_field_expansions, &
-                     sphere_excitation_switch, &
-                     sphere_index)
+                     simulation_config%sphere_excitation_switch, &
+                     simulation_result%sphere_index)
       end if
       allocate (sphere_cluster%sphere_radius(sphere_cluster%number_spheres), &
                 sphere_cluster%sphere_position(3, sphere_cluster%number_spheres), &
                 sphere_cluster%sphere_ref_index(2, 0:sphere_cluster%number_spheres), &
                 sphere_cluster%host_sphere(sphere_cluster%number_spheres), &
                 sphere_cluster%number_field_expansions(sphere_cluster%number_spheres), &
-                sphere_excitation_switch(sphere_cluster%number_spheres), &
-                sphere_index(sphere_cluster%number_spheres))
-      if (random_configuration) then
-         if (print_timings .and. mstm_global_rank .eq. 0) then
+                simulation_config%sphere_excitation_switch(sphere_cluster%number_spheres), &
+                simulation_result%sphere_index(sphere_cluster%number_spheres))
+      if (simulation_config%random_configuration) then
+         if (simulation_config%output%print_timings .and. mstm_global_rank .eq. 0) then
             write (sphere_cluster%run_print_unit, '('' generating random configuration:'')', advance='no')
             timet = parallel_wall_time()
          end if
          call generate_random_configuration(mpi_comm=mpicomm, skip_diffusion=dryrun)
          if (runtime_failed()) return
 !            call generate_random_configuration(mpi_comm=mpicomm)
-         if (print_timings .and. mstm_global_rank .eq. 0) then
+         if (simulation_config%output%print_timings .and. mstm_global_rank .eq. 0) then
             write (sphere_cluster%run_print_unit, '('' completed, time:'',es12.5,'' s'')') parallel_wall_time() - timet
          end if
          if (rank .eq. 0) then
-!               if(print_random_configuration.and.(.not.configuration_average)) then
-            if (print_random_configuration .and. mstm_global_rank .eq. 0) then
-               call open_output_file(trim(random_configuration_output_file), file_unit)
+!               if(simulation_config%output%print_random_configuration.and.(.not.simulation_config%configuration_average)) then
+            if (simulation_config%output%print_random_configuration .and. mstm_global_rank .eq. 0) then
+               call open_output_file(trim(simulation_config%output%random_configuration_file), file_unit)
                if (runtime_failed()) return
                do i = 1, sphere_cluster%number_spheres
-                  write (file_unit, '(4es13.5)') sphere_cluster%sphere_position(:, i) / length_scale_factor, &
-                     sphere_cluster%sphere_radius(i) / length_scale_factor
+                  write (file_unit, '(4es13.5)') sphere_cluster%sphere_position(:, i) / simulation_config%length_scale_factor, &
+                     sphere_cluster%sphere_radius(i) / simulation_config%length_scale_factor
                end do
                close (file_unit)
             end if
@@ -156,47 +156,47 @@ contains
          if (runtime_failed()) return
       end if
 
-      position_shift = (/x_shift, y_shift, z_shift/) * length_scale_factor
-      if (shifted_sphere .gt. sphere_cluster%number_spheres) shifted_sphere = 0
-      if (any(position_shift .ne. 0.d0)) then
-         if (shifted_sphere .eq. 0) then
+      simulation_result%position_shift = (/simulation_config%x_shift, simulation_config%y_shift, simulation_config%z_shift/) * simulation_config%length_scale_factor
+      if (simulation_config%shifted_sphere .gt. sphere_cluster%number_spheres) simulation_config%shifted_sphere = 0
+      if (any(simulation_result%position_shift .ne. 0.d0)) then
+         if (simulation_config%shifted_sphere .eq. 0) then
             do i = 1, sphere_cluster%number_spheres
-               sphere_cluster%sphere_position(:, i) = sphere_cluster%sphere_position(:, i) + position_shift(:)
+               sphere_cluster%sphere_position(:, i) = sphere_cluster%sphere_position(:, i) + simulation_result%position_shift(:)
             end do
          else
-           sphere_cluster%sphere_position(:, shifted_sphere) = sphere_cluster%sphere_position(:, shifted_sphere) + position_shift(:)
+           sphere_cluster%sphere_position(:, simulation_config%shifted_sphere) = sphere_cluster%sphere_position(:, simulation_config%shifted_sphere) + simulation_result%position_shift(:)
          end if
       end if
 
       sphere_cluster%sphere_ref_index(:, 0) = layer_ref_index(0)
       if (periodic_lattice) then
-         if (random_configuration .and. target_shape .eq. 0) then
-            cell_width(1:2) = target_dimensions(1:2) * 2.d0 * length_scale_factor
+         if (simulation_config%random_configuration .and. target_shape .eq. 0) then
+            cell_width(1:2) = target_dimensions(1:2) * 2.d0 * simulation_config%length_scale_factor
          else
-            if (square_cell) then
-               cell_width = input_cell_width_x * length_scale_factor
+            if (simulation_config%square_cell) then
+               cell_width = simulation_config%input_cell_width_x * simulation_config%length_scale_factor
             else
-               cell_width = input_cell_width * length_scale_factor
+               cell_width = simulation_config%input_cell_width * simulation_config%length_scale_factor
             end if
          end if
       end if
 
       plane_surface_present = number_plane_boundaries .gt. 0
-      layer_thickness = input_layer_thickness * length_scale_factor
+      layer_thickness = simulation_config%input_layer_thickness * simulation_config%length_scale_factor
       call initialize_plane_boundaries()
 
-      if (move_to_front .and. plane_surface_present) then
+      if (simulation_config%move_to_front .and. plane_surface_present) then
          zext = maxval(sphere_cluster%sphere_position(3, :) + sphere_cluster%sphere_radius(:))
          if (zext .gt. 0.d0) sphere_cluster%sphere_position(3, :) = sphere_cluster%sphere_position(3, :) - zext
       end if
-      if (move_to_back .and. plane_surface_present) then
+      if (simulation_config%move_to_back .and. plane_surface_present) then
          zext = minval(sphere_cluster%sphere_position(3, :) - sphere_cluster%sphere_radius(:))
          if (zext .lt. plane_boundary_position(number_plane_boundaries)) &
             sphere_cluster%sphere_position(3, :) = sphere_cluster%sphere_position(3, :) - zext + plane_boundary_position(number_plane_boundaries)
       end if
 
       stopit = .false.
-      if (random_orientation) then
+      if (simulation_config%random_orientation) then
          if (number_plane_boundaries .gt. 0) then
             if (rank .eq. 0) write (sphere_cluster%run_print_unit, '('' random orientation requires number_plane_boundaries=0'')')
             stopit = .true.
@@ -207,7 +207,7 @@ contains
          end if
       end if
 
-     sphere_cluster%fft_translation_option = (input_fft_translation_option .and. sphere_cluster%number_spheres .ge. min_fft_nsphere)
+     sphere_cluster%fft_translation_option = (simulation_config%fft%enabled .and. sphere_cluster%number_spheres .ge. simulation_config%fft%minimum_spheres)
       if (sphere_cluster%fft_translation_option) then
          if (number_plane_boundaries .gt. 0) then
             if (rank .eq. 0) write (sphere_cluster%run_print_unit, '('' fft option requires number_plane_boundaries=0'')')
@@ -219,7 +219,7 @@ contains
          end if
       end if
 
-!         if(sphere_cluster%fft_translation_option) single_origin_expansion=.true.
+!         if(sphere_cluster%fft_translation_option) simulation_config%single_origin_expansion=.true.
 
       if (stopit) return
       if (light_up) then
@@ -229,8 +229,8 @@ contains
       sphere_cluster%cluster_origin = 0.d0
       call sphere_cluster%find_hosts()
 
-      if (configuration_average .and. (target_shape .eq. 2) &
-          .and. random_configuration_host .and. auto_target_radius) then
+      if (simulation_config%configuration_average .and. (target_shape .eq. 2) &
+          .and. simulation_config%random_configuration_host .and. simulation_config%auto_target_radius) then
          sphere_cluster%host_sphere(1:sphere_cluster%number_spheres - 1) = sphere_cluster%number_spheres
          sphere_cluster%number_field_expansions(1:sphere_cluster%number_spheres - 1) = 1
          sphere_cluster%number_host_spheres = sphere_cluster%number_spheres
@@ -243,23 +243,23 @@ contains
          flush (6)
       end if
       call sphere_cluster%initialize_layers()
-      call calculate_mie_coefficients(mie_epsilon)
+      call calculate_mie_coefficients(simulation_config%solver%mie_epsilon)
       call initialize_numerical_tables(sphere_cluster%max_mie_order)
       if (light_up) then
          write (*, '('' s4 '',i3)') mstm_global_rank
          flush (6)
       end if
 
-      singleorigin = number_plane_boundaries .eq. 0 .and. single_origin_expansion
-      iframe = singleorigin .and. incident_frame
+      singleorigin = number_plane_boundaries .eq. 0 .and. simulation_config%single_origin_expansion
+      iframe = singleorigin .and. simulation_config%incident_frame
 
       sphere_cluster%cluster_origin = 0.d0
-      if (singleorigin .or. random_orientation .or. .true.) then
+      if (singleorigin .or. simulation_config%random_orientation .or. .true.) then
          if (allocated(sphere_cluster%translation_order)) deallocate (sphere_cluster%translation_order)
          allocate (sphere_cluster%translation_order(sphere_cluster%number_spheres))
     sphere_cluster%translation_order(1:sphere_cluster%number_spheres) = sphere_cluster%sphere_order(1:sphere_cluster%number_spheres)
          sphere_cluster%cluster_origin = 0.d0
-         if ((.not. configuration_average) .and. (.not. incidence_average)) then
+         if ((.not. simulation_config%configuration_average) .and. (.not. simulation_config%incidence_average)) then
             if (sphere_cluster%gaussian_beam_constant .eq. 0.d0) then
                n = 0
                do i = 1, sphere_cluster%number_spheres
@@ -270,7 +270,7 @@ contains
                end do
                sphere_cluster%cluster_origin = sphere_cluster%cluster_origin / dble(n)
             else
-               sphere_cluster%cluster_origin = sphere_cluster%gaussian_beam_focal_point * length_scale_factor
+               sphere_cluster%cluster_origin = sphere_cluster%gaussian_beam_focal_point * simulation_config%length_scale_factor
             end if
          end if
          if (sett) then
@@ -286,7 +286,7 @@ contains
                rtran = sqrt(sum((sphere_cluster%sphere_position(:, i) - r0(:))**2))
 !                  if(rtran.gt.scattered_field_sample_length) cycle
                call estimate_translation_order(rtran, rimedium(1), sphere_cluster%sphere_order(i), &
-                                               translation_epsilon, sphere_cluster%translation_order(i))
+                                               simulation_config%solver%translation_epsilon, sphere_cluster%translation_order(i))
                sphere_cluster%translation_order(i) = min(sphere_cluster%translation_order(i), maxt)
                sphere_cluster%t_matrix_order = max(sphere_cluster%t_matrix_order, sphere_cluster%translation_order(i))
             end if
@@ -312,33 +312,33 @@ contains
       else
          if (sphere_cluster%gaussian_beam_constant .ne. 0.d0) then
             sphere_cluster%cross_section_radius = 1.d0 / sphere_cluster%gaussian_beam_constant / sqrt(2.d0)
-         elseif (reflection_model) then
-            if (random_configuration) then
+         elseif (simulation_config%reflection_model) then
+            if (simulation_config%random_configuration) then
                if (target_shape .eq. 0) then
-                  sphere_cluster%cross_section_radius = length_scale_factor * 2.d0 * sqrt(product(target_dimensions(1:2)) / pi)
+     sphere_cluster%cross_section_radius = simulation_config%length_scale_factor * 2.d0 * sqrt(product(target_dimensions(1:2)) / pi)
                elseif (target_shape .ge. 1) then
-                  sphere_cluster%cross_section_radius = length_scale_factor * target_dimensions(1)
+                  sphere_cluster%cross_section_radius = simulation_config%length_scale_factor * target_dimensions(1)
                end if
             else
                sphere_cluster%cross_section_radius = sqrt(product(sphere_cluster%sphere_max_position(1:2) - sphere_cluster%sphere_min_position(1:2)) / pi)
             end if
-            sphere_cluster%cross_section_radius = min(sphere_cluster%cross_section_radius, length_scale_factor * excitation_radius)
+            sphere_cluster%cross_section_radius = min(sphere_cluster%cross_section_radius, simulation_config%length_scale_factor * simulation_config%excitation_radius)
          else
             sphere_cluster%cross_section_radius = sphere_cluster%vol_radius
          end if
       end if
 
-      if (auto_absorption_sample_radius .and. random_configuration) then
-         absorption_sample_radius = absorption_sample_radius_fraction * target_dimensions(1)
+      if (simulation_config%auto_absorption_sample_radius .and. simulation_config%random_configuration) then
+         simulation_config%absorption_sample_radius = simulation_config%absorption_sample_radius_fraction * target_dimensions(1)
       end if
 
       if (sphere_cluster%fft_translation_option) then
          lochost = 0
-         if (random_configuration) then
-            tmin = -target_dimensions * length_scale_factor
-            tmax = target_dimensions * length_scale_factor
+         if (simulation_config%random_configuration) then
+            tmin = -target_dimensions * simulation_config%length_scale_factor
+            tmax = target_dimensions * simulation_config%length_scale_factor
             if (dryrun) call fft_plan%clear(clear_h=.true.)
-            if (target_shape .eq. 2 .and. random_configuration_host) then
+            if (target_shape .eq. 2 .and. simulation_config%random_configuration_host) then
                lochost = sphere_cluster%number_spheres
             end if
          else
@@ -346,16 +346,16 @@ contains
             tmax = sphere_cluster%sphere_max_position
             if (.not. averagerun) call fft_plan%clear(clear_h=.true.)
          end if
-         call fft_plan%configure(input_cell_volume_fraction, target_min=tmin, target_max=tmax, &
-                                 d_specified=d_cell_specified, local_host=lochost, &
-                                 requested_cell_size=input_d_cell, requested_node_order=input_node_order, &
-                                 requested_neighbor_model=input_neighbor_node_model)
+         call fft_plan%configure(simulation_config%fft%cell_volume_fraction, target_min=tmin, target_max=tmax, &
+                                 d_specified=simulation_config%fft%cell_size_specified, local_host=lochost, &
+                       requested_cell_size=simulation_config%fft%cell_size, requested_node_order=simulation_config%fft%node_order, &
+                                 requested_neighbor_model=simulation_config%fft%neighbor_node_model)
       end if
 
-      sphere_excitation_switch = .true.
+      simulation_config%sphere_excitation_switch = .true.
       do i = 1, sphere_cluster%number_spheres
          if (sphere_cluster%host_sphere(i) .ne. 0) cycle
-         if (random_configuration) then
+         if (simulation_config%random_configuration) then
             if (target_shape .le. 1) then
                rtran = sqrt(sum((sphere_cluster%sphere_position(1:2, i) - sphere_cluster%cluster_origin(1:2))**2))
             else
@@ -364,14 +364,14 @@ contains
          else
             rtran = sqrt(sum((sphere_cluster%sphere_position(1:3, i) - sphere_cluster%cluster_origin(1:3))**2))
          end if
-         if (excitation_radius .gt. 0.d0) then
-            sphere_excitation_switch(i) = rtran .le. excitation_radius * length_scale_factor
+         if (simulation_config%excitation_radius .gt. 0.d0) then
+            simulation_config%sphere_excitation_switch(i) = rtran .le. simulation_config%excitation_radius * simulation_config%length_scale_factor
          else
-            sphere_excitation_switch(i) = i .le. -int(excitation_radius)
+            simulation_config%sphere_excitation_switch(i) = i .le. -int(simulation_config%excitation_radius)
          end if
       end do
-      if (excitation_radius .eq. 0.d0) then
-         sphere_excitation_switch = .false.
+      if (simulation_config%excitation_radius .eq. 0.d0) then
+         simulation_config%sphere_excitation_switch = .false.
          if (rank .eq. 0) then
             call random_seed()
             do
@@ -382,107 +382,107 @@ contains
          end if
          call parallel_broadcast(mpi_rank=0, &
                                  send_buffer=itemp(1), mpi_number=1, mpi_comm=mpicomm)
-         sphere_excitation_switch(itemp(1)) = .true.
+         simulation_config%sphere_excitation_switch(itemp(1)) = .true.
       end if
       if (light_up) then
          write (*, '('' s6 '',i3)') mstm_global_rank
          flush (6)
       end if
-      if (random_orientation) then
-         qeff_dim = 1
-         if (calculate_scattering_matrix) then
-            scat_mat_udim = floor(180.00001d0 / scattering_map_increment)
-            scat_mat_mdim = 16
-            scat_mat_ldim = 0
-            scat_mat_amin = 0.d0
-            scat_mat_amax = 180.d0
+      if (simulation_config%random_orientation) then
+         simulation_result%efficiency_dimension = 1
+         if (simulation_config%calculate_scattering_matrix) then
+            simulation_result%scattering_matrix_upper_bound = floor(180.00001d0 / simulation_config%scattering_map_increment)
+            simulation_result%scattering_matrix_dimension = 16
+            simulation_result%scattering_matrix_lower_bound = 0
+            simulation_config%scattering_matrix_angle_minimum = 0.d0
+            simulation_config%scattering_matrix_angle_maximum = 180.d0
          end if
       else
-         if (incident_beta_specified) then
-            incident_beta = incident_beta_deg * degrees_to_radians
-            if (incident_beta_deg .le. 90.d0) then
-               incident_direction = 1
-               incident_sin_beta = sind(incident_beta_deg) / dble(layer_ref_index(0))
+         if (simulation_config%incident_beta_specified) then
+            simulation_result%incident_beta = simulation_config%incident_beta_degrees * degrees_to_radians
+            if (simulation_config%incident_beta_degrees .le. 90.d0) then
+               simulation_config%incident_direction = 1
+               simulation_result%incident_sin_beta = sind(simulation_config%incident_beta_degrees) / dble(layer_ref_index(0))
             else
-               incident_direction = 2
-               incident_sin_beta = sind(incident_beta_deg) &
-                                   / dble(layer_ref_index(number_plane_boundaries))
+               simulation_config%incident_direction = 2
+               simulation_result%incident_sin_beta = sind(simulation_config%incident_beta_degrees) &
+                                                     / dble(layer_ref_index(number_plane_boundaries))
             end if
          else
-            incident_beta = 0.d0
+            simulation_result%incident_beta = 0.d0
          end if
-         if (incidence_average) then
-            qeff_dim = 1
+         if (simulation_config%incidence_average) then
+            simulation_result%efficiency_dimension = 1
          else
-            qeff_dim = 3
+            simulation_result%efficiency_dimension = 3
          end if
-         alpha = incident_alpha_deg * degrees_to_radians
-         call initialize_incident_field(alpha, incident_sin_beta, incident_direction)
-         if (calculate_scattering_matrix) then
-            if (allocated(scat_mat)) deallocate (scat_mat)
+         alpha = simulation_config%incident_alpha_degrees * degrees_to_radians
+         call initialize_incident_field(alpha, simulation_result%incident_sin_beta, simulation_config%incident_direction)
+         if (simulation_config%calculate_scattering_matrix) then
+            if (allocated(simulation_result%scattering_matrix)) deallocate (simulation_result%scattering_matrix)
             if (periodic_lattice) then
-               call periodic_lattice_scattering(amnp_s, pl_sca, dry_run=.true., num_dirs=number_rl_dirs)
-               max_number_rl_dirs = maxval(number_rl_dirs)
-               if (allocated(rl_vec)) deallocate (rl_vec)
-               allocate (rl_vec(2, max_number_rl_dirs))
-               scat_mat_udim = max_number_rl_dirs
-               scat_mat_ldim = 1
-               scat_mat_mdim = 32
+               call periodic_lattice_scattering(simulation_result%solution_coefficients, simulation_result%plane_scattering, dry_run=.true., num_dirs=simulation_result%reflection_transmission_direction_counts)
+   simulation_result%maximum_reflection_transmission_directions = maxval(simulation_result%reflection_transmission_direction_counts)
+    if (allocated(simulation_result%reflection_transmission_vectors)) deallocate (simulation_result%reflection_transmission_vectors)
+       allocate (simulation_result%reflection_transmission_vectors(2, simulation_result%maximum_reflection_transmission_directions))
+               simulation_result%scattering_matrix_upper_bound = simulation_result%maximum_reflection_transmission_directions
+               simulation_result%scattering_matrix_lower_bound = 1
+               simulation_result%scattering_matrix_dimension = 32
             else
-               if (scattering_map_model .eq. 0) then
+               if (simulation_config%scattering_map_model .eq. 0) then
                   if (number_plane_boundaries .eq. 0) then
-                     scat_mat_udim = floor(180.00001d0 / scattering_map_increment)
-                     if (azimuthal_average) then
-                        scat_mat_ldim = 0
+                   simulation_result%scattering_matrix_upper_bound = floor(180.00001d0 / simulation_config%scattering_map_increment)
+                     if (simulation_config%azimuthal_average) then
+                        simulation_result%scattering_matrix_lower_bound = 0
                      else
-                        scat_mat_ldim = -scat_mat_udim
+                        simulation_result%scattering_matrix_lower_bound = -simulation_result%scattering_matrix_upper_bound
                      end if
-                     scat_mat_mdim = 16
-                     scat_mat_amax = 180.d0
+                     simulation_result%scattering_matrix_dimension = 16
+                     simulation_config%scattering_matrix_angle_maximum = 180.d0
                   else
-                     scat_mat_udim = floor(90.00001d0 / scattering_map_increment)
-!                        scat_mat_ldim=-scat_mat_udim
-! 10-22 azimuthal_average applies to multiple plane boundaries
-                     if (azimuthal_average) then
-                        scat_mat_ldim = 0
+                    simulation_result%scattering_matrix_upper_bound = floor(90.00001d0 / simulation_config%scattering_map_increment)
+!                        simulation_result%scattering_matrix_lower_bound=-simulation_result%scattering_matrix_upper_bound
+! 10-22 simulation_config%azimuthal_average applies to multiple plane boundaries
+                     if (simulation_config%azimuthal_average) then
+                        simulation_result%scattering_matrix_lower_bound = 0
                      else
-                        scat_mat_ldim = -scat_mat_udim
+                        simulation_result%scattering_matrix_lower_bound = -simulation_result%scattering_matrix_upper_bound
                      end if
-                     scat_mat_mdim = 32
-                     scat_mat_amax = 90.d0
+                     simulation_result%scattering_matrix_dimension = 32
+                     simulation_config%scattering_matrix_angle_maximum = 90.d0
                   end if
-                  scat_mat_amin = scat_mat_amax * (scat_mat_ldim / scat_mat_udim)
+                  simulation_config%scattering_matrix_angle_minimum = simulation_config%scattering_matrix_angle_maximum * (simulation_result%scattering_matrix_lower_bound / simulation_result%scattering_matrix_upper_bound)
                else
                   i = 0
-                  do sy = -scattering_map_dimension, scattering_map_dimension
-                     do sx = -scattering_map_dimension, scattering_map_dimension
-                        if (sx * sx + sy * sy .gt. scattering_map_dimension**2) cycle
+                  do sy = -simulation_config%scattering_map_dimension, simulation_config%scattering_map_dimension
+                     do sx = -simulation_config%scattering_map_dimension, simulation_config%scattering_map_dimension
+                        if (sx * sx + sy * sy .gt. simulation_config%scattering_map_dimension**2) cycle
                         i = i + 1
                      end do
                   end do
-                  scat_mat_udim = i
-                  scat_mat_ldim = 1
-                  scat_mat_mdim = 32
+                  simulation_result%scattering_matrix_upper_bound = i
+                  simulation_result%scattering_matrix_lower_bound = 1
+                  simulation_result%scattering_matrix_dimension = 32
                end if
             end if
          end if
-         if (periodic_lattice .or. reflection_model .and. (target_shape .le. 1)) then
-            sphere_cluster%cross_section_radius = sphere_cluster%cross_section_radius * sqrt(cos(incident_beta))
+         if (periodic_lattice .or. simulation_config%reflection_model .and. (target_shape .le. 1)) then
+            sphere_cluster%cross_section_radius = sphere_cluster%cross_section_radius * sqrt(cos(simulation_result%incident_beta))
          end if
       end if
       if (light_up) then
          write (*, '('' s7 '',i3)') mstm_global_rank
          flush (6)
       end if
-      if (allocated(boundary_sca)) deallocate (boundary_sca, boundary_ext)
-!         allocate(boundary_sca(2,0:number_plane_boundaries+1),boundary_ext(2,0:number_plane_boundaries+1))
-      allocate (boundary_sca(2, 0:1), boundary_ext(2, 0:1))
+      if (allocated(simulation_result%boundary_scattering)) deallocate (simulation_result%boundary_scattering, simulation_result%boundary_extinction)
+!         allocate(simulation_result%boundary_scattering(2,0:number_plane_boundaries+1),simulation_result%boundary_extinction(2,0:number_plane_boundaries+1))
+      allocate (simulation_result%boundary_scattering(2, 0:1), simulation_result%boundary_extinction(2, 0:1))
 
-      if (allocated(q_eff)) deallocate (q_eff, q_eff_tot, q_vabs)
-      allocate (q_eff(3, qeff_dim, sphere_cluster%number_spheres), q_eff_tot(3, qeff_dim), q_vabs(qeff_dim, sphere_cluster%number_spheres))
-      if (calculate_scattering_matrix) then
-         if (allocated(scat_mat)) deallocate (scat_mat)
-         allocate (scat_mat(scat_mat_mdim, scat_mat_ldim:scat_mat_udim))
+      if (allocated(simulation_result%efficiency)) deallocate (simulation_result%efficiency, simulation_result%total_efficiency, simulation_result%volume_absorption)
+      allocate (simulation_result%efficiency(3, simulation_result%efficiency_dimension, sphere_cluster%number_spheres), simulation_result%total_efficiency(3, simulation_result%efficiency_dimension), simulation_result%volume_absorption(simulation_result%efficiency_dimension, sphere_cluster%number_spheres))
+      if (simulation_config%calculate_scattering_matrix) then
+         if (allocated(simulation_result%scattering_matrix)) deallocate (simulation_result%scattering_matrix)
+         allocate (simulation_result%scattering_matrix(simulation_result%scattering_matrix_dimension, simulation_result%scattering_matrix_lower_bound:simulation_result%scattering_matrix_upper_bound))
       end if
       if (light_up) then
          write (*, '('' s8 '',i3)') mstm_global_rank
@@ -491,9 +491,9 @@ contains
 !call parallel_barrier()
       if (rank .eq. 0) time1 = parallel_wall_time()
       if (rank .eq. 0 .and. printout) then
-         if (check_positions) call check_sphere_positions()
+         if (simulation_config%check_positions) call check_sphere_positions()
          call print_run_variables(sphere_cluster%run_print_unit)
-         call open_output_file(output_file, file_unit, append=.true.)
+         call open_output_file(simulation_config%output%output_file, file_unit, append=.true.)
          if (runtime_failed()) return
          call print_run_variables(file_unit)
          close (file_unit)
@@ -501,46 +501,46 @@ contains
 
       if (dryrun) return
 
-      if (random_orientation) then
-         niter = max_iterations
+      if (simulation_config%random_orientation) then
+         niter = simulation_config%solver%max_iterations
          timatrixfile = 'titemp.dat'
-         if (allocated(mean_t)) deallocate (mean_t)
-         allocate (mean_t(2, sphere_cluster%t_matrix_order))
-         mean_t = 0.d0
-         call solve_t_matrix(solution_method=solution_method(1:1), &
-                             solution_eps=solution_epsilon, &
-                             convergence_eps=t_matrix_convergence_epsilon, &
+         if (allocated(simulation_result%mean_t_matrix)) deallocate (simulation_result%mean_t_matrix)
+         allocate (simulation_result%mean_t_matrix(2, sphere_cluster%t_matrix_order))
+         simulation_result%mean_t_matrix = 0.d0
+         call solve_t_matrix(solution_method=simulation_config%solver%solution_method(1:1), &
+                             solution_eps=simulation_config%solver%solution_epsilon, &
+                             convergence_eps=simulation_config%solver%t_matrix_convergence_epsilon, &
                              max_iterations=niter, &
-                             t_matrix_file=t_matrix_output_file, &
-                             procs_per_soln=t_matrix_procs_per_solution, &
-                             sphere_qeff=q_eff, &
+                             t_matrix_file=simulation_config%output%t_matrix_file, &
+                             procs_per_soln=simulation_config%solver%t_matrix_procs_per_solution, &
+                             sphere_qeff=simulation_result%efficiency, &
                              solution_status=istat, &
                              mpi_comm=mpicomm, &
-                             sphere_excitation_list=sphere_excitation_switch)
+                             sphere_excitation_list=simulation_config%sphere_excitation_switch)
          if (runtime_failed()) return
          if (istat /= solver_converged) then
             call set_runtime_error('T-matrix solver failed: '//trim(solver_status_message(istat)), istat)
             return
          end if
          if (sphere_cluster%fft_translation_option) call fft_plan%clear(clear_h=.true.)
-         if (calculate_scattering_matrix) then
-            if (allocated(scat_mat_exp_coef)) deallocate (scat_mat_exp_coef)
-            if (allocated(coh_scat_mat_exp_coef)) deallocate (coh_scat_mat_exp_coef)
-            allocate (scat_mat_exp_coef(4, 4, 0:2 * sphere_cluster%t_matrix_order), coh_scat_mat_exp_coef(4, 4, 0:2 * sphere_cluster%t_matrix_order))
+         if (simulation_config%calculate_scattering_matrix) then
+            if (allocated(simulation_result%scattering_matrix_expansion)) deallocate (simulation_result%scattering_matrix_expansion)
+        if (allocated(simulation_result%coherent_scattering_expansion)) deallocate (simulation_result%coherent_scattering_expansion)
+            allocate (simulation_result%scattering_matrix_expansion(4, 4, 0:2 * sphere_cluster%t_matrix_order), simulation_result%coherent_scattering_expansion(4, 4, 0:2 * sphere_cluster%t_matrix_order))
             nodrw = 2 * sphere_cluster%t_matrix_order
-            call random_orientation_scattering_matrix(t_matrix_output_file, scat_mat_exp_coef, &
-                                                      coh_scat_mat_exp_coef, &
+  call random_orientation_scattering_matrix(simulation_config%output%t_matrix_file, simulation_result%scattering_matrix_expansion, &
+                                                      simulation_result%coherent_scattering_expansion, &
                                                       beam_width=sphere_cluster%gaussian_beam_constant, &
-                                                      number_processors=t_matrix_procs_per_solution, &
-                                                      mean_t_matrix=mean_t, mpi_comm=mpicomm)
-            coherent_scattering_ratio = coh_scat_mat_exp_coef(1, 1, 0)
-            do i = scat_mat_ldim, scat_mat_udim
-               costheta = cos(dble(i - scat_mat_ldim) * pi / dble(scat_mat_udim - scat_mat_ldim))
-               call evaluate_random_orientation_scattering_matrix(costheta, scat_mat_exp_coef, nodrw, scat_mat(:, i))
+                                                      number_processors=simulation_config%solver%t_matrix_procs_per_solution, &
+                                                      mean_t_matrix=simulation_result%mean_t_matrix, mpi_comm=mpicomm)
+            simulation_result%coherent_scattering_ratio = simulation_result%coherent_scattering_expansion(1, 1, 0)
+            do i = simulation_result%scattering_matrix_lower_bound, simulation_result%scattering_matrix_upper_bound
+               costheta = cos(dble(i - simulation_result%scattering_matrix_lower_bound) * pi / dble(simulation_result%scattering_matrix_upper_bound - simulation_result%scattering_matrix_lower_bound))
+               call evaluate_random_orientation_scattering_matrix(costheta, simulation_result%scattering_matrix_expansion, nodrw, simulation_result%scattering_matrix(:, i))
             end do
          end if
-         call total_efficiency_factors(sphere_cluster%number_spheres, qeff_dim, sphere_cluster%cross_section_radius, &
-                                       q_eff, q_vabs, q_eff_tot)
+         call total_efficiency_factors(sphere_cluster%number_spheres, simulation_result%efficiency_dimension, sphere_cluster%cross_section_radius, &
+                              simulation_result%efficiency, simulation_result%volume_absorption, simulation_result%total_efficiency)
       else
          if (light_up) then
             write (*, '('' s8.1 '',i3)') mstm_global_rank
@@ -548,10 +548,10 @@ contains
          end if
 !call parallel_barrier()
 
-         if (allocated(amnp_s)) deallocate (amnp_s)
-         allocate (amnp_s(sphere_cluster%number_eqns, 2))
-         amnp_s = 0.d0
-         niter = max_iterations
+         if (allocated(simulation_result%solution_coefficients)) deallocate (simulation_result%solution_coefficients)
+         allocate (simulation_result%solution_coefficients(sphere_cluster%number_eqns, 2))
+         simulation_result%solution_coefficients = 0.d0
+         niter = simulation_config%solver%max_iterations
          error_codes = 0
          pl_error_codes = 0
 !            sphere_cluster%recalculate_surface_matrix=.true.
@@ -560,31 +560,31 @@ contains
             flush (6)
          end if
 !call parallel_barrier()
-         if (print_timings .and. mstm_global_rank .eq. 0) then
+         if (simulation_config%output%print_timings .and. mstm_global_rank .eq. 0) then
             write (sphere_cluster%run_print_unit, '('' generating solution:'')', advance='no')
             timet = parallel_wall_time()
          end if
-         call solve_fixed_orientation(alpha, incident_sin_beta, incident_direction, solution_epsilon, niter, &
-                                      amnp_s, q_eff, &
-                                      qeff_dim, solution_error, solution_iterations, 1, istat, &
+         call solve_fixed_orientation(alpha, simulation_result%incident_sin_beta, simulation_config%incident_direction, simulation_config%solver%solution_epsilon, niter, &
+                                      simulation_result%solution_coefficients, simulation_result%efficiency, &
+        simulation_result%efficiency_dimension, simulation_result%solution_error, simulation_result%solution_iterations, 1, istat, &
                                       mpi_comm=mpicomm, &
-                                      excited_spheres=sphere_excitation_switch, &
-                                      solution_method=solution_method(1:1), &
+                                      excited_spheres=simulation_config%sphere_excitation_switch, &
+                                      solution_method=simulation_config%solver%solution_method(1:1), &
                                       initialize_solver=.true., &
-                                      reciprocal_condition=solution_reciprocal_condition)
+                                      reciprocal_condition=simulation_result%reciprocal_condition)
          if (runtime_failed()) return
          if (istat /= solver_converged) then
             call set_runtime_error('Fixed-orientation solver failed: '//trim(solver_status_message(istat)), istat)
             return
          end if
-         if (print_timings .and. mstm_global_rank .eq. 0) then
+         if (simulation_config%output%print_timings .and. mstm_global_rank .eq. 0) then
             write (sphere_cluster%run_print_unit, '('' completed, time:'',es12.5,'' s'')') parallel_wall_time() - timet
          end if
          if (sphere_cluster%fft_translation_option) then
             call fft_plan%clear()
          end if
-         if (mstm_global_rank .eq. 0. .and. ((.not. configuration_average) .and. (.not. incidence_average))) then
-            write (sphere_cluster%run_print_unit, '('' solution completed: number iterations='',i5)') solution_iterations
+         if (mstm_global_rank .eq. 0. .and. ((.not. simulation_config%configuration_average) .and. (.not. simulation_config%incidence_average))) then
+     write (sphere_cluster%run_print_unit, '('' solution completed: number iterations='',i5)') simulation_result%solution_iterations
             flush (sphere_cluster%run_print_unit)
          end if
 
@@ -593,31 +593,31 @@ contains
             flush (6)
          end if
 !call parallel_barrier()
-         if (print_timings .and. mstm_global_rank .eq. 0) then
+         if (simulation_config%output%print_timings .and. mstm_global_rank .eq. 0) then
             write (sphere_cluster%run_print_unit, '('' post processing solution:'')', advance='no')
             timet = parallel_wall_time()
          end if
 
-         call total_efficiency_factors(sphere_cluster%number_spheres, qeff_dim, sphere_cluster%cross_section_radius, &
-                                       q_eff, q_vabs, q_eff_tot)
-!            q_eff_tot(3,:)=q_eff_tot(1,:)-q_eff_tot(2,:)
-         csca = q_eff_tot(3, 1) * pi * sphere_cluster%cross_section_radius**2
+         call total_efficiency_factors(sphere_cluster%number_spheres, simulation_result%efficiency_dimension, sphere_cluster%cross_section_radius, &
+                              simulation_result%efficiency, simulation_result%volume_absorption, simulation_result%total_efficiency)
+!            simulation_result%total_efficiency(3,:)=simulation_result%total_efficiency(1,:)-simulation_result%total_efficiency(2,:)
+         csca = simulation_result%total_efficiency(3, 1) * pi * sphere_cluster%cross_section_radius**2
          if (singleorigin) then
-            if (allocated(amnp_0)) deallocate (amnp_0)
-            allocate (amnp_0(2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_order + 2), 2))
-            amnp_0 = 0.d0
+            if (allocated(simulation_result%incident_coefficients)) deallocate (simulation_result%incident_coefficients)
+      allocate (simulation_result%incident_coefficients(2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_order + 2), 2))
+            simulation_result%incident_coefficients = 0.d0
             if (light_up) then
                write (*, '('' s8.3.1 '',i3)') mstm_global_rank
                flush (6)
             end if
 !call parallel_barrier()
             do i = 1, 2
-               call merge_to_common_origin(sphere_cluster%t_matrix_order, amnp_s(:, i), amnp_0(:, i), &
+               call merge_to_common_origin(sphere_cluster%t_matrix_order, simulation_result%solution_coefficients(:, i), simulation_result%incident_coefficients(:, i), &
                                            origin_position=sphere_cluster%cluster_origin, merge_procs=.true., &
                                            mpi_comm=mpicomm)
                if (iframe) then
-                  call rotate_expansion_coefficients(alpha, incident_beta, 0.d0, sphere_cluster%t_matrix_order, &
-                                                     sphere_cluster%t_matrix_order, amnp_0(:, i), 1)
+                  call rotate_expansion_coefficients(alpha, simulation_result%incident_beta, 0.d0, sphere_cluster%t_matrix_order, &
+                                                    sphere_cluster%t_matrix_order, simulation_result%incident_coefficients(:, i), 1)
                end if
             end do
             if (light_up) then
@@ -625,20 +625,20 @@ contains
                flush (6)
             end if
 !call parallel_barrier()
-            if (singleorigin .and. azimuthal_average .and. (.not. numerical_azimuthal_average)) then
-               if (allocated(scat_mat_exp_coef)) deallocate (scat_mat_exp_coef)
-               allocate (scat_mat_exp_coef(16, 0:2 * sphere_cluster%t_matrix_order, 4))
+        if (singleorigin .and. simulation_config%azimuthal_average .and. (.not. simulation_config%numerical_azimuthal_average)) then
+            if (allocated(simulation_result%scattering_matrix_expansion)) deallocate (simulation_result%scattering_matrix_expansion)
+               allocate (simulation_result%scattering_matrix_expansion(16, 0:2 * sphere_cluster%t_matrix_order, 4))
                call fixed_orientation_scattering_matrix_expansion( &
-                  sphere_cluster%t_matrix_order, amnp_0, scat_mat_exp_coef(:, :, 1), scat_mat_exp_coef(:, :, 2), &
-                  scat_mat_exp_coef(:, :, 3), scat_mat_exp_coef(:, :, 4), mpi_comm=mpicomm)
+                  sphere_cluster%t_matrix_order, simulation_result%incident_coefficients, simulation_result%scattering_matrix_expansion(:, :, 1), simulation_result%scattering_matrix_expansion(:, :, 2), &
+   simulation_result%scattering_matrix_expansion(:, :, 3), simulation_result%scattering_matrix_expansion(:, :, 4), mpi_comm=mpicomm)
             end if
             if (light_up) then
                write (*, '('' s8.3.4 '',i3)') mstm_global_rank
                flush (6)
             end if
 !call parallel_barrier()
-            if (calculate_scattering_matrix) then
-               call compute_scattering_matrix(amnp_0, scat_mat, mpi_comm=mpicomm)
+            if (simulation_config%calculate_scattering_matrix) then
+      call compute_scattering_matrix(simulation_result%incident_coefficients, simulation_result%scattering_matrix, mpi_comm=mpicomm)
             end if
             if (light_up) then
                write (*, '('' s8.3.5 '',i3)') mstm_global_rank
@@ -646,12 +646,12 @@ contains
             end if
 !call parallel_barrier()
             if (sphere_cluster%gaussian_beam_constant .eq. 0.d0) then
-               boundary_ext = 0.d0
+               simulation_result%boundary_extinction = 0.d0
                ! A finite cluster without interfaces does not use plane-boundary
                ! extinction.  Avoid the spectral Green-function normalization at
                ! exact grazing incidence, where its longitudinal wave number is zero.
-               if (number_plane_boundaries .gt. 0 .or. periodic_lattice .or. reflection_model) then
-                  call boundary_extinction(amnp_0, alpha, incident_sin_beta, incident_direction, boundary_ext, &
+               if (number_plane_boundaries .gt. 0 .or. periodic_lattice .or. simulation_config%reflection_model) then
+                  call boundary_extinction(simulation_result%incident_coefficients, alpha, simulation_result%incident_sin_beta, simulation_config%incident_direction, simulation_result%boundary_extinction, &
                                            common_origin=singleorigin)
                end if
             end if
@@ -666,58 +666,58 @@ contains
                flush (6)
             end if
 !call parallel_barrier()
-            if (calculate_scattering_matrix) then
-               call compute_scattering_matrix(amnp_s, scat_mat, mpi_comm=mpicomm)
+            if (simulation_config%calculate_scattering_matrix) then
+      call compute_scattering_matrix(simulation_result%solution_coefficients, simulation_result%scattering_matrix, mpi_comm=mpicomm)
             end if
             if (sphere_cluster%gaussian_beam_constant .eq. 0.d0) then
-               boundary_ext = 0.d0
-               if (number_plane_boundaries .gt. 0 .or. periodic_lattice .or. reflection_model) then
-                  call boundary_extinction(amnp_s, alpha, incident_sin_beta, incident_direction, boundary_ext)
+               simulation_result%boundary_extinction = 0.d0
+               if (number_plane_boundaries .gt. 0 .or. periodic_lattice .or. simulation_config%reflection_model) then
+                  call boundary_extinction(simulation_result%solution_coefficients, alpha, simulation_result%incident_sin_beta, simulation_config%incident_direction, simulation_result%boundary_extinction)
                end if
             end if
          end if
 
-         if (calculate_up_down_scattering) then
+         if (simulation_config%calculate_up_down_scattering) then
             if (singleorigin) then
-               call hemispherical_scattering(amnp_0, .true., numerical_hemispherical_integration, &
-                                             boundary_sca, mpi_comm=mpicomm)
+               call hemispherical_scattering(simulation_result%incident_coefficients, .true., simulation_config%numerical_hemispherical_integration, &
+                                             simulation_result%boundary_scattering, mpi_comm=mpicomm)
             else
-               call hemispherical_scattering(amnp_s, .false., numerical_hemispherical_integration, &
-                                             boundary_sca, mpi_comm=mpicomm)
+               call hemispherical_scattering(simulation_result%solution_coefficients, .false., simulation_config%numerical_hemispherical_integration, &
+                                             simulation_result%boundary_scattering, mpi_comm=mpicomm)
             end if
          end if
 
          if (sphere_cluster%gaussian_beam_constant .ne. 0.d0) then
-            boundary_ext = 0
-            boundary_ext(1:2, 1) = -q_eff_tot(1, 2:3)
+            simulation_result%boundary_extinction = 0
+            simulation_result%boundary_extinction(1:2, 1) = -simulation_result%total_efficiency(1, 2:3)
          end if
 
          if (periodic_lattice) then
-            call periodic_lattice_scattering(amnp_s, pl_sca)
-         elseif (reflection_model) then
-!               pl_sca(:,1)=boundary_sca(:,number_plane_boundaries+1)
-            pl_sca(:, 1) = boundary_sca(:, 1)
-            pl_sca(:, 2) = -boundary_sca(:, 0)
+            call periodic_lattice_scattering(simulation_result%solution_coefficients, simulation_result%plane_scattering)
+         elseif (simulation_config%reflection_model) then
+!               simulation_result%plane_scattering(:,1)=simulation_result%boundary_scattering(:,number_plane_boundaries+1)
+            simulation_result%plane_scattering(:, 1) = simulation_result%boundary_scattering(:, 1)
+            simulation_result%plane_scattering(:, 2) = -simulation_result%boundary_scattering(:, 0)
          end if
 
-         if (periodic_lattice .or. reflection_model) then
+         if (periodic_lattice .or. simulation_config%reflection_model) then
             call calculate_surface_absorptance()
          end if
 
          if (number_plane_boundaries .gt. 0 .and. .not. periodic_lattice) then
-!               evan_sca(1:2)=q_eff_tot(1,2:3)-q_eff_tot(2,2:3)+boundary_sca(1:2,0) &
-!                  - boundary_sca(:,number_plane_boundaries+1)
-            evan_sca(1:2) = q_eff_tot(1, 2:3) - q_eff_tot(2, 2:3) + boundary_sca(1:2, 0) &
-                            - boundary_sca(:, 1)
+!               simulation_result%evanescent_scattering(1:2)=simulation_result%total_efficiency(1,2:3)-simulation_result%total_efficiency(2,2:3)+simulation_result%boundary_scattering(1:2,0) &
+!                  - simulation_result%boundary_scattering(:,number_plane_boundaries+1)
+            simulation_result%evanescent_scattering(1:2) = simulation_result%total_efficiency(1, 2:3) - simulation_result%total_efficiency(2, 2:3) + simulation_result%boundary_scattering(1:2, 0) &
+                                                           - simulation_result%boundary_scattering(:, 1)
          end if
 
-         if (print_timings .and. mstm_global_rank .eq. 0) then
+         if (simulation_config%output%print_timings .and. mstm_global_rank .eq. 0) then
             write (sphere_cluster%run_print_unit, '('' completed, time:'',es12.5,'' s'')') parallel_wall_time() - timet
          end if
 
       end if
 
-      if (rank .eq. 0) solution_time = parallel_wall_time() - time1
+      if (rank .eq. 0) simulation_result%solution_time = parallel_wall_time() - time1
 
       call gather_error_codes(mpicomm)
       if (light_up) then
@@ -725,7 +725,7 @@ contains
          flush (6)
       end if
       if (mstm_global_rank .eq. 0 .and. printout) then
-         call print_calculation_results(output_file)
+         call print_calculation_results(simulation_config%output%output_file)
       end if
       if (light_up) then
          write (*, '('' s13 '',i3)') mstm_global_rank
@@ -734,32 +734,32 @@ contains
       error_codes = 0
       pl_error_codes = 0
 
-      if (calculate_near_field .and. (.not. random_orientation)) then
-         celldim = ceiling((near_field_plane_vertices(:, 2) - near_field_plane_vertices(:, 1)) / near_field_step_size)
+      if (simulation_config%calculate_near_field .and. (.not. simulation_config%random_orientation)) then
+         celldim = ceiling((simulation_config%near_field_plane_vertices(:, 2) - simulation_config%near_field_plane_vertices(:, 1)) / simulation_config%near_field_step_size)
          celldim = max(celldim, (/1, 1, 1/))
-         if (configuration_average) then
-            if (allocated(e_field)) deallocate (e_field, h_field)
+         if (simulation_config%configuration_average) then
+    if (allocated(simulation_result%electric_field)) deallocate (simulation_result%electric_field, simulation_result%magnetic_field)
             if (rank .eq. 0) then
-               allocate (e_field(3, 2, celldim(1), celldim(2), celldim(3)), &
-                         h_field(3, 2, celldim(1), celldim(2), celldim(3)))
-               e_field = 0.d0
-               h_field = 0.d0
+               allocate (simulation_result%electric_field(3, 2, celldim(1), celldim(2), celldim(3)), &
+                         simulation_result%magnetic_field(3, 2, celldim(1), celldim(2), celldim(3)))
+               simulation_result%electric_field = 0.d0
+               simulation_result%magnetic_field = 0.d0
             end if
-            call compute_near_field(amnp_s, alpha, incident_sin_beta, incident_direction, &
-                                    near_field_plane_vertices, celldim, &
-                                    incident_model=near_field_calculation_model, output_unit=0, &
-                                    e_field_array=e_field, h_field_array=h_field, mpi_comm=mpicomm)
+            call compute_near_field(simulation_result%solution_coefficients, alpha, simulation_result%incident_sin_beta, simulation_config%incident_direction, &
+                                    simulation_config%near_field_plane_vertices, celldim, &
+                                    incident_model=simulation_config%near_field_calculation_model, output_unit=0, &
+                   e_field_array=simulation_result%electric_field, h_field_array=simulation_result%magnetic_field, mpi_comm=mpicomm)
          else
-            if (append_near_field_output_file) then
-               call open_output_file(near_field_output_file, file_unit, append=.true.)
+            if (simulation_config%output%append_near_field) then
+               call open_output_file(simulation_config%output%near_field_file, file_unit, append=.true.)
             else
-               call open_output_file(near_field_output_file, file_unit)
+               call open_output_file(simulation_config%output%near_field_file, file_unit)
             end if
             if (runtime_failed()) return
-            append_near_field_output_file = .true.
-            call compute_near_field(amnp_s, alpha, incident_sin_beta, incident_direction, &
-                                    near_field_plane_vertices, celldim, &
-                                    incident_model=near_field_calculation_model, output_unit=file_unit, output_header=.true.)
+            simulation_config%output%append_near_field = .true.
+            call compute_near_field(simulation_result%solution_coefficients, alpha, simulation_result%incident_sin_beta, simulation_config%incident_direction, &
+                                    simulation_config%near_field_plane_vertices, celldim, &
+                         incident_model=simulation_config%near_field_calculation_model, output_unit=file_unit, output_header=.true.)
             close (file_unit)
          end if
          call gather_error_codes(mpicomm)
@@ -790,7 +790,7 @@ contains
    subroutine run_configuration_average()
       implicit none
       logical :: singleorigin, iframe
-      integer :: file_unit, rank, numprocs, m, n, p, mnp, griddim(3), ipos(3), ix, iy, iz, &
+      integer :: file_unit, rank, numprocs, m, n, p, mnp, griddim(3), ipos(3), ix, iy, iz, configuration_number, &
                  numprocsperconfig, configcolor, configgroup, configcomm, configrank, config0comm, nconfigave, nsend
       real(real64) :: time1, timet, diffac, csca(1), xspfit, rpos(3), rtemp(1)
       real(real64), allocatable :: texpcoef(:, :, :), spherical_position(:, :)
@@ -798,23 +798,23 @@ contains
       complex(real64), allocatable :: pmnp0(:, :), anp0(:, :), edat(:)
       character(len=256) :: tmatchar1, tmatchar2
       data tmatchar1, tmatchar2/'tmat-', '.tmp'/
-      first_run = .false.
+      simulation_config%first_run = .false.
       call parallel_rank(mpi_rank=rank)
       call parallel_size(mpi_size=numprocs)
 !         if(rank.ne.0) light_up=.false.
-      local_rank = rank
+      simulation_result%local_rank = rank
       global_rank = rank
 
-      if (max_iterations .le. 1) then
+      if (simulation_config%solver%max_iterations .le. 1) then
          numprocsperconfig = 2
       else
          numprocsperconfig = 4
       end if
 !numprocsperconfig=2
 
-      n_configuration_groups = numprocs / numprocsperconfig
-      n_configuration_groups = max(n_configuration_groups, 1)
-      configcolor = floor(dble(n_configuration_groups * rank) / dble(numprocs))
+      simulation_config%number_configuration_groups = numprocs / numprocsperconfig
+      simulation_config%number_configuration_groups = max(simulation_config%number_configuration_groups, 1)
+      configcolor = floor(dble(simulation_config%number_configuration_groups * rank) / dble(numprocs))
       configgroup = configcolor
       call parallel_split( &
          mpi_color=configcolor, mpi_key=rank, &
@@ -826,83 +826,85 @@ contains
       call parallel_split( &
          mpi_color=configcolor, mpi_key=rank, &
          mpi_new_comm=config0comm)
-      random_configuration = .true.
-      singleorigin = number_plane_boundaries .eq. 0 .and. single_origin_expansion
+      simulation_config%random_configuration = .true.
+      singleorigin = number_plane_boundaries .eq. 0 .and. simulation_config%single_origin_expansion
 !singleorigin=.true.
-      iframe = singleorigin .and. incident_frame
+      iframe = singleorigin .and. simulation_config%incident_frame
 
       call execute_simulation(print_output=.false., set_t_matrix_order=.true., dry_run=.true.)
       if (runtime_failed()) return
 
-      if (allocated(q_eff_ave)) deallocate (q_eff_ave, q_eff_tot_ave, q_vabs_ave, sphere_position_ave, boundary_sca_ave, &
-                                            boundary_ext_ave, dif_boundary_sca)
-      allocate (q_eff_ave(3, qeff_dim, sphere_cluster%number_spheres), q_eff_tot_ave(3, qeff_dim), q_vabs_ave(qeff_dim, sphere_cluster%number_spheres), &
-                sphere_position_ave(3, sphere_cluster%number_spheres), boundary_sca_ave(2, 0:1), &
-                boundary_ext_ave(2, 0:1), dif_boundary_sca(2, 0:1))
-      q_eff_ave = 0.d0
-      q_eff_tot_ave = 0.d0
-      q_vabs_ave = 0.d0
-      sphere_position_ave = 0.d0
+      if (allocated(simulation_result%average_efficiency)) deallocate (simulation_result%average_efficiency, simulation_result%average_total_efficiency, simulation_result%average_volume_absorption, simulation_result%average_sphere_position, simulation_result%average_boundary_scattering, &
+                                       simulation_result%average_boundary_extinction, simulation_result%diffuse_boundary_scattering)
+      allocate (simulation_result%average_efficiency(3, simulation_result%efficiency_dimension, sphere_cluster%number_spheres), simulation_result%average_total_efficiency(3, simulation_result%efficiency_dimension), simulation_result%average_volume_absorption(simulation_result%efficiency_dimension, sphere_cluster%number_spheres), &
+                simulation_result%average_sphere_position(3, sphere_cluster%number_spheres), simulation_result%average_boundary_scattering(2, 0:1), &
+                simulation_result%average_boundary_extinction(2, 0:1), simulation_result%diffuse_boundary_scattering(2, 0:1))
+      simulation_result%average_efficiency = 0.d0
+      simulation_result%average_total_efficiency = 0.d0
+      simulation_result%average_volume_absorption = 0.d0
+      simulation_result%average_sphere_position = 0.d0
       if (target_shape .eq. 2) allocate (spherical_position(3, sphere_cluster%number_spheres))
-      pl_sca_ave = 0.d0
-      boundary_sca_ave = 0.d0
-      boundary_ext_ave = 0.d0
-      solution_time_ave = 0.d0
-      surface_absorptance_ave = 0.
+      simulation_result%average_plane_scattering = 0.d0
+      simulation_result%average_boundary_scattering = 0.d0
+      simulation_result%average_boundary_extinction = 0.d0
+      simulation_result%average_solution_time = 0.d0
+      simulation_result%average_surface_absorptance = 0.
       sphere_cluster%effective_medium_simulation = .false.
       if (singleorigin) then
-         if (allocated(amnp_0_ave)) deallocate (amnp_0_ave, scat_mat_exp_coef_ave, coh_scat_mat_exp_coef)
-         allocate (amnp_0_ave(2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_order + 2), 2), &
-                   scat_mat_exp_coef_ave(16, 0:2 * sphere_cluster%t_matrix_order, 4), &
-                   coh_scat_mat_exp_coef(16, 0:2 * sphere_cluster%t_matrix_order, 4))
-         amnp_0_ave = 0.d0
-         scat_mat_exp_coef_ave = 0.d0
-         tot_csca_ave = 0.d0
-         dif_csca_ratio = 0.d0
-         if (input_effective_medium_simulation .and. target_shape .eq. 2 .and. &
-             (.not. random_configuration_host)) then
+         if (allocated(simulation_result%average_incident_coefficients)) deallocate (simulation_result%average_incident_coefficients, simulation_result%average_scattering_matrix_expansion, simulation_result%coherent_scattering_expansion)
+         allocate (simulation_result%average_incident_coefficients(2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_order + 2), 2), &
+                   simulation_result%average_scattering_matrix_expansion(16, 0:2 * sphere_cluster%t_matrix_order, 4), &
+                   simulation_result%coherent_scattering_expansion(16, 0:2 * sphere_cluster%t_matrix_order, 4))
+         simulation_result%average_incident_coefficients = 0.d0
+         simulation_result%average_scattering_matrix_expansion = 0.d0
+         simulation_result%average_total_cross_section = 0.d0
+         simulation_result%diffuse_cross_section_ratio = 0.d0
+         if (simulation_config%effective_medium_simulation .and. target_shape .eq. 2 .and. &
+             (.not. simulation_config%random_configuration_host)) then
             sphere_cluster%effective_medium_simulation = .true.
             sphere_cluster%effective_ref_index = layer_ref_index(0)
-            if (random_configuration_host_model .eq. 1) then
-               sphere_cluster%effective_cluster_radius = target_dimensions(1) * length_scale_factor
-            elseif (random_configuration_host_model .eq. 2) then
-               sphere_cluster%effective_cluster_radius = sphere_cluster%vol_radius / (sphere_volume_fraction)**0.33333
+            if (simulation_config%random_configuration_host_model .eq. 1) then
+               sphere_cluster%effective_cluster_radius = target_dimensions(1) * simulation_config%length_scale_factor
+            elseif (simulation_config%random_configuration_host_model .eq. 2) then
+           sphere_cluster%effective_cluster_radius = sphere_cluster%vol_radius / (simulation_config%sphere_volume_fraction)**0.33333
             end if
          end if
       end if
-      if (calculate_scattering_matrix) then
-         if (allocated(scat_mat_ave)) deallocate (scat_mat_ave, dif_scat_mat)
-         allocate (scat_mat_ave(scat_mat_mdim, scat_mat_ldim:scat_mat_udim), &
-                   dif_scat_mat(scat_mat_mdim, scat_mat_ldim:scat_mat_udim))
-         scat_mat_ave = 0.d0
+      if (simulation_config%calculate_scattering_matrix) then
+         if (allocated(simulation_result%average_scattering_matrix)) deallocate (simulation_result%average_scattering_matrix, simulation_result%diffuse_scattering_matrix)
+         allocate (simulation_result%average_scattering_matrix(simulation_result%scattering_matrix_dimension, simulation_result%scattering_matrix_lower_bound:simulation_result%scattering_matrix_upper_bound), &
+                   simulation_result%diffuse_scattering_matrix(simulation_result%scattering_matrix_dimension, simulation_result%scattering_matrix_lower_bound:simulation_result%scattering_matrix_upper_bound))
+         simulation_result%average_scattering_matrix = 0.d0
       end if
-      if (calculate_near_field .and. configrank .eq. 0) then
-         griddim = ceiling((near_field_plane_vertices(:, 2) - near_field_plane_vertices(:, 1)) / near_field_step_size)
+      if (simulation_config%calculate_near_field .and. configrank .eq. 0) then
+         griddim = ceiling((simulation_config%near_field_plane_vertices(:, 2) - simulation_config%near_field_plane_vertices(:, 1)) / simulation_config%near_field_step_size)
          griddim = max(griddim, (/1, 1, 1/))
-         if (allocated(e_field_ave)) deallocate (e_field_ave, h_field_ave, s_field, s_field_ave)
-         allocate (e_field_ave(3, 2, griddim(1), griddim(2), griddim(3)), &
-                   h_field_ave(3, 2, griddim(1), griddim(2), griddim(3)), &
-                   s_field(3, 2, griddim(1), griddim(2), griddim(3)), &
-                   s_field_ave(3, 2, griddim(1), griddim(2), griddim(3)))
-         e_field_ave = 0.d0
-         h_field_ave = 0.d0
-         s_field_ave = 0.d0
+         if (allocated(simulation_result%average_electric_field)) deallocate (simulation_result%average_electric_field, simulation_result%average_magnetic_field, simulation_result%scattering_field, simulation_result%average_scattering_field)
+         allocate (simulation_result%average_electric_field(3, 2, griddim(1), griddim(2), griddim(3)), &
+                   simulation_result%average_magnetic_field(3, 2, griddim(1), griddim(2), griddim(3)), &
+                   simulation_result%scattering_field(3, 2, griddim(1), griddim(2), griddim(3)), &
+                   simulation_result%average_scattering_field(3, 2, griddim(1), griddim(2), griddim(3)))
+         simulation_result%average_electric_field = 0.d0
+         simulation_result%average_magnetic_field = 0.d0
+         simulation_result%average_scattering_field = 0.d0
       end if
 
       nconfigave = 0
-      do random_configuration_number = 1, ceiling(dble(number_configurations) / dble(n_configuration_groups))
+      do configuration_number = 1, ceiling(dble(simulation_config%number_configurations) / &
+                                           dble(simulation_config%number_configuration_groups))
+         simulation_result%random_configuration_number = configuration_number
 
          if (rank .eq. 0) then
-            if (random_configuration_number .eq. 1) then
+            if (simulation_result%random_configuration_number .eq. 1) then
                call print_run_variables(sphere_cluster%run_print_unit)
-               call open_output_file(output_file, file_unit, append=.true.)
+               call open_output_file(simulation_config%output%output_file, file_unit, append=.true.)
                if (runtime_failed()) return
                call print_run_variables(file_unit)
                close (file_unit)
             end if
             write (sphere_cluster%run_print_unit, '('' configuration averaging, samples:'',i5,''-'',i5)') &
-               (random_configuration_number - 1) * n_configuration_groups + 1, &
-               random_configuration_number * n_configuration_groups
+               (simulation_result%random_configuration_number - 1) * simulation_config%number_configuration_groups + 1, &
+               simulation_result%random_configuration_number * simulation_config%number_configuration_groups
          end if
 
          if (rank .eq. 0) time1 = parallel_wall_time()
@@ -911,183 +913,183 @@ contains
          if (runtime_failed()) return
 
          if (singleorigin .and. configrank .eq. 0) then
-            call common_origin_scattering_cross_section(sphere_cluster%t_matrix_order, amnp_0, csca)
+           call common_origin_scattering_cross_section(sphere_cluster%t_matrix_order, simulation_result%incident_coefficients, csca)
          end if
 
          if (configrank .eq. 0) then
-            if (rank .eq. 0) solution_time = parallel_wall_time() - time1
-            q_eff_ave = q_eff_ave + q_eff
-            q_eff_tot_ave = q_eff_tot_ave + q_eff_tot
-            q_vabs_ave = q_vabs_ave + q_vabs
+            if (rank .eq. 0) simulation_result%solution_time = parallel_wall_time() - time1
+            simulation_result%average_efficiency = simulation_result%average_efficiency + simulation_result%efficiency
+        simulation_result%average_total_efficiency = simulation_result%average_total_efficiency + simulation_result%total_efficiency
+     simulation_result%average_volume_absorption = simulation_result%average_volume_absorption + simulation_result%volume_absorption
             if (target_shape .eq. 2) then
               call cartesian_vectors_to_spherical(sphere_cluster%number_spheres, sphere_cluster%sphere_position, spherical_position)
-               sphere_position_ave = sphere_position_ave + spherical_position
+               simulation_result%average_sphere_position = simulation_result%average_sphere_position + spherical_position
             else
-               sphere_position_ave = sphere_position_ave + sphere_cluster%sphere_position
+              simulation_result%average_sphere_position = simulation_result%average_sphere_position + sphere_cluster%sphere_position
             end if
-            pl_sca_ave = pl_sca_ave + pl_sca
-            surface_absorptance_ave = surface_absorptance_ave + surface_absorptance
-            if (calculate_up_down_scattering) boundary_sca_ave = boundary_sca_ave + boundary_sca
-            boundary_ext_ave = boundary_ext_ave + boundary_ext
-            if (singleorigin .and. azimuthal_average .and. (.not. numerical_azimuthal_average)) &
-               scat_mat_exp_coef_ave = scat_mat_exp_coef_ave + scat_mat_exp_coef
-            if (calculate_scattering_matrix) then
-               scat_mat_ave = scat_mat_ave + scat_mat
+        simulation_result%average_plane_scattering = simulation_result%average_plane_scattering + simulation_result%plane_scattering
+            simulation_result%average_surface_absorptance = simulation_result%average_surface_absorptance + simulation_result%surface_absorptance
+            if (simulation_config%calculate_up_down_scattering) simulation_result%average_boundary_scattering = simulation_result%average_boundary_scattering + simulation_result%boundary_scattering
+            simulation_result%average_boundary_extinction = simulation_result%average_boundary_extinction + simulation_result%boundary_extinction
+           if (singleorigin .and. simulation_config%azimuthal_average .and. (.not. simulation_config%numerical_azimuthal_average)) &
+               simulation_result%average_scattering_matrix_expansion = simulation_result%average_scattering_matrix_expansion + simulation_result%scattering_matrix_expansion
+            if (simulation_config%calculate_scattering_matrix) then
+     simulation_result%average_scattering_matrix = simulation_result%average_scattering_matrix + simulation_result%scattering_matrix
             end if
-            if (calculate_near_field) then
-               e_field_ave = e_field_ave + e_field
-               h_field_ave = h_field_ave + h_field
-               s_field(1, :, :, :, :) = 0.5 * (e_field(2, :, :, :, :) * conjg(h_field(3, :, :, :, :)) &
-                                               - e_field(3, :, :, :, :) * conjg(h_field(2, :, :, :, :)))
-               s_field(2, :, :, :, :) = 0.5 * (-e_field(1, :, :, :, :) * conjg(h_field(3, :, :, :, :)) &
-                                               + e_field(3, :, :, :, :) * conjg(h_field(1, :, :, :, :)))
-               s_field(3, :, :, :, :) = 0.5 * (e_field(1, :, :, :, :) * conjg(h_field(2, :, :, :, :)) &
-                                               - e_field(2, :, :, :, :) * conjg(h_field(1, :, :, :, :)))
-               s_field_ave = s_field_ave + s_field
+            if (simulation_config%calculate_near_field) then
+              simulation_result%average_electric_field = simulation_result%average_electric_field + simulation_result%electric_field
+              simulation_result%average_magnetic_field = simulation_result%average_magnetic_field + simulation_result%magnetic_field
+               simulation_result%scattering_field(1, :, :, :, :) = 0.5 * (simulation_result%electric_field(2, :, :, :, :) * conjg(simulation_result%magnetic_field(3, :, :, :, :)) &
+                         - simulation_result%electric_field(3, :, :, :, :) * conjg(simulation_result%magnetic_field(2, :, :, :, :)))
+               simulation_result%scattering_field(2, :, :, :, :) = 0.5 * (-simulation_result%electric_field(1, :, :, :, :) * conjg(simulation_result%magnetic_field(3, :, :, :, :)) &
+                         + simulation_result%electric_field(3, :, :, :, :) * conjg(simulation_result%magnetic_field(1, :, :, :, :)))
+               simulation_result%scattering_field(3, :, :, :, :) = 0.5 * (simulation_result%electric_field(1, :, :, :, :) * conjg(simulation_result%magnetic_field(2, :, :, :, :)) &
+                         - simulation_result%electric_field(2, :, :, :, :) * conjg(simulation_result%magnetic_field(1, :, :, :, :)))
+        simulation_result%average_scattering_field = simulation_result%average_scattering_field + simulation_result%scattering_field
             end if
-            if (rank .eq. 0) solution_time_ave = solution_time_ave + solution_time
+if (rank .eq. 0) simulation_result%average_solution_time = simulation_result%average_solution_time + simulation_result%solution_time
          end if
 
          if (singleorigin) then
 !               if(sphere_1_fixed) call subtract_fixed_sphere_from_common_origin()
 !               if(sphere_1_fixed) then
-!                  erase_sphere_1=.true.
-!                  use_previous_configuration=.true.
+!                  simulation_config%erase_sphere_1=.true.
+!                  simulation_config%use_previous_configuration=.true.
 !                  sphere_1_fixed=.false.
 !                  call execute_simulation(print_output=.false.,set_t_matrix_order=.false.,mpi_comm=configcomm)
-!                  erase_sphere_1=.false.
-!                  use_previous_configuration=.false.
+!                  simulation_config%erase_sphere_1=.false.
+!                  simulation_config%use_previous_configuration=.false.
 !                  sphere_1_fixed=.true.
 !               endif
-            amnp_0_ave = amnp_0_ave + amnp_0
-            tot_csca_ave = tot_csca_ave + csca
+            simulation_result%average_incident_coefficients = simulation_result%average_incident_coefficients + simulation_result%incident_coefficients
+            simulation_result%average_total_cross_section = simulation_result%average_total_cross_section + csca
          end if
 
          nsend = 3 * sphere_cluster%number_spheres
          call parallel_reduce_sum( &
-            send_buffer=sphere_position_ave, &
+            send_buffer=simulation_result%average_sphere_position, &
             receive_buffer=sphere_cluster%sphere_position, &
             mpi_rank=0, &
             mpi_number=nsend, &
             mpi_comm=config0comm)
-         nsend = 3 * qeff_dim * sphere_cluster%number_spheres
+         nsend = 3 * simulation_result%efficiency_dimension * sphere_cluster%number_spheres
          call parallel_reduce_sum( &
-            send_buffer=q_eff_ave, &
-            receive_buffer=q_eff, &
+            send_buffer=simulation_result%average_efficiency, &
+            receive_buffer=simulation_result%efficiency, &
             mpi_rank=0, &
             mpi_number=nsend, &
             mpi_comm=config0comm)
-         nsend = 3 * qeff_dim
+         nsend = 3 * simulation_result%efficiency_dimension
          call parallel_reduce_sum( &
-            send_buffer=q_eff_tot_ave, &
-            receive_buffer=q_eff_tot, &
+            send_buffer=simulation_result%average_total_efficiency, &
+            receive_buffer=simulation_result%total_efficiency, &
             mpi_rank=0, &
             mpi_number=nsend, &
             mpi_comm=config0comm)
-         nsend = qeff_dim * sphere_cluster%number_spheres
+         nsend = simulation_result%efficiency_dimension * sphere_cluster%number_spheres
          call parallel_reduce_sum( &
-            send_buffer=q_vabs_ave, &
-            receive_buffer=q_vabs, &
+            send_buffer=simulation_result%average_volume_absorption, &
+            receive_buffer=simulation_result%volume_absorption, &
             mpi_rank=0, &
             mpi_number=nsend, &
             mpi_comm=config0comm)
          nsend = 4
          call parallel_reduce_sum( &
-            send_buffer=pl_sca_ave, &
-            receive_buffer=pl_sca, &
+            send_buffer=simulation_result%average_plane_scattering, &
+            receive_buffer=simulation_result%plane_scattering, &
             mpi_rank=0, &
             mpi_number=nsend, &
             mpi_comm=config0comm)
          nsend = 2
          call parallel_reduce_sum( &
-            send_buffer=surface_absorptance_ave, &
-            receive_buffer=surface_absorptance, &
+            send_buffer=simulation_result%average_surface_absorptance, &
+            receive_buffer=simulation_result%surface_absorptance, &
             mpi_rank=0, &
             mpi_number=nsend, &
             mpi_comm=config0comm)
-         if (calculate_up_down_scattering) then
+         if (simulation_config%calculate_up_down_scattering) then
             nsend = 4
             call parallel_reduce_sum( &
-               send_buffer=boundary_sca_ave, &
-               receive_buffer=boundary_sca, &
+               send_buffer=simulation_result%average_boundary_scattering, &
+               receive_buffer=simulation_result%boundary_scattering, &
                mpi_rank=0, &
                mpi_number=nsend, &
                mpi_comm=config0comm)
          end if
          call parallel_reduce_sum( &
-            send_buffer=boundary_ext_ave, &
-            receive_buffer=boundary_ext, &
+            send_buffer=simulation_result%average_boundary_extinction, &
+            receive_buffer=simulation_result%boundary_extinction, &
             mpi_rank=0, &
             mpi_number=nsend, &
             mpi_comm=config0comm)
          if (singleorigin) then
             nsend = 4 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_order + 2)
             call parallel_reduce_sum( &
-               send_buffer=amnp_0_ave, &
-               receive_buffer=amnp_0, &
+               send_buffer=simulation_result%average_incident_coefficients, &
+               receive_buffer=simulation_result%incident_coefficients, &
                mpi_rank=0, &
                mpi_number=nsend, &
                mpi_comm=config0comm)
             nsend = 1
             call parallel_reduce_sum( &
-               send_buffer=tot_csca_ave, &
+               send_buffer=simulation_result%average_total_cross_section, &
                receive_buffer=csca, &
                mpi_rank=0, &
                mpi_number=nsend, &
                mpi_comm=config0comm)
          end if
-         if (calculate_scattering_matrix) then
-            nsend = scat_mat_mdim * (scat_mat_udim - scat_mat_ldim + 1)
+         if (simulation_config%calculate_scattering_matrix) then
+            nsend = simulation_result%scattering_matrix_dimension * (simulation_result%scattering_matrix_upper_bound - simulation_result%scattering_matrix_lower_bound + 1)
             call parallel_reduce_sum( &
-               send_buffer=scat_mat_ave, &
-               receive_buffer=scat_mat, &
+               send_buffer=simulation_result%average_scattering_matrix, &
+               receive_buffer=simulation_result%scattering_matrix, &
                mpi_rank=0, &
                mpi_number=nsend, &
                mpi_comm=config0comm)
          end if
-         if (singleorigin .and. azimuthal_average .and. (.not. numerical_azimuthal_average)) then
+        if (singleorigin .and. simulation_config%azimuthal_average .and. (.not. simulation_config%numerical_azimuthal_average)) then
             nsend = 16 * 4 * (2 * sphere_cluster%t_matrix_order + 1)
             call parallel_reduce_sum( &
-               send_buffer=scat_mat_exp_coef_ave, &
-               receive_buffer=scat_mat_exp_coef, &
+               send_buffer=simulation_result%average_scattering_matrix_expansion, &
+               receive_buffer=simulation_result%scattering_matrix_expansion, &
                mpi_rank=0, &
                mpi_number=nsend, &
                mpi_comm=config0comm)
          end if
-         if (calculate_near_field) then
+         if (simulation_config%calculate_near_field) then
             nsend = 6 * product(griddim)
             call parallel_reduce_sum( &
-               send_buffer=e_field_ave, &
-               receive_buffer=e_field, &
+               send_buffer=simulation_result%average_electric_field, &
+               receive_buffer=simulation_result%electric_field, &
                mpi_rank=0, &
                mpi_number=nsend, &
                mpi_comm=config0comm)
             call parallel_reduce_sum( &
-               send_buffer=h_field_ave, &
-               receive_buffer=h_field, &
+               send_buffer=simulation_result%average_magnetic_field, &
+               receive_buffer=simulation_result%magnetic_field, &
                mpi_rank=0, &
                mpi_number=nsend, &
                mpi_comm=config0comm)
             call parallel_reduce_sum( &
-               send_buffer=s_field_ave, &
-               receive_buffer=s_field, &
+               send_buffer=simulation_result%average_scattering_field, &
+               receive_buffer=simulation_result%scattering_field, &
                mpi_rank=0, &
                mpi_number=nsend, &
                mpi_comm=config0comm)
          end if
 
-         nconfigave = nconfigave + n_configuration_groups
+         nconfigave = nconfigave + simulation_config%number_configuration_groups
          diffac = (dble(sphere_cluster%number_spheres) - 1.d0) / dble(sphere_cluster%number_spheres)
          diffac = 1.d0
 !            diffac=(dble(sphere_cluster%number_spheres))/dble(sphere_cluster%number_spheres-1)
 !            diffac=(1.d0-(1.d0/dble(sphere_cluster%number_spheres))**.5d0)
 
          if (singleorigin) then
-            if (rank .eq. 0 .and. print_timings) then
+            if (rank .eq. 0 .and. simulation_config%output%print_timings) then
                timet = parallel_wall_time()
                write (sphere_cluster%run_print_unit, '('' calculating diffuse field:'')', advance='no')
             end if
-            amnp_0 = amnp_0 / dble(nconfigave)
+            simulation_result%incident_coefficients = simulation_result%incident_coefficients / dble(nconfigave)
 !
 !  zero out azimuth order .ne. pm 1 for sphere targets 2/23
 !
@@ -1096,39 +1098,39 @@ contains
 !                     do m=-n,n
 !                        do p=1,2
 !                           if(abs(m).ne.1) then
-!                              amnp_0(polarized_mode_index(m,n,p,sphere_cluster%t_matrix_order,2),:)=0.d0
+!                              simulation_result%incident_coefficients(polarized_mode_index(m,n,p,sphere_cluster%t_matrix_order,2),:)=0.d0
 !                           endif
 !                        enddo
 !                     enddo
 !                  enddo
 !               endif
             csca = csca / dble(nconfigave)
-            tot_csca = csca(1)
-            call common_origin_scattering_cross_section(sphere_cluster%t_matrix_order, amnp_0, dif_csca_ratio)
-            dif_csca = tot_csca - dif_csca_ratio(1)
-            dif_csca_ratio = 1.d0 - dif_csca_ratio / csca
-            if (azimuthal_average .and. (.not. numerical_azimuthal_average)) then
+            simulation_result%total_cross_section = csca(1)
+            call common_origin_scattering_cross_section(sphere_cluster%t_matrix_order, simulation_result%incident_coefficients, simulation_result%diffuse_cross_section_ratio)
+  simulation_result%diffuse_cross_section = simulation_result%total_cross_section - simulation_result%diffuse_cross_section_ratio(1)
+            simulation_result%diffuse_cross_section_ratio = 1.d0 - simulation_result%diffuse_cross_section_ratio / csca
+            if (simulation_config%azimuthal_average .and. (.not. simulation_config%numerical_azimuthal_average)) then
                allocate (texpcoef(16, 0:2 * sphere_cluster%t_matrix_order, 4))
-               texpcoef = scat_mat_exp_coef / dble(nconfigave)
-!                  scat_mat_exp_coef=scat_mat_exp_coef/dble(nconfigave)
+               texpcoef = simulation_result%scattering_matrix_expansion / dble(nconfigave)
+!                  simulation_result%scattering_matrix_expansion=simulation_result%scattering_matrix_expansion/dble(nconfigave)
                call fixed_orientation_scattering_matrix_expansion( &
-                  sphere_cluster%t_matrix_order, amnp_0, coh_scat_mat_exp_coef(:, :, 1), coh_scat_mat_exp_coef(:, :, 2), &
-                  coh_scat_mat_exp_coef(:, :, 3), coh_scat_mat_exp_coef(:, :, 4), mpi_comm=configcomm)
-               scat_mat_exp_coef = coh_scat_mat_exp_coef
+                  sphere_cluster%t_matrix_order, simulation_result%incident_coefficients, simulation_result%coherent_scattering_expansion(:, :, 1), simulation_result%coherent_scattering_expansion(:, :, 2), &
+                  simulation_result%coherent_scattering_expansion(:, :, 3), simulation_result%coherent_scattering_expansion(:, :, 4), mpi_comm=configcomm)
+               simulation_result%scattering_matrix_expansion = simulation_result%coherent_scattering_expansion
             end if
-            if (calculate_scattering_matrix) then
-               call compute_scattering_matrix(amnp_0, dif_scat_mat, mpi_comm=configcomm)
+            if (simulation_config%calculate_scattering_matrix) then
+               call compute_scattering_matrix(simulation_result%incident_coefficients, simulation_result%diffuse_scattering_matrix, mpi_comm=configcomm)
             end if
-            if (azimuthal_average .and. (.not. numerical_azimuthal_average)) then
-!                  scat_mat_exp_coef=texpcoef-scat_mat_exp_coef*diffac
-               scat_mat_exp_coef = texpcoef
+            if (simulation_config%azimuthal_average .and. (.not. simulation_config%numerical_azimuthal_average)) then
+!                  simulation_result%scattering_matrix_expansion=texpcoef-simulation_result%scattering_matrix_expansion*diffac
+               simulation_result%scattering_matrix_expansion = texpcoef
                deallocate (texpcoef)
             end if
-            call hemispherical_scattering(amnp_0, .true., numerical_hemispherical_integration, &
-                                          dif_boundary_sca, mpi_comm=configcomm)
-!               call common_origin_hemispherical_scattering(amnp_0,dif_boundary_sca)
-      if (rank .eq. 0 .and. print_timings) write (sphere_cluster%run_print_unit, '('' completed, '',es12.4,'' sec'')') parallel_wall_time() - timet
-            if (rank .eq. 0 .and. target_shape .eq. 2 .and. (.not. random_configuration_host)) then
+            call hemispherical_scattering(simulation_result%incident_coefficients, .true., simulation_config%numerical_hemispherical_integration, &
+                                          simulation_result%diffuse_boundary_scattering, mpi_comm=configcomm)
+!               call common_origin_hemispherical_scattering(simulation_result%incident_coefficients,simulation_result%diffuse_boundary_scattering)
+      if (rank .eq. 0 .and. simulation_config%output%print_timings) write (sphere_cluster%run_print_unit, '('' completed, '',es12.4,'' sec'')') parallel_wall_time() - timet
+            if (rank .eq. 0 .and. target_shape .eq. 2 .and. (.not. simulation_config%random_configuration_host)) then
 allocate (pmnp0(2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_order + 2), 2), anp0(2, sphere_cluster%t_matrix_order))
                call generate_plane_wave_coefficients(0.d0, (1.d0, 0.d0), sphere_cluster%t_matrix_order, pmnp0, lr_tran=.false.)
                call open_output_file('anpeff.dat', file_unit)
@@ -1139,7 +1141,7 @@ allocate (pmnp0(2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_ord
                      aneff = 0.d0
                      do m = -1, 1, 2
                         mnp = polarized_mode_index(m, n, p, sphere_cluster%t_matrix_order, 2)
-                        aneff = aneff + 0.5d0 * sum(amnp_0(mnp, :) / pmnp0(mnp, :))
+                        aneff = aneff + 0.5d0 * sum(simulation_result%incident_coefficients(mnp, :) / pmnp0(mnp, :))
                      end do
                      aneff = aneff / 2.d0
                      write (file_unit, '(2i4,2es13.5)') n, p, aneff
@@ -1149,41 +1151,41 @@ allocate (pmnp0(2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_ord
                close (file_unit)
                deallocate (pmnp0)
 !                  sphere_cluster%effective_ref_index=(1.1d0,0.01d0)
-!                  fit_radius=target_dimensions(1)*length_scale_factor
-               call fit_effective_refractive_index(anp0, sphere_cluster%effective_ref_index, fit_radius, fit_stat)
+!                  simulation_result%fit_radius=target_dimensions(1)*simulation_config%length_scale_factor
+               call fit_effective_refractive_index(anp0, sphere_cluster%effective_ref_index, simulation_result%fit_radius, simulation_result%fit_status)
                deallocate (anp0)
             end if
          end if
-         if (allocated(amnp_0)) deallocate (amnp_0)
+         if (allocated(simulation_result%incident_coefficients)) deallocate (simulation_result%incident_coefficients)
 
          if (rank .eq. 0) then
             sphere_cluster%sphere_position = sphere_cluster%sphere_position / dble(nconfigave)
-            q_eff = q_eff / dble(nconfigave)
-            q_vabs = q_vabs / dble(nconfigave)
-            q_eff_tot = q_eff_tot / dble(nconfigave)
-            pl_sca = pl_sca / dble(nconfigave)
-            surface_absorptance = surface_absorptance / dble(nconfigave)
-            if (calculate_up_down_scattering) boundary_sca = boundary_sca / dble(nconfigave)
-            boundary_ext = boundary_ext / dble(nconfigave)
-!               if(singleorigin) dif_boundary_sca=boundary_sca-dif_boundary_sca
-            if (singleorigin) dif_boundary_sca = boundary_sca &
-                                                 - dif_boundary_sca * diffac
-            if (calculate_scattering_matrix) then
-               scat_mat = scat_mat / dble(nconfigave)
+            simulation_result%efficiency = simulation_result%efficiency / dble(nconfigave)
+            simulation_result%volume_absorption = simulation_result%volume_absorption / dble(nconfigave)
+            simulation_result%total_efficiency = simulation_result%total_efficiency / dble(nconfigave)
+            simulation_result%plane_scattering = simulation_result%plane_scattering / dble(nconfigave)
+            simulation_result%surface_absorptance = simulation_result%surface_absorptance / dble(nconfigave)
+            if (simulation_config%calculate_up_down_scattering) simulation_result%boundary_scattering = simulation_result%boundary_scattering / dble(nconfigave)
+            simulation_result%boundary_extinction = simulation_result%boundary_extinction / dble(nconfigave)
+!               if(singleorigin) simulation_result%diffuse_boundary_scattering=simulation_result%boundary_scattering-simulation_result%diffuse_boundary_scattering
+            if (singleorigin) simulation_result%diffuse_boundary_scattering = simulation_result%boundary_scattering &
+                                                                            - simulation_result%diffuse_boundary_scattering * diffac
+            if (simulation_config%calculate_scattering_matrix) then
+               simulation_result%scattering_matrix = simulation_result%scattering_matrix / dble(nconfigave)
 ! experiment
 
-!                  if(singleorigin) dif_scat_mat=scat_mat-dif_scat_mat*(dble(sphere_cluster%number_spheres-1)/dble(sphere_cluster%number_spheres))
-!                  if(singleorigin) dif_scat_mat=scat_mat-dif_scat_mat*diffac
+!                  if(singleorigin) simulation_result%diffuse_scattering_matrix=simulation_result%scattering_matrix-simulation_result%diffuse_scattering_matrix*(dble(sphere_cluster%number_spheres-1)/dble(sphere_cluster%number_spheres))
+!                  if(singleorigin) simulation_result%diffuse_scattering_matrix=simulation_result%scattering_matrix-simulation_result%diffuse_scattering_matrix*diffac
 
-!                  dif_scat_mat=scat_mat-dif_scat_mat
+!                  simulation_result%diffuse_scattering_matrix=simulation_result%scattering_matrix-simulation_result%diffuse_scattering_matrix
             end if
-            solution_time = solution_time_ave / dble(random_configuration_number)
-            call print_calculation_results(output_file)
-            if (calculate_near_field) then
-               e_field = e_field / dble(nconfigave)
-               h_field = h_field / dble(nconfigave)
-               s_field = s_field / dble(nconfigave)
-               call open_output_file(near_field_output_file, file_unit)
+     simulation_result%solution_time = simulation_result%average_solution_time / dble(simulation_result%random_configuration_number)
+            call print_calculation_results(simulation_config%output%output_file)
+            if (simulation_config%calculate_near_field) then
+               simulation_result%electric_field = simulation_result%electric_field / dble(nconfigave)
+               simulation_result%magnetic_field = simulation_result%magnetic_field / dble(nconfigave)
+               simulation_result%scattering_field = simulation_result%scattering_field / dble(nconfigave)
+               call open_output_file(simulation_config%output%near_field_file, file_unit)
                if (runtime_failed()) return
                call write_near_field_output_header(griddim, file_unit, print_intersecting_spheres=.false.)
                allocate (edat(griddim(3)))
@@ -1191,19 +1193,19 @@ allocate (pmnp0(2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_ord
                do iz = 1, griddim(3)
                   do iy = 1, griddim(2)
                      do ix = 1, griddim(1)
-                        edat(iz) = edat(iz) + e_field(1, 1, ix, iy, iz) + e_field(2, 2, ix, iy, iz)
+       edat(iz) = edat(iz) + simulation_result%electric_field(1, 1, ix, iy, iz) + simulation_result%electric_field(2, 2, ix, iy, iz)
                         ipos(:) = (/ix, iy, iz/)
                         rpos(:) = (dble(ipos(:)) - (/0.5d0, 0.5d0, 0.5d0/)) * grid_spacing(:) + grid_region(:, 1)
                         write (file_unit, '(33es12.4)') rpos(:), &
-                           e_field(:, 1, ix, iy, iz), h_field(:, 1, ix, iy, iz), &
-                           e_field(:, 2, ix, iy, iz), h_field(:, 2, ix, iy, iz), &
-                           s_field(:, 1, ix, iy, iz), s_field(:, 2, ix, iy, iz)
+                           simulation_result%electric_field(:, 1, ix, iy, iz), simulation_result%magnetic_field(:, 1, ix, iy, iz), &
+                           simulation_result%electric_field(:, 2, ix, iy, iz), simulation_result%magnetic_field(:, 2, ix, iy, iz), &
+                          simulation_result%scattering_field(:, 1, ix, iy, iz), simulation_result%scattering_field(:, 2, ix, iy, iz)
                      end do
                   end do
                end do
                edat = edat / dble(griddim(1) * griddim(2) * 2.d0)
                call effective_refractive_index(griddim(3), edat, grid_spacing(3), rieff, e0)
-               nf_eff_ref_index = rieff
+               simulation_result%near_field_effective_ref_index = rieff
                close (file_unit)
 !                  write(*,'('' field fit ri:'',2es12.5)') rieff
                deallocate (edat)
@@ -1221,28 +1223,28 @@ allocate (pmnp0(2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_ord
 
    subroutine run_random_orientation_configuration_average()
       implicit none
-      integer :: file_unit, rank, numprocs, itemp(1), n, &
+      integer :: file_unit, rank, numprocs, itemp(1), n, configuration_number, &
                  numprocsperconfig, configcolor, configgroup, configcomm, configrank, config0comm, nconfigave, nsend
       real(real64) :: time1, timet
       real(real64), allocatable :: tpos(:, :)
       complex(real64) :: ctemp(1)
       character(len=256) :: tmatchar1, tmatchar2
       data tmatchar1, tmatchar2/'tmat-', '.tmp'/
-      first_run = .false.
+      simulation_config%first_run = .false.
       call parallel_rank(mpi_rank=rank)
       call parallel_size(mpi_size=numprocs)
 !         if(rank.ne.0) light_up=.false.
-      local_rank = rank
+      simulation_result%local_rank = rank
       global_rank = rank
 
-      if (max_iterations .le. 0) then
+      if (simulation_config%solver%max_iterations .le. 0) then
          numprocsperconfig = 2
       else
          numprocsperconfig = 4
       end if
-      n_configuration_groups = numprocs / numprocsperconfig
-      n_configuration_groups = max(n_configuration_groups, 1)
-      configcolor = floor(dble(n_configuration_groups * rank) / dble(numprocs))
+      simulation_config%number_configuration_groups = numprocs / numprocsperconfig
+      simulation_config%number_configuration_groups = max(simulation_config%number_configuration_groups, 1)
+      configcolor = floor(dble(simulation_config%number_configuration_groups * rank) / dble(numprocs))
       configgroup = configcolor
       call parallel_split( &
          mpi_color=configcolor, mpi_key=rank, &
@@ -1254,47 +1256,49 @@ allocate (pmnp0(2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_ord
       call parallel_split( &
          mpi_color=configcolor, mpi_key=rank, &
          mpi_new_comm=config0comm)
-      random_configuration = .true.
+      simulation_config%random_configuration = .true.
 !singleorigin=.true.
 
       call execute_simulation(print_output=.false., set_t_matrix_order=.true., dry_run=.true.)
       if (runtime_failed()) return
-      call compose_group_filename(tmatchar1, configgroup, tmatchar2, t_matrix_output_file)
+      call compose_group_filename(tmatchar1, configgroup, tmatchar2, simulation_config%output%t_matrix_file)
 
-      if (allocated(q_eff_ave)) deallocate (q_eff_ave, q_eff_tot_ave, q_vabs_ave, sphere_position_ave)
-      if (allocated(mean_t_ave)) deallocate (mean_t_ave)
-      if (allocated(scat_mat_exp_coef_ave)) deallocate (scat_mat_exp_coef_ave)
-      if (allocated(coh_scat_mat_exp_coef_ave)) deallocate (coh_scat_mat_exp_coef_ave)
-      allocate (q_eff_ave(3, qeff_dim, sphere_cluster%number_spheres), q_eff_tot_ave(3, qeff_dim), q_vabs_ave(qeff_dim, sphere_cluster%number_spheres), &
-                sphere_position_ave(3, sphere_cluster%number_spheres), mean_t_ave(2, sphere_cluster%t_matrix_order), &
-                scat_mat_exp_coef_ave(4, 4, 0:2 * sphere_cluster%t_matrix_order), coh_scat_mat_exp_coef_ave(4, 4, 0:2 * sphere_cluster%t_matrix_order))
-      q_eff_ave = 0.d0
-      q_eff_tot_ave = 0.d0
-      q_vabs_ave = 0.d0
-      sphere_position_ave = 0.d0
-      mean_t_ave = 0.d0
-      scat_mat_exp_coef_ave = 0.d0
-      coh_scat_mat_exp_coef_ave = 0.d0
-      if (calculate_scattering_matrix) then
-         if (allocated(scat_mat_ave)) deallocate (scat_mat_ave)
-         allocate (scat_mat_ave(scat_mat_mdim, scat_mat_ldim:scat_mat_udim))
-         scat_mat_ave = 0.d0
+      if (allocated(simulation_result%average_efficiency)) deallocate (simulation_result%average_efficiency, simulation_result%average_total_efficiency, simulation_result%average_volume_absorption, simulation_result%average_sphere_position)
+      if (allocated(simulation_result%average_mean_t_matrix)) deallocate (simulation_result%average_mean_t_matrix)
+      if (allocated(simulation_result%average_scattering_matrix_expansion)) deallocate (simulation_result%average_scattering_matrix_expansion)
+      if (allocated(simulation_result%average_coherent_scattering_expansion)) deallocate (simulation_result%average_coherent_scattering_expansion)
+      allocate (simulation_result%average_efficiency(3, simulation_result%efficiency_dimension, sphere_cluster%number_spheres), simulation_result%average_total_efficiency(3, simulation_result%efficiency_dimension), simulation_result%average_volume_absorption(simulation_result%efficiency_dimension, sphere_cluster%number_spheres), &
+                simulation_result%average_sphere_position(3, sphere_cluster%number_spheres), simulation_result%average_mean_t_matrix(2, sphere_cluster%t_matrix_order), &
+                simulation_result%average_scattering_matrix_expansion(4, 4, 0:2 * sphere_cluster%t_matrix_order), simulation_result%average_coherent_scattering_expansion(4, 4, 0:2 * sphere_cluster%t_matrix_order))
+      simulation_result%average_efficiency = 0.d0
+      simulation_result%average_total_efficiency = 0.d0
+      simulation_result%average_volume_absorption = 0.d0
+      simulation_result%average_sphere_position = 0.d0
+      simulation_result%average_mean_t_matrix = 0.d0
+      simulation_result%average_scattering_matrix_expansion = 0.d0
+      simulation_result%average_coherent_scattering_expansion = 0.d0
+      if (simulation_config%calculate_scattering_matrix) then
+         if (allocated(simulation_result%average_scattering_matrix)) deallocate (simulation_result%average_scattering_matrix)
+         allocate (simulation_result%average_scattering_matrix(simulation_result%scattering_matrix_dimension, simulation_result%scattering_matrix_lower_bound:simulation_result%scattering_matrix_upper_bound))
+         simulation_result%average_scattering_matrix = 0.d0
       end if
 
       nconfigave = 0
-      do random_configuration_number = 1, ceiling(dble(number_configurations) / dble(n_configuration_groups))
+      do configuration_number = 1, ceiling(dble(simulation_config%number_configurations) / &
+                                           dble(simulation_config%number_configuration_groups))
+         simulation_result%random_configuration_number = configuration_number
 
          if (rank .eq. 0) then
-            if (random_configuration_number .eq. 1) then
+            if (simulation_result%random_configuration_number .eq. 1) then
                call print_run_variables(sphere_cluster%run_print_unit)
-               call open_output_file(output_file, file_unit, append=.true.)
+               call open_output_file(simulation_config%output%output_file, file_unit, append=.true.)
                if (runtime_failed()) return
                call print_run_variables(file_unit)
                close (file_unit)
             end if
             write (sphere_cluster%run_print_unit, '('' configuration averaging, samples:'',i5,''-'',i5)') &
-               (random_configuration_number - 1) * n_configuration_groups + 1, &
-               random_configuration_number * n_configuration_groups
+               (simulation_result%random_configuration_number - 1) * simulation_config%number_configuration_groups + 1, &
+               simulation_result%random_configuration_number * simulation_config%number_configuration_groups
          end if
 
          if (rank .eq. 0) time1 = parallel_wall_time()
@@ -1303,100 +1307,100 @@ allocate (pmnp0(2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_ord
          if (runtime_failed()) return
 
          if (configrank .eq. 0) then
-            if (rank .eq. 0) solution_time = parallel_wall_time() - time1
+            if (rank .eq. 0) simulation_result%solution_time = parallel_wall_time() - time1
             allocate (tpos(3, sphere_cluster%number_spheres))
             call cartesian_vectors_to_spherical(sphere_cluster%number_spheres, sphere_cluster%sphere_position(:, 1:sphere_cluster%number_spheres), &
                                                 tpos(:, 1:sphere_cluster%number_spheres))
-            q_eff_ave = q_eff_ave + q_eff
-            q_eff_tot_ave = q_eff_tot_ave + q_eff_tot
-            q_vabs_ave = q_vabs_ave + q_vabs
-            sphere_position_ave = sphere_position_ave + tpos
-            mean_t_ave(:, 1:sphere_cluster%t_matrix_order) = mean_t_ave(:, 1:sphere_cluster%t_matrix_order) + mean_t(:, 1:sphere_cluster%t_matrix_order)
-            if (calculate_scattering_matrix) then
-               scat_mat_ave = scat_mat_ave + scat_mat
-               scat_mat_exp_coef_ave = scat_mat_exp_coef_ave + scat_mat_exp_coef
-               coh_scat_mat_exp_coef_ave = coh_scat_mat_exp_coef_ave + coh_scat_mat_exp_coef
+            simulation_result%average_efficiency = simulation_result%average_efficiency + simulation_result%efficiency
+        simulation_result%average_total_efficiency = simulation_result%average_total_efficiency + simulation_result%total_efficiency
+     simulation_result%average_volume_absorption = simulation_result%average_volume_absorption + simulation_result%volume_absorption
+            simulation_result%average_sphere_position = simulation_result%average_sphere_position + tpos
+            simulation_result%average_mean_t_matrix(:, 1:sphere_cluster%t_matrix_order) = simulation_result%average_mean_t_matrix(:, 1:sphere_cluster%t_matrix_order) + simulation_result%mean_t_matrix(:, 1:sphere_cluster%t_matrix_order)
+            if (simulation_config%calculate_scattering_matrix) then
+     simulation_result%average_scattering_matrix = simulation_result%average_scattering_matrix + simulation_result%scattering_matrix
+               simulation_result%average_scattering_matrix_expansion = simulation_result%average_scattering_matrix_expansion + simulation_result%scattering_matrix_expansion
+               simulation_result%average_coherent_scattering_expansion = simulation_result%average_coherent_scattering_expansion + simulation_result%coherent_scattering_expansion
             end if
-            if (rank .eq. 0) solution_time_ave = solution_time_ave + solution_time
+if (rank .eq. 0) simulation_result%average_solution_time = simulation_result%average_solution_time + simulation_result%solution_time
             deallocate (tpos)
          end if
 
          nsend = 3 * sphere_cluster%number_spheres
          call parallel_reduce_sum( &
-            send_buffer=sphere_position_ave, &
+            send_buffer=simulation_result%average_sphere_position, &
             receive_buffer=sphere_cluster%sphere_position, &
             mpi_rank=0, &
             mpi_number=nsend, &
             mpi_comm=config0comm)
-         nsend = 3 * qeff_dim * sphere_cluster%number_spheres
+         nsend = 3 * simulation_result%efficiency_dimension * sphere_cluster%number_spheres
          call parallel_reduce_sum( &
-            send_buffer=q_eff_ave, &
-            receive_buffer=q_eff, &
+            send_buffer=simulation_result%average_efficiency, &
+            receive_buffer=simulation_result%efficiency, &
             mpi_rank=0, &
             mpi_number=nsend, &
             mpi_comm=config0comm)
-         nsend = 3 * qeff_dim
+         nsend = 3 * simulation_result%efficiency_dimension
          call parallel_reduce_sum( &
-            send_buffer=q_eff_tot_ave, &
-            receive_buffer=q_eff_tot, &
+            send_buffer=simulation_result%average_total_efficiency, &
+            receive_buffer=simulation_result%total_efficiency, &
             mpi_rank=0, &
             mpi_number=nsend, &
             mpi_comm=config0comm)
-         nsend = qeff_dim * sphere_cluster%number_spheres
+         nsend = simulation_result%efficiency_dimension * sphere_cluster%number_spheres
          call parallel_reduce_sum( &
-            send_buffer=q_vabs_ave, &
-            receive_buffer=q_vabs, &
+            send_buffer=simulation_result%average_volume_absorption, &
+            receive_buffer=simulation_result%volume_absorption, &
             mpi_rank=0, &
             mpi_number=nsend, &
             mpi_comm=config0comm)
          nsend = 2 * sphere_cluster%t_matrix_order
          call parallel_reduce_sum( &
-            send_buffer=mean_t_ave, &
-            receive_buffer=mean_t, &
+            send_buffer=simulation_result%average_mean_t_matrix, &
+            receive_buffer=simulation_result%mean_t_matrix, &
             mpi_rank=0, &
             mpi_number=nsend, &
             mpi_comm=config0comm)
-         if (calculate_scattering_matrix) then
-            nsend = scat_mat_mdim * (scat_mat_udim - scat_mat_ldim + 1)
+         if (simulation_config%calculate_scattering_matrix) then
+            nsend = simulation_result%scattering_matrix_dimension * (simulation_result%scattering_matrix_upper_bound - simulation_result%scattering_matrix_lower_bound + 1)
             call parallel_reduce_sum( &
-               send_buffer=scat_mat_ave, &
-               receive_buffer=scat_mat, &
+               send_buffer=simulation_result%average_scattering_matrix, &
+               receive_buffer=simulation_result%scattering_matrix, &
                mpi_rank=0, &
                mpi_number=nsend, &
                mpi_comm=config0comm)
             nsend = 16 * (2 * sphere_cluster%t_matrix_order + 1)
             call parallel_reduce_sum( &
-               send_buffer=scat_mat_exp_coef_ave, &
-               receive_buffer=scat_mat_exp_coef, &
+               send_buffer=simulation_result%average_scattering_matrix_expansion, &
+               receive_buffer=simulation_result%scattering_matrix_expansion, &
                mpi_rank=0, &
                mpi_number=nsend, &
                mpi_comm=config0comm)
             call parallel_reduce_sum( &
-               send_buffer=coh_scat_mat_exp_coef_ave, &
-               receive_buffer=coh_scat_mat_exp_coef, &
+               send_buffer=simulation_result%average_coherent_scattering_expansion, &
+               receive_buffer=simulation_result%coherent_scattering_expansion, &
                mpi_rank=0, &
                mpi_number=nsend, &
                mpi_comm=config0comm)
          end if
 
-         nconfigave = nconfigave + n_configuration_groups
+         nconfigave = nconfigave + simulation_config%number_configuration_groups
 
          if (rank .eq. 0) then
             sphere_cluster%sphere_position = sphere_cluster%sphere_position / dble(nconfigave)
-            q_eff = q_eff / dble(nconfigave)
-            q_vabs = q_vabs / dble(nconfigave)
-            q_eff_tot = q_eff_tot / dble(nconfigave)
-            mean_t(:, 1:sphere_cluster%t_matrix_order) = mean_t(:, 1:sphere_cluster%t_matrix_order) / dble(nconfigave)
-            if (calculate_scattering_matrix) then
-               scat_mat = scat_mat / dble(nconfigave)
-               scat_mat_exp_coef = scat_mat_exp_coef / dble(nconfigave)
-               coh_scat_mat_exp_coef = coh_scat_mat_exp_coef / dble(nconfigave)
+            simulation_result%efficiency = simulation_result%efficiency / dble(nconfigave)
+            simulation_result%volume_absorption = simulation_result%volume_absorption / dble(nconfigave)
+            simulation_result%total_efficiency = simulation_result%total_efficiency / dble(nconfigave)
+            simulation_result%mean_t_matrix(:, 1:sphere_cluster%t_matrix_order) = simulation_result%mean_t_matrix(:, 1:sphere_cluster%t_matrix_order) / dble(nconfigave)
+            if (simulation_config%calculate_scattering_matrix) then
+               simulation_result%scattering_matrix = simulation_result%scattering_matrix / dble(nconfigave)
+               simulation_result%scattering_matrix_expansion = simulation_result%scattering_matrix_expansion / dble(nconfigave)
+               simulation_result%coherent_scattering_expansion = simulation_result%coherent_scattering_expansion / dble(nconfigave)
             end if
-            solution_time = solution_time_ave / dble(random_configuration_number)
-            call fit_effective_refractive_index(mean_t, sphere_cluster%effective_ref_index, fit_radius, fit_stat)
-            call print_calculation_results(output_file)
+     simulation_result%solution_time = simulation_result%average_solution_time / dble(simulation_result%random_configuration_number)
+            call fit_effective_refractive_index(simulation_result%mean_t_matrix, sphere_cluster%effective_ref_index, simulation_result%fit_radius, simulation_result%fit_status)
+            call print_calculation_results(simulation_config%output%output_file)
          end if
-!            if(random_configuration_host) then
+!            if(simulation_config%random_configuration_host) then
 !               ctemp=sphere_cluster%effective_ref_index
 !               if(rank.eq.0) write(*,'('' new ri:'',2es12.4)') sphere_cluster%effective_ref_index
 !               call parallel_broadcast(mpi_rank=0,mpi_number=1, &
@@ -1412,37 +1416,37 @@ allocate (pmnp0(2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_ord
    subroutine run_incidence_average()
       implicit none
       logical :: singleorigin, prancon, aa, soe, iframe, cuds
-      integer :: file_unit, rank, numprocs, &
+      integer :: file_unit, rank, numprocs, direction_number, &
                  numprocsperconfig, configcolor, configgroup, configcomm, configrank, config0comm, nconfigave, nsend
       real(real64) :: time1, timet
       real(real64), allocatable :: texpcoef(:, :, :)
       character(len=256) :: sdatfile
-      first_run = .false.
+      simulation_config%first_run = .false.
       call parallel_rank(mpi_rank=rank)
       call parallel_size(mpi_size=numprocs)
 !         if(rank.ne.0) light_up=.false.
-      local_rank = rank
+      simulation_result%local_rank = rank
       global_rank = rank
-      sdatfile = sphere_data_input_file
-      prancon = print_random_configuration
-      print_random_configuration = .true.
-      aa = azimuthal_average
-      soe = single_origin_expansion
-      iframe = incident_frame
-      cuds = calculate_up_down_scattering
-      azimuthal_average = .true.
-      single_origin_expansion = .true.
-      incident_frame = .true.
-      calculate_up_down_scattering = .false.
+      sdatfile = simulation_config%output%sphere_data_file
+      prancon = simulation_config%output%print_random_configuration
+      simulation_config%output%print_random_configuration = .true.
+      aa = simulation_config%azimuthal_average
+      soe = simulation_config%single_origin_expansion
+      iframe = simulation_config%incident_frame
+      cuds = simulation_config%calculate_up_down_scattering
+      simulation_config%azimuthal_average = .true.
+      simulation_config%single_origin_expansion = .true.
+      simulation_config%incident_frame = .true.
+      simulation_config%calculate_up_down_scattering = .false.
 
-      if (max_iterations .lt. 0) then
+      if (simulation_config%solver%max_iterations .lt. 0) then
          numprocsperconfig = 2
       else
          numprocsperconfig = 4
       end if
-      n_configuration_groups = numprocs / numprocsperconfig
-      n_configuration_groups = max(n_configuration_groups, 1)
-      configcolor = floor(dble(n_configuration_groups * rank) / dble(numprocs))
+      simulation_config%number_configuration_groups = numprocs / numprocsperconfig
+      simulation_config%number_configuration_groups = max(simulation_config%number_configuration_groups, 1)
+      configcolor = floor(dble(simulation_config%number_configuration_groups * rank) / dble(numprocs))
       configgroup = configcolor
       call parallel_split( &
          mpi_color=configcolor, mpi_key=rank, &
@@ -1454,55 +1458,57 @@ allocate (pmnp0(2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_ord
       call parallel_split( &
          mpi_color=configcolor, mpi_key=rank, &
          mpi_new_comm=config0comm)
-      singleorigin = number_plane_boundaries .eq. 0 .and. single_origin_expansion
-      incident_beta_specified = .true.
+      singleorigin = number_plane_boundaries .eq. 0 .and. simulation_config%single_origin_expansion
+      simulation_config%incident_beta_specified = .true.
 
       call execute_simulation(print_output=.false., set_t_matrix_order=.true., dry_run=.true.)
       if (runtime_failed()) return
 
-      if (trim(sphere_data_input_file) .eq. 'random_configuration') then
-         sphere_data_input_file = 'random_configuration.pos'
+      if (trim(simulation_config%output%sphere_data_file) .eq. 'random_configuration') then
+         simulation_config%output%sphere_data_file = 'random_configuration.pos'
       end if
 
-      if (allocated(q_eff_ave)) deallocate (q_eff_ave, q_eff_tot_ave, q_vabs_ave, boundary_sca_ave, &
-                                            boundary_ext_ave, dif_boundary_sca)
-      allocate (q_eff_ave(3, qeff_dim, sphere_cluster%number_spheres), q_eff_tot_ave(3, qeff_dim), q_vabs_ave(qeff_dim, sphere_cluster%number_spheres), &
-                boundary_sca_ave(2, 0:1), boundary_ext_ave(2, 0:1), dif_boundary_sca(2, 0:1))
-      q_eff_ave = 0.d0
-      q_eff_tot_ave = 0.d0
-      q_vabs_ave = 0.d0
-      pl_sca_ave = 0.d0
-      boundary_sca_ave = 0.d0
-      boundary_ext_ave = 0.d0
-      solution_time_ave = 0.d0
+      if (allocated(simulation_result%average_efficiency)) deallocate (simulation_result%average_efficiency, simulation_result%average_total_efficiency, simulation_result%average_volume_absorption, simulation_result%average_boundary_scattering, &
+                                       simulation_result%average_boundary_extinction, simulation_result%diffuse_boundary_scattering)
+      allocate (simulation_result%average_efficiency(3, simulation_result%efficiency_dimension, sphere_cluster%number_spheres), simulation_result%average_total_efficiency(3, simulation_result%efficiency_dimension), simulation_result%average_volume_absorption(simulation_result%efficiency_dimension, sphere_cluster%number_spheres), &
+                simulation_result%average_boundary_scattering(2, 0:1), simulation_result%average_boundary_extinction(2, 0:1), simulation_result%diffuse_boundary_scattering(2, 0:1))
+      simulation_result%average_efficiency = 0.d0
+      simulation_result%average_total_efficiency = 0.d0
+      simulation_result%average_volume_absorption = 0.d0
+      simulation_result%average_plane_scattering = 0.d0
+      simulation_result%average_boundary_scattering = 0.d0
+      simulation_result%average_boundary_extinction = 0.d0
+      simulation_result%average_solution_time = 0.d0
       if (singleorigin) then
-         if (allocated(amnp_0_ave)) deallocate (amnp_0_ave, scat_mat_exp_coef_ave)
-         allocate (amnp_0_ave(2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_order + 2), 2), &
-                   scat_mat_exp_coef_ave(16, 0:2 * sphere_cluster%t_matrix_order, 4))
-         amnp_0_ave = 0.d0
-         scat_mat_exp_coef_ave = 0.d0
+         if (allocated(simulation_result%average_incident_coefficients)) deallocate (simulation_result%average_incident_coefficients, simulation_result%average_scattering_matrix_expansion)
+         allocate (simulation_result%average_incident_coefficients(2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_order + 2), 2), &
+                   simulation_result%average_scattering_matrix_expansion(16, 0:2 * sphere_cluster%t_matrix_order, 4))
+         simulation_result%average_incident_coefficients = 0.d0
+         simulation_result%average_scattering_matrix_expansion = 0.d0
       end if
-      if (calculate_scattering_matrix) then
-         if (allocated(scat_mat_ave)) deallocate (scat_mat_ave, dif_scat_mat)
-         allocate (scat_mat_ave(scat_mat_mdim, scat_mat_ldim:scat_mat_udim), &
-                   dif_scat_mat(scat_mat_mdim, scat_mat_ldim:scat_mat_udim))
-         scat_mat_ave = 0.d0
+      if (simulation_config%calculate_scattering_matrix) then
+         if (allocated(simulation_result%average_scattering_matrix)) deallocate (simulation_result%average_scattering_matrix, simulation_result%diffuse_scattering_matrix)
+         allocate (simulation_result%average_scattering_matrix(simulation_result%scattering_matrix_dimension, simulation_result%scattering_matrix_lower_bound:simulation_result%scattering_matrix_upper_bound), &
+                   simulation_result%diffuse_scattering_matrix(simulation_result%scattering_matrix_dimension, simulation_result%scattering_matrix_lower_bound:simulation_result%scattering_matrix_upper_bound))
+         simulation_result%average_scattering_matrix = 0.d0
       end if
 
       nconfigave = 0
-      do incident_direction_number = 1, ceiling(dble(number_incident_directions) / dble(n_configuration_groups))
+      do direction_number = 1, ceiling(dble(simulation_config%number_incident_directions) / &
+                                       dble(simulation_config%number_configuration_groups))
+         simulation_result%incident_direction_number = direction_number
 
          if (rank .eq. 0) then
-            if (incident_direction_number .eq. 1) then
+            if (simulation_result%incident_direction_number .eq. 1) then
                call print_run_variables(sphere_cluster%run_print_unit)
-               call open_output_file(output_file, file_unit, append=.true.)
+               call open_output_file(simulation_config%output%output_file, file_unit, append=.true.)
                if (runtime_failed()) return
                call print_run_variables(file_unit)
                close (file_unit)
             end if
             write (sphere_cluster%run_print_unit, '('' incidence averaging, samples:'',i5,''-'',i5)') &
-               (incident_direction_number - 1) * n_configuration_groups + 1, &
-               incident_direction_number * n_configuration_groups
+               (simulation_result%incident_direction_number - 1) * simulation_config%number_configuration_groups + 1, &
+               simulation_result%incident_direction_number * simulation_config%number_configuration_groups
          end if
 
          call sample_incident_direction(mpi_comm=configcomm)
@@ -1513,150 +1519,150 @@ allocate (pmnp0(2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_ord
          if (runtime_failed()) return
 
          if (singleorigin) then
-            amnp_0_ave = amnp_0_ave + amnp_0
+            simulation_result%average_incident_coefficients = simulation_result%average_incident_coefficients + simulation_result%incident_coefficients
          end if
 
          if (configrank .eq. 0) then
-            if (rank .eq. 0) solution_time = parallel_wall_time() - time1
-            q_eff_ave = q_eff_ave + q_eff
-            q_eff_tot_ave = q_eff_tot_ave + q_eff_tot
-            q_vabs_ave = q_vabs_ave + q_vabs
-            pl_sca_ave = pl_sca_ave + pl_sca
-            if (calculate_up_down_scattering) boundary_sca_ave = boundary_sca_ave + boundary_sca
-            boundary_ext_ave = boundary_ext_ave + boundary_ext
-            if (singleorigin .and. azimuthal_average .and. (.not. numerical_azimuthal_average)) &
-               scat_mat_exp_coef_ave = scat_mat_exp_coef_ave + scat_mat_exp_coef
-            if (calculate_scattering_matrix) then
-               scat_mat_ave = scat_mat_ave + scat_mat
+            if (rank .eq. 0) simulation_result%solution_time = parallel_wall_time() - time1
+            simulation_result%average_efficiency = simulation_result%average_efficiency + simulation_result%efficiency
+        simulation_result%average_total_efficiency = simulation_result%average_total_efficiency + simulation_result%total_efficiency
+     simulation_result%average_volume_absorption = simulation_result%average_volume_absorption + simulation_result%volume_absorption
+        simulation_result%average_plane_scattering = simulation_result%average_plane_scattering + simulation_result%plane_scattering
+            if (simulation_config%calculate_up_down_scattering) simulation_result%average_boundary_scattering = simulation_result%average_boundary_scattering + simulation_result%boundary_scattering
+            simulation_result%average_boundary_extinction = simulation_result%average_boundary_extinction + simulation_result%boundary_extinction
+           if (singleorigin .and. simulation_config%azimuthal_average .and. (.not. simulation_config%numerical_azimuthal_average)) &
+               simulation_result%average_scattering_matrix_expansion = simulation_result%average_scattering_matrix_expansion + simulation_result%scattering_matrix_expansion
+            if (simulation_config%calculate_scattering_matrix) then
+     simulation_result%average_scattering_matrix = simulation_result%average_scattering_matrix + simulation_result%scattering_matrix
             end if
-            if (rank .eq. 0) solution_time_ave = solution_time_ave + solution_time
+if (rank .eq. 0) simulation_result%average_solution_time = simulation_result%average_solution_time + simulation_result%solution_time
          end if
 
-         nsend = 3 * qeff_dim * sphere_cluster%number_spheres
+         nsend = 3 * simulation_result%efficiency_dimension * sphere_cluster%number_spheres
          call parallel_reduce_sum( &
-            send_buffer=q_eff_ave, &
-            receive_buffer=q_eff, &
+            send_buffer=simulation_result%average_efficiency, &
+            receive_buffer=simulation_result%efficiency, &
             mpi_rank=0, &
             mpi_number=nsend, &
             mpi_comm=config0comm)
-         nsend = 3 * qeff_dim
+         nsend = 3 * simulation_result%efficiency_dimension
          call parallel_reduce_sum( &
-            send_buffer=q_eff_tot_ave, &
-            receive_buffer=q_eff_tot, &
+            send_buffer=simulation_result%average_total_efficiency, &
+            receive_buffer=simulation_result%total_efficiency, &
             mpi_rank=0, &
             mpi_number=nsend, &
             mpi_comm=config0comm)
-         nsend = qeff_dim * sphere_cluster%number_spheres
+         nsend = simulation_result%efficiency_dimension * sphere_cluster%number_spheres
          call parallel_reduce_sum( &
-            send_buffer=q_vabs_ave, &
-            receive_buffer=q_vabs, &
+            send_buffer=simulation_result%average_volume_absorption, &
+            receive_buffer=simulation_result%volume_absorption, &
             mpi_rank=0, &
             mpi_number=nsend, &
             mpi_comm=config0comm)
          nsend = 4
          call parallel_reduce_sum( &
-            send_buffer=pl_sca_ave, &
-            receive_buffer=pl_sca, &
+            send_buffer=simulation_result%average_plane_scattering, &
+            receive_buffer=simulation_result%plane_scattering, &
             mpi_rank=0, &
             mpi_number=nsend, &
             mpi_comm=config0comm)
-         if (calculate_up_down_scattering) then
+         if (simulation_config%calculate_up_down_scattering) then
             nsend = 4
             call parallel_reduce_sum( &
-               send_buffer=boundary_sca_ave, &
-               receive_buffer=boundary_sca, &
+               send_buffer=simulation_result%average_boundary_scattering, &
+               receive_buffer=simulation_result%boundary_scattering, &
                mpi_rank=0, &
                mpi_number=nsend, &
                mpi_comm=config0comm)
          end if
          call parallel_reduce_sum( &
-            send_buffer=boundary_ext_ave, &
-            receive_buffer=boundary_ext, &
+            send_buffer=simulation_result%average_boundary_extinction, &
+            receive_buffer=simulation_result%boundary_extinction, &
             mpi_rank=0, &
             mpi_number=nsend, &
             mpi_comm=config0comm)
          if (singleorigin) then
             nsend = 4 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_order + 2)
             call parallel_reduce_sum( &
-               send_buffer=amnp_0_ave, &
-               receive_buffer=amnp_0, &
+               send_buffer=simulation_result%average_incident_coefficients, &
+               receive_buffer=simulation_result%incident_coefficients, &
                mpi_rank=0, &
                mpi_number=nsend, &
                mpi_comm=config0comm)
          end if
-         if (calculate_scattering_matrix) then
-            nsend = scat_mat_mdim * (scat_mat_udim - scat_mat_ldim + 1)
+         if (simulation_config%calculate_scattering_matrix) then
+            nsend = simulation_result%scattering_matrix_dimension * (simulation_result%scattering_matrix_upper_bound - simulation_result%scattering_matrix_lower_bound + 1)
             call parallel_reduce_sum( &
-               send_buffer=scat_mat_ave, &
-               receive_buffer=scat_mat, &
+               send_buffer=simulation_result%average_scattering_matrix, &
+               receive_buffer=simulation_result%scattering_matrix, &
                mpi_rank=0, &
                mpi_number=nsend, &
                mpi_comm=config0comm)
          end if
-         if (singleorigin .and. azimuthal_average .and. (.not. numerical_azimuthal_average)) then
+        if (singleorigin .and. simulation_config%azimuthal_average .and. (.not. simulation_config%numerical_azimuthal_average)) then
             nsend = 16 * 4 * (2 * sphere_cluster%t_matrix_order + 1)
             call parallel_reduce_sum( &
-               send_buffer=scat_mat_exp_coef_ave, &
-               receive_buffer=scat_mat_exp_coef, &
+               send_buffer=simulation_result%average_scattering_matrix_expansion, &
+               receive_buffer=simulation_result%scattering_matrix_expansion, &
                mpi_rank=0, &
                mpi_number=nsend, &
                mpi_comm=config0comm)
          end if
 
-         nconfigave = nconfigave + n_configuration_groups
+         nconfigave = nconfigave + simulation_config%number_configuration_groups
 
          if (singleorigin) then
-            if (rank .eq. 0 .and. print_timings) then
+            if (rank .eq. 0 .and. simulation_config%output%print_timings) then
                timet = parallel_wall_time()
                write (sphere_cluster%run_print_unit, '('' calculating diffuse field:'')', advance='no')
             end if
-            amnp_0 = amnp_0 / dble(nconfigave)
-            if (azimuthal_average .and. (.not. numerical_azimuthal_average)) then
+            simulation_result%incident_coefficients = simulation_result%incident_coefficients / dble(nconfigave)
+            if (simulation_config%azimuthal_average .and. (.not. simulation_config%numerical_azimuthal_average)) then
                allocate (texpcoef(16, 0:2 * sphere_cluster%t_matrix_order, 4))
-               texpcoef = scat_mat_exp_coef / dble(nconfigave)
+               texpcoef = simulation_result%scattering_matrix_expansion / dble(nconfigave)
                call fixed_orientation_scattering_matrix_expansion( &
-                  sphere_cluster%t_matrix_order, amnp_0, scat_mat_exp_coef(:, :, 1), scat_mat_exp_coef(:, :, 2), &
-                  scat_mat_exp_coef(:, :, 3), scat_mat_exp_coef(:, :, 4), mpi_comm=configcomm)
+                  sphere_cluster%t_matrix_order, simulation_result%incident_coefficients, simulation_result%scattering_matrix_expansion(:, :, 1), simulation_result%scattering_matrix_expansion(:, :, 2), &
+simulation_result%scattering_matrix_expansion(:, :, 3), simulation_result%scattering_matrix_expansion(:, :, 4), mpi_comm=configcomm)
             end if
-            if (calculate_scattering_matrix) then
-               call compute_scattering_matrix(amnp_0, dif_scat_mat, mpi_comm=configcomm)
+            if (simulation_config%calculate_scattering_matrix) then
+               call compute_scattering_matrix(simulation_result%incident_coefficients, simulation_result%diffuse_scattering_matrix, mpi_comm=configcomm)
             end if
-            if (azimuthal_average .and. (.not. numerical_azimuthal_average)) then
-               scat_mat_exp_coef = texpcoef - scat_mat_exp_coef * (dble(sphere_cluster%number_spheres - 1) / dble(sphere_cluster%number_spheres))**2
+            if (simulation_config%azimuthal_average .and. (.not. simulation_config%numerical_azimuthal_average)) then
+               simulation_result%scattering_matrix_expansion = texpcoef - simulation_result%scattering_matrix_expansion * (dble(sphere_cluster%number_spheres - 1) / dble(sphere_cluster%number_spheres))**2
                deallocate (texpcoef)
             end if
-            call common_origin_hemispherical_scattering(amnp_0, dif_boundary_sca)
-      if (rank .eq. 0 .and. print_timings) write (sphere_cluster%run_print_unit, '('' completed, '',es12.4,'' sec'')') parallel_wall_time() - timet
+ call common_origin_hemispherical_scattering(simulation_result%incident_coefficients, simulation_result%diffuse_boundary_scattering)
+      if (rank .eq. 0 .and. simulation_config%output%print_timings) write (sphere_cluster%run_print_unit, '('' completed, '',es12.4,'' sec'')') parallel_wall_time() - timet
          end if
-         if (allocated(amnp_0)) deallocate (amnp_0)
+         if (allocated(simulation_result%incident_coefficients)) deallocate (simulation_result%incident_coefficients)
 
          if (rank .eq. 0) then
-            q_eff = q_eff / dble(nconfigave)
-            q_vabs = q_vabs / dble(nconfigave)
-            q_eff_tot = q_eff_tot / dble(nconfigave)
-            pl_sca = pl_sca / dble(nconfigave)
-            if (calculate_up_down_scattering) boundary_sca = boundary_sca / dble(nconfigave)
-            boundary_ext = boundary_ext / dble(nconfigave)
-!               if(singleorigin) dif_boundary_sca=boundary_sca-dif_boundary_sca
-            if (singleorigin) dif_boundary_sca = boundary_sca &
-                                  - dif_boundary_sca * dble(sphere_cluster%number_spheres - 1) / dble(sphere_cluster%number_spheres)
-            if (calculate_scattering_matrix) then
-               scat_mat = scat_mat / dble(nconfigave)
+            simulation_result%efficiency = simulation_result%efficiency / dble(nconfigave)
+            simulation_result%volume_absorption = simulation_result%volume_absorption / dble(nconfigave)
+            simulation_result%total_efficiency = simulation_result%total_efficiency / dble(nconfigave)
+            simulation_result%plane_scattering = simulation_result%plane_scattering / dble(nconfigave)
+            if (simulation_config%calculate_up_down_scattering) simulation_result%boundary_scattering = simulation_result%boundary_scattering / dble(nconfigave)
+            simulation_result%boundary_extinction = simulation_result%boundary_extinction / dble(nconfigave)
+!               if(singleorigin) simulation_result%diffuse_boundary_scattering=simulation_result%boundary_scattering-simulation_result%diffuse_boundary_scattering
+            if (singleorigin) simulation_result%diffuse_boundary_scattering = simulation_result%boundary_scattering &
+     - simulation_result%diffuse_boundary_scattering * dble(sphere_cluster%number_spheres - 1) / dble(sphere_cluster%number_spheres)
+            if (simulation_config%calculate_scattering_matrix) then
+               simulation_result%scattering_matrix = simulation_result%scattering_matrix / dble(nconfigave)
 ! experiment
-               if (singleorigin) dif_scat_mat = scat_mat - dif_scat_mat * (dble(sphere_cluster%number_spheres - 1) / dble(sphere_cluster%number_spheres))**2
+               if (singleorigin) simulation_result%diffuse_scattering_matrix = simulation_result%scattering_matrix - simulation_result%diffuse_scattering_matrix * (dble(sphere_cluster%number_spheres - 1) / dble(sphere_cluster%number_spheres))**2
 
-!                  dif_scat_mat=scat_mat-dif_scat_mat
+!                  simulation_result%diffuse_scattering_matrix=simulation_result%scattering_matrix-simulation_result%diffuse_scattering_matrix
             end if
-            solution_time = solution_time_ave / dble(random_configuration_number)
-            call print_calculation_results(output_file)
+     simulation_result%solution_time = simulation_result%average_solution_time / dble(simulation_result%random_configuration_number)
+            call print_calculation_results(simulation_config%output%output_file)
          end if
       end do
-      sphere_data_input_file = sdatfile
-      print_random_configuration = prancon
-      azimuthal_average = aa
-      single_origin_expansion = soe
-      incident_frame = iframe
-      calculate_up_down_scattering = cuds
+      simulation_config%output%sphere_data_file = sdatfile
+      simulation_config%output%print_random_configuration = prancon
+      simulation_config%azimuthal_average = aa
+      simulation_config%single_origin_expansion = soe
+      simulation_config%incident_frame = iframe
+      simulation_config%calculate_up_down_scattering = cuds
    end subroutine run_incidence_average
 
    subroutine common_origin_scattering_cross_section(n, a, c)
@@ -1685,14 +1691,14 @@ allocate (pmnp0(2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_ord
          do m = -n, n
             do p = 1, 2
                mnp1 = polarized_mode_index(m, n, p, sphere_cluster%sphere_order(i1), 2)
-               a(p, :) = amnp_s(mnp1 + sphere_cluster%sphere_offset(i1), :)
+               a(p, :) = simulation_result%solution_coefficients(mnp1 + sphere_cluster%sphere_offset(i1), :)
             end do
             b(1, :) = a(1, :) + a(2, :)
             b(2, :) = a(1, :) - a(2, :)
             do p = 1, 2
                mnp0 = polarized_mode_index(m, n, p, sphere_cluster%t_matrix_order, 2)
-               amnp_0(mnp0, :) = amnp_0(mnp0, :) - fn * b(p, :)
-!                  amnp_0=amnp_0*dble(sphere_cluster%number_spheres)/dble(sphere_cluster%number_spheres-1)
+               simulation_result%incident_coefficients(mnp0, :) = simulation_result%incident_coefficients(mnp0, :) - fn * b(p, :)
+!                  simulation_result%incident_coefficients=simulation_result%incident_coefficients*dble(sphere_cluster%number_spheres)/dble(sphere_cluster%number_spheres-1)
             end do
          end do
       end do
@@ -1703,17 +1709,17 @@ allocate (pmnp0(2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_ord
       integer :: i
       real(real64) :: rsamp, r, asamp
       if (periodic_lattice) then
-         surface_absorptance(1:2) = q_eff_tot(2, 2:3)
+         simulation_result%surface_absorptance(1:2) = simulation_result%total_efficiency(2, 2:3)
       else
-         surface_absorptance = 0.d0
-         asamp = absorption_sample_radius * length_scale_factor
+         simulation_result%surface_absorptance = 0.d0
+         asamp = simulation_config%absorption_sample_radius * simulation_config%length_scale_factor
          rsamp = min(sphere_cluster%cross_section_radius, asamp)
          do i = 1, sphere_cluster%number_spheres
             if (sphere_cluster%host_sphere(i) .ne. 0) cycle
             r = sqrt(sum((sphere_cluster%sphere_position(1:2, i) - sphere_cluster%cluster_origin(1:2))**2))
             if (r .le. asamp) then
-               surface_absorptance(1:2) = surface_absorptance(1:2) &
-                                          + q_eff(2, 2:3, i) * (sphere_cluster%sphere_radius(i) / rsamp)**2
+               simulation_result%surface_absorptance(1:2) = simulation_result%surface_absorptance(1:2) &
+                                            + simulation_result%efficiency(2, 2:3, i) * (sphere_cluster%sphere_radius(i) / rsamp)**2
             end if
          end do
       end if
@@ -1741,8 +1747,8 @@ allocate (pmnp0(2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_ord
          call parallel_broadcast(mpi_number=2, &
                                  mpi_rank=0, send_buffer=sbuf, mpi_comm=mpicomm)
       end if
-      incident_beta_deg = sbuf(1)
-      incident_alpha_deg = sbuf(2)
+      simulation_config%incident_beta_degrees = sbuf(1)
+      simulation_config%incident_alpha_degrees = sbuf(2)
    end subroutine sample_incident_direction
 
 end module input_execution

@@ -23,7 +23,7 @@ contains
       end if
       call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
 
-      call open_input_file(sphere_data_input_file, input_unit)
+      call open_input_file(simulation_config%output%sphere_data_file, input_unit)
       if (runtime_failed()) return
       do n = 1, sphere_cluster%number_spheres
          sphere_cluster%sphere_radius(n) = 1.d0
@@ -35,7 +35,7 @@ contains
                write (sphere_cluster%run_print_unit, '('' insufficient data in input file: '', i4,'' lines, need '',i4)') &
                   n, sphere_cluster%number_spheres
             end if
-            call set_runtime_error('Insufficient data in sphere input file: '//trim(sphere_data_input_file))
+            call set_runtime_error('Insufficient data in sphere input file: '//trim(simulation_config%output%sphere_data_file))
             close (input_unit)
             return
          end if
@@ -44,7 +44,7 @@ contains
             if (rank .eq. 0) then
                write (sphere_cluster%run_print_unit, '('' read error in sphere data input file'')')
             end if
-            call set_runtime_error('Invalid data in sphere input file: '//trim(sphere_data_input_file))
+            call set_runtime_error('Invalid data in sphere input file: '//trim(simulation_config%output%sphere_data_file))
             close (input_unit)
             return
          end if
@@ -62,9 +62,9 @@ contains
       sphere_cluster%number_spheres = min(n, sphere_cluster%number_spheres)
       close (input_unit)
       do n = 1, sphere_cluster%number_spheres
-         sphere_cluster%sphere_radius(n) = sphere_cluster%sphere_radius(n) * length_scale_factor
-         sphere_cluster%sphere_position(:, n) = sphere_cluster%sphere_position(:, n) * length_scale_factor
-         sphere_cluster%sphere_ref_index(:, n) = sphere_cluster%sphere_ref_index(:, n) * ref_index_scale_factor
+         sphere_cluster%sphere_radius(n) = sphere_cluster%sphere_radius(n) * simulation_config%length_scale_factor
+         sphere_cluster%sphere_position(:, n) = sphere_cluster%sphere_position(:, n) * simulation_config%length_scale_factor
+         sphere_cluster%sphere_ref_index(:, n) = sphere_cluster%sphere_ref_index(:, n) * simulation_config%ref_index_scale_factor
       end do
    end subroutine read_sphere_data_input_file
 
@@ -90,17 +90,17 @@ contains
       end if
       call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
       nsphere = sphere_cluster%number_spheres
-      if (random_configuration_host) nsphere = nsphere - 1
+      if (simulation_config%random_configuration_host) nsphere = nsphere - 1
       if (rank .eq. 0) then
-         frozen = ((.not. firstrun) .and. (frozen_configuration .or. use_previous_configuration))
+        frozen = ((.not. firstrun) .and. (simulation_config%frozen_configuration .or. simulation_config%use_previous_configuration))
          if (frozen) then
             sphere_cluster%sphere_position(:, 1:nsphere) = sphereposition(:, 1:nsphere)
             sphere_cluster%sphere_radius(1:nsphere) = sphereradius(1:nsphere)
          else
-            if (auto_target_radius .and. target_shape .eq. 2) then
-               targetdimensions = target_dimensions + target_radius_padding
-!                  nspheresamp=ceiling(sphere_volume_fraction*(targetdimensions(1)-1.d0)**3.d0)
-               nspheresamp = ceiling(sphere_volume_fraction * (targetdimensions(1))**3.d0)
+            if (simulation_config%auto_target_radius .and. target_shape .eq. 2) then
+               targetdimensions = target_dimensions + simulation_config%target_radius_padding
+!                  nspheresamp=ceiling(simulation_config%sphere_volume_fraction*(targetdimensions(1)-1.d0)**3.d0)
+               nspheresamp = ceiling(simulation_config%sphere_volume_fraction * (targetdimensions(1))**3.d0)
                nspheresamp = max(nspheresamp, nsphere)
                if (mstm_global_rank .eq. 0) then
                   write (sphere_cluster%run_print_unit, '('' set, sampled number spheres:'',2i6)') nsphere, nspheresamp
@@ -112,20 +112,20 @@ contains
             if (allocated(sphereradius)) deallocate (sphereradius, sphereposition, sphereindex)
             allocate (sphereradius(nspheresamp), sphereposition(3, nspheresamp), sphereindex(nspheresamp))
             call generate_random_sphere_cluster(nspheresamp, targetdimensions, sphereposition, sphereradius, &
-                                               sphereindex, sphere_cluster%run_print_unit, ran_config_stat, ran_config_time_steps, &
+                                               sphereindex, sphere_cluster%run_print_unit, simulation_result%random_configuration_status, simulation_config%random_configuration_time_steps, &
                                                 skip_diffusion=skipdif, print_progress=.true.)
             firstrun = .false.
             sphere_cluster%sphere_position(:, 1:nsphere) = sphereposition(:, 1:nsphere)
             sphere_cluster%sphere_radius(1:nsphere) = sphereradius(1:nsphere)
-            sphere_index(1:nsphere) = sphereindex(1:nsphere)
+            simulation_result%sphere_index(1:nsphere) = sphereindex(1:nsphere)
          end if
       end if
       call synchronize_runtime_status(mpicomm)
       if (runtime_failed()) return
-      generation_status(1) = ran_config_stat
+      generation_status(1) = simulation_result%random_configuration_status
       call parallel_broadcast(send_buffer=generation_status, mpi_number=1, &
                               mpi_rank=0, mpi_comm=mpicomm)
-      ran_config_stat = generation_status(1)
+      simulation_result%random_configuration_status = generation_status(1)
       if (generation_status(1) .ge. 3) then
          call set_runtime_error('Unable to generate random sphere configuration')
          return
@@ -134,32 +134,32 @@ contains
       nsend = nsphere
       call parallel_broadcast(send_buffer=sphere_cluster%sphere_radius, &
                               mpi_number=nsend, mpi_rank=0, mpi_comm=mpicomm)
-      call parallel_broadcast(send_buffer=sphere_index, &
+      call parallel_broadcast(send_buffer=simulation_result%sphere_index, &
                               mpi_number=nsend, mpi_rank=0, mpi_comm=mpicomm)
       nsend = nsphere * 3
       call parallel_broadcast(send_buffer=sphere_cluster%sphere_position, &
                               mpi_number=nsend, mpi_rank=0, mpi_comm=mpicomm)
-      sphere_cluster%sphere_radius(1:nsphere) = sphere_cluster%sphere_radius(1:nsphere) * length_scale_factor
-      sphere_cluster%sphere_position(:, 1:nsphere) = sphere_cluster%sphere_position(:, 1:nsphere) * length_scale_factor
+      sphere_cluster%sphere_radius(1:nsphere) = sphere_cluster%sphere_radius(1:nsphere) * simulation_config%length_scale_factor
+ sphere_cluster%sphere_position(:, 1:nsphere) = sphere_cluster%sphere_position(:, 1:nsphere) * simulation_config%length_scale_factor
       do i = 1, nsphere
-         sphere_cluster%sphere_ref_index(:, i) = ref_index_scale_factor &
-                                                 * component_ref_index(sphere_index(i))
+         sphere_cluster%sphere_ref_index(:, i) = simulation_config%ref_index_scale_factor &
+                                                 * simulation_config%component_ref_index(simulation_result%sphere_index(i))
       end do
-      if (erase_sphere_1) sphere_cluster%sphere_ref_index(:, 1) = (1.000001d0, 0.d0)
-      if (random_configuration_host) then
+      if (simulation_config%erase_sphere_1) sphere_cluster%sphere_ref_index(:, 1) = (1.000001d0, 0.d0)
+      if (simulation_config%random_configuration_host) then
          crad = maxval(sqrt(sum(sphere_cluster%sphere_position(:, 1:nsphere)**2, 1))) + 0.01d0
-         if (auto_target_radius .and. target_shape .eq. 2) then
+         if (simulation_config%auto_target_radius .and. target_shape .eq. 2) then
             sphere_cluster%sphere_radius(sphere_cluster%number_spheres) &
-               = (sum(sphere_cluster%sphere_radius(1:sphere_cluster%number_spheres - 1)**3.) / sphere_volume_fraction)**0.33333
+  = (sum(sphere_cluster%sphere_radius(1:sphere_cluster%number_spheres - 1)**3.) / simulation_config%sphere_volume_fraction)**0.33333
          else
-            if (random_configuration_host_model .eq. 1) then
-               sphere_cluster%sphere_radius(sphere_cluster%number_spheres) = target_dimensions(1) * length_scale_factor
-            elseif (random_configuration_host_model .eq. 2) then
-               sphere_cluster%sphere_radius(sphere_cluster%number_spheres) = (sum(sphere_cluster%sphere_radius(1:sphere_cluster%number_spheres - 1)**3.) / sphere_volume_fraction)**0.33333
+            if (simulation_config%random_configuration_host_model .eq. 1) then
+          sphere_cluster%sphere_radius(sphere_cluster%number_spheres) = target_dimensions(1) * simulation_config%length_scale_factor
+            elseif (simulation_config%random_configuration_host_model .eq. 2) then
+               sphere_cluster%sphere_radius(sphere_cluster%number_spheres) = (sum(sphere_cluster%sphere_radius(1:sphere_cluster%number_spheres - 1)**3.) / simulation_config%sphere_volume_fraction)**0.33333
             end if
          end if
          sphere_cluster%sphere_position(:, sphere_cluster%number_spheres) = 0.d0
-         sphere_cluster%sphere_ref_index(:, sphere_cluster%number_spheres) = host_sphere_ref_index
+         sphere_cluster%sphere_ref_index(:, sphere_cluster%number_spheres) = simulation_config%host_sphere_ref_index
       end if
    end subroutine generate_random_configuration
 

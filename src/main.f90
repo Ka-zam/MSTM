@@ -4,10 +4,7 @@ program mstm
                               run_random_orientation_configuration_average
    use input_parser, only: parse_input_data, process_input_variable
    use input_reporting, only: output_header
-   use input_state, only: append_output_file, c_var_start, c_var_step, c_var_stop, configuration_average, &
-                          first_run, i_var_start, i_var_step, i_var_stop, incidence_average, input_file, &
-                          loop_sphere_number, loop_var_label, loop_var_type, n_nest_loops, output_file, &
-                          random_orientation, r_var_start, r_var_step, r_var_stop, repeat_run, run_number
+   use input_state, only: simulation_config, simulation_result
    use mstm_version_info, only: mstm_version
    use parallel_runtime, only: parallel_barrier, parallel_finalize, parallel_initialize, parallel_rank, parallel_size
    use runtime_support, only: clear_runtime_status, open_input_file, open_output_file, &
@@ -39,7 +36,7 @@ program mstm
 
    do i = 0, numprocs - 1
       if (rank .eq. i) then
-         input_file = inputfile
+         simulation_config%input_file = inputfile
          call open_input_file(trim(inputfile), input_unit)
          if (.not. runtime_failed()) then
             numberinputlines = 0
@@ -73,10 +70,10 @@ program mstm
       stop 2, quiet = .true.
    end if
 
-   repeat_run = .true.
-   first_run = .true.
+   simulation_config%repeat_run = .true.
+   simulation_config%first_run = .true.
 
-   simulation_loop: do while (repeat_run)
+   simulation_loop: do while (simulation_config%repeat_run)
       readstat = 0
       do i = 0, numprocs - 1
          if (i .eq. rank) then
@@ -88,14 +85,14 @@ program mstm
       end do
       call synchronize_runtime_status()
       if (runtime_failed()) exit simulation_loop
-      if (oldoutputfile .ne. output_file) then
-         first_run = .true.
-         run_number = 0
-         oldoutputfile = output_file
+      if (oldoutputfile .ne. simulation_config%output%output_file) then
+         simulation_config%first_run = .true.
+         simulation_result%run_number = 0
+         oldoutputfile = simulation_config%output%output_file
       end if
       if (rank .eq. 0) then
-         if (first_run) then
-            call open_output_file(output_file, output_unit_number, append=append_output_file)
+         if (simulation_config%first_run) then
+            call open_output_file(simulation_config%output%output_file, output_unit_number, append=simulation_config%output%append)
             if (.not. runtime_failed()) then
                call output_header(output_unit_number, inputfile)
                close (output_unit_number)
@@ -105,15 +102,15 @@ program mstm
       call synchronize_runtime_status()
       if (runtime_failed()) exit simulation_loop
 
-      if (n_nest_loops .eq. 0) then
-         run_number = run_number + 1
-         if (configuration_average) then
-            if (random_orientation) then
+      if (simulation_config%number_nested_loops .eq. 0) then
+         simulation_result%run_number = simulation_result%run_number + 1
+         if (simulation_config%configuration_average) then
+            if (simulation_config%random_orientation) then
                call run_random_orientation_configuration_average()
             else
                call run_configuration_average()
             end if
-         elseif (incidence_average) then
+         elseif (simulation_config%incidence_average) then
             call run_incidence_average()
          else
             call execute_simulation()
@@ -124,9 +121,9 @@ program mstm
       end if
       call synchronize_runtime_status()
       if (runtime_failed()) exit simulation_loop
-      n_nest_loops = 0
+      simulation_config%number_nested_loops = 0
    end do simulation_loop
-!      if(temporary_pos_file.and.rank.eq.0) then
+!      if(simulation_config%temporary_position_file.and.rank.eq.0) then
 !         open(20,file='temp_pos.dat')
 !         close(20,status='delete')
 !      endif
@@ -219,47 +216,47 @@ contains
       character(len=256) :: varlabel
       character(len=1) :: vartype
 
-      varlabel = loop_var_label(looplevel)
-      vartype = loop_var_type(looplevel)
-      varposition = loop_sphere_number(looplevel)
+      varlabel = simulation_config%loop_variable_label(looplevel)
+      vartype = simulation_config%loop_variable_type(looplevel)
+      varposition = simulation_config%loop_sphere_number(looplevel)
       if (vartype .eq. 'i') then
-         maxdif = abs(i_var_stop(looplevel) - i_var_start(looplevel))
+         maxdif = abs(simulation_config%integer_loop_stop(looplevel) - simulation_config%integer_loop_start(looplevel))
          call process_input_variable(varlabel, &
                                      var_position=varposition, &
                                      i_var_pointer=i_loop_var_pointer)
-         i_loop_var_pointer = i_var_start(looplevel)
+         i_loop_var_pointer = simulation_config%integer_loop_start(looplevel)
       elseif (vartype .eq. 'r') then
-         maxdif = abs(r_var_stop(looplevel) - r_var_start(looplevel))
+         maxdif = abs(simulation_config%real_loop_stop(looplevel) - simulation_config%real_loop_start(looplevel))
          call process_input_variable(varlabel, &
                                      var_position=varposition, &
                                      r_var_pointer=r_loop_var_pointer)
-         r_loop_var_pointer = r_var_start(looplevel)
+         r_loop_var_pointer = simulation_config%real_loop_start(looplevel)
       elseif (vartype .eq. 'c') then
-         maxdif = abs(c_var_stop(looplevel) - c_var_start(looplevel))
+         maxdif = abs(simulation_config%complex_loop_stop(looplevel) - simulation_config%complex_loop_start(looplevel))
          call process_input_variable(varlabel, &
                                      var_position=varposition, &
                                      c_var_pointer=c_loop_var_pointer)
-         c_loop_var_pointer = c_var_start(looplevel)
+         c_loop_var_pointer = simulation_config%complex_loop_start(looplevel)
       end if
 
       loopindex = 0
       continueloop = .true.
       do while (continueloop)
          loopindex = loopindex + 1
-         if (looplevel .eq. n_nest_loops) then
-            run_number = run_number + 1
+         if (looplevel .eq. simulation_config%number_nested_loops) then
+            simulation_result%run_number = simulation_result%run_number + 1
 !               if(loopindex.eq.1) then
-!                  run_number=run_number+1
+!                  simulation_result%run_number=simulation_result%run_number+1
 !               else
-!                  if(.not.configuration_average) run_number=run_number+1
+!                  if(.not.simulation_config%configuration_average) simulation_result%run_number=simulation_result%run_number+1
 !               endif
-            if (configuration_average) then
-               if (random_orientation) then
+            if (simulation_config%configuration_average) then
+               if (simulation_config%random_orientation) then
                   call run_random_orientation_configuration_average()
                else
                   call run_configuration_average()
                end if
-            elseif (incidence_average) then
+            elseif (simulation_config%incidence_average) then
                call run_incidence_average()
             else
                call execute_simulation()
@@ -270,14 +267,14 @@ contains
             if (runtime_failed()) return
          end if
          if (vartype .eq. 'i') then
-            i_loop_var_pointer = i_loop_var_pointer + i_var_step(looplevel)
-            loopdif = abs(i_loop_var_pointer - i_var_start(looplevel))
+            i_loop_var_pointer = i_loop_var_pointer + simulation_config%integer_loop_step(looplevel)
+            loopdif = abs(i_loop_var_pointer - simulation_config%integer_loop_start(looplevel))
          elseif (vartype .eq. 'r') then
-            r_loop_var_pointer = r_loop_var_pointer + r_var_step(looplevel)
-            loopdif = abs(r_loop_var_pointer - r_var_start(looplevel))
+            r_loop_var_pointer = r_loop_var_pointer + simulation_config%real_loop_step(looplevel)
+            loopdif = abs(r_loop_var_pointer - simulation_config%real_loop_start(looplevel))
          elseif (vartype .eq. 'c') then
-            c_loop_var_pointer = c_loop_var_pointer + c_var_step(looplevel)
-            loopdif = abs(c_loop_var_pointer - c_var_start(looplevel))
+            c_loop_var_pointer = c_loop_var_pointer + simulation_config%complex_loop_step(looplevel)
+            loopdif = abs(c_loop_var_pointer - simulation_config%complex_loop_start(looplevel))
          end if
 !            if(loopindex.gt.1000) exit
          if (loopdif - maxdif .gt. 1.d-6) continueloop = .false.
