@@ -9,7 +9,7 @@ module periodic_lattice_operations
    use quadrature, only: integrate_gauss_kronrod_adaptive
    use wave_functions, only: reciprocal_scalar_wave_function, scalar_wave_function
    use surface
-   use parallel_runtime
+   use parallel_runtime, only: parallel_wall_time
    implicit none
    logical, target :: periodic_lattice, time_it, phase_shift_form, finite_lattice
    integer :: pl_max_subdivs, pl_rs_nmax, pl_error_codes(6), pl_fs_method, pl_rs_imax, &
@@ -264,18 +264,18 @@ contains
          ysum = 0.d0
          if (abs(rpos(3)) .lt. wcrit) then
             pl_fs_method = 0
-            if (time_it) time_0 = mstm_mpi_wtime()
+            if (time_it) time_0 = parallel_wall_time()
             call scalar_wave_function_lattice_sum(wmax, rpos(1), rpos(2), rpos(3), cell_width, &
                                                   incident_lateral_vector, &
                                                   ri, ysum, include_source=incsrc)
-            if (time_it) time_count(1) = mstm_mpi_wtime() - time_0 + time_count(1)
+            if (time_it) time_count(1) = parallel_wall_time() - time_0 + time_count(1)
             if (pl_max_subdivs .ge. maximum_integration_subdivisions) pl_error_codes(1) = 1
          else
             pl_fs_method = 1
-            if (time_it) time_0 = mstm_mpi_wtime()
+            if (time_it) time_0 = parallel_wall_time()
             call reciprocal_space_scalar_wave_function_lattice_sum(wmax, rpos(1), rpos(2), rpos(3), cell_width, &
                                                                    incident_lateral_vector, ri, pl_rs_nmax, pl_rs_eps, nterms, ysum)
-            if (time_it) time_count(2) = mstm_mpi_wtime() - time_0 + time_count(2)
+            if (time_it) time_count(2) = parallel_wall_time() - time_0 + time_count(2)
             if (.not. incsrc) then
                call scalar_wave_function(wmax, 3, rpos(1), rpos(2), rpos(3), ri, swf)
                ysum = ysum - swf
@@ -994,7 +994,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
       complex(real64) :: s, gfunc(2, 2, 2), skz, tkz, &
                          drot(-2:2, 0:nodr * (nodr + 2)), ealpha, ri, c, c2, &
                          kernel(-1:1, 0:nodr * (nodr + 2), tdirs(1):tdirs(2), sdirs(1):sdirs(2))
-      if (time_it) time_0 = mstm_mpi_wtime()
+      if (time_it) time_0 = parallel_wall_time()
       slay = find_layer_index(zs)
       ri = layer_ref_index(slay)
       kr = sqrt(kx * kx + ky * ky)
@@ -1029,7 +1029,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
             end do
          end do
       end do
-      if (time_it) time_count(4) = mstm_mpi_wtime() - time_0 + time_count(4)
+      if (time_it) time_count(4) = parallel_wall_time() - time_0 + time_count(4)
    end subroutine common_layer_lattice_kernel
 
    subroutine plane_boundary_lattice_kernel(nodrt, nodrs, kx, ky, x, y, zt, zs, kernel, &
@@ -1047,7 +1047,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
          incsrc = .false.
       end if
       if (zt .eq. zs) incsrc = .false.
-      if (time_it) time_0 = mstm_mpi_wtime()
+      if (time_it) time_0 = parallel_wall_time()
       ri = layer_ref_index(find_layer_index(zs))
       kr = sqrt(kx * kx + ky * ky)
       if (kr .eq. 0.d0) then
@@ -1084,7 +1084,7 @@ matrix(1:2 * nodrt * (nodrt + 2) * nodrs * (nodrs + 2)) = reshape(fsmat, (/2 * n
             end do
          end do
       end do
-      if (time_it) time_count(3) = mstm_mpi_wtime() - time_0 + time_count(3)
+      if (time_it) time_count(3) = parallel_wall_time() - time_0 + time_count(3)
    end subroutine plane_boundary_lattice_kernel
 
 end module periodic_lattice_operations

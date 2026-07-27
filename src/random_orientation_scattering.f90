@@ -3,7 +3,9 @@ module random_orientation_scattering
    use constants
    use fft_translation
    use mie
-   use parallel_runtime
+   use parallel_runtime, only: mpi_comm_world, parallel_allreduce_sum, parallel_barrier, parallel_broadcast, &
+                               parallel_communicator_create, parallel_group, parallel_group_include, parallel_rank, &
+                               parallel_size, parallel_wall_time
    use numerical_tables
    use periodic_lattice_operations
    use runtime_support, only: open_input_file, runtime_failed, synchronize_runtime_status, write_elapsed_time
@@ -63,9 +65,9 @@ contains
       else
          nkq = .true.
       end if
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank0)
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank0)
+      call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
       if (present(beam_width)) then
          cbeam = beam_width
       else
@@ -78,19 +80,19 @@ contains
       end if
       allocate (group_list(numprocscalc))
       group_list = (/(i, i=0, numprocscalc - 1)/)
-      call mstm_mpi(mpi_command='group', mpi_group=orig_group, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='incl', mpi_group=orig_group, &
-                    mpi_size=numprocscalc, mpi_new_group_list=group_list, &
-                    mpi_new_group=new_group, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='create', mpi_group=new_group, &
-                    mpi_new_comm=new_comm, mpi_comm=mpicomm)
+      call parallel_group(mpi_group=orig_group, mpi_comm=mpicomm)
+      call parallel_group_include(mpi_group=orig_group, &
+                                  mpi_size=numprocscalc, mpi_new_group_list=group_list, &
+                                  mpi_new_group=new_group, mpi_comm=mpicomm)
+      call parallel_communicator_create(mpi_group=new_group, &
+                                        mpi_new_comm=new_comm, mpi_comm=mpicomm)
 
       xv = cross_section_radius
       if (rank .le. numprocscalc - 1) then
 
-         call mstm_mpi(mpi_command='rank', mpi_comm=new_comm, &
-                       mpi_rank=new_rank)
-         if (rank .eq. 0) time1 = mstm_mpi_wtime()
+         call parallel_rank(mpi_comm=new_comm, &
+                            mpi_rank=new_rank)
+         if (rank .eq. 0) time1 = parallel_wall_time()
 !
 !  read the T matrix from the file
 !
@@ -189,7 +191,7 @@ contains
                   close (file_unit)
                end if
             end if
-            call mstm_mpi(mpi_command='barrier', mpi_comm=new_comm)
+            call parallel_barrier(mpi_comm=new_comm)
             call synchronize_runtime_status(new_comm)
             if (runtime_failed()) return
          end do
@@ -200,7 +202,7 @@ contains
 !!  send to the other processors
 !!
 !            if(numprocscalc.gt.1) then
-!               call mstm_mpi(mpi_command='bcast',mpi_send_buf_c=tc, &
+!               call parallel_broadcast(send_buffer=tc, &
 !                    mpi_number=sizetm,mpi_rank=0,mpi_comm=new_comm)
 !            endif
 
@@ -212,9 +214,9 @@ contains
                    bwcf(0:2, -1:1, 0:nodrw), cwcf(0:nodrw), dwcf(0:nodrw))
          allocate (dm(-nodr - 1:nodr + 1, 3, nodr, 2, nodr, 2), dmcf(-nodr - 1:nodr + 1, 3, nodr, 2, nodr, 2))
          if (rank0 .eq. 0 .and. nkq) then
-            time2 = mstm_mpi_wtime() - time1
+            time2 = parallel_wall_time() - time1
             call write_elapsed_time(run_print_unit, ' t matrix read time:', time2)
-            time1 = mstm_mpi_wtime()
+            time1 = parallel_wall_time()
          end if
          dm = (0.d0, 0.d0)
          dmcf = (0.d0, 0.d0)
@@ -392,14 +394,14 @@ contains
          end do
          deallocate (tc)
 
-         call mstm_mpi(mpi_command='allreduce', mpi_recv_buf_dc=dm, &
-                       mpi_number=sizedm, mpi_operation=mstm_mpi_sum, mpi_comm=new_comm)
-         call mstm_mpi(mpi_command='allreduce', mpi_recv_buf_dc=dmcf, &
-                       mpi_number=sizedm, mpi_operation=mstm_mpi_sum, mpi_comm=new_comm)
+         call parallel_allreduce_sum(receive_buffer=dm, &
+                                     mpi_number=sizedm, mpi_comm=new_comm)
+         call parallel_allreduce_sum(receive_buffer=dmcf, &
+                                     mpi_number=sizedm, mpi_comm=new_comm)
          if (rank0 .eq. 0 .and. nkq) then
-            time2 = mstm_mpi_wtime() - time1
+            time2 = parallel_wall_time() - time1
             call write_elapsed_time(run_print_unit, ' d matrix time:', time2)
-            time1 = mstm_mpi_wtime()
+            time1 = parallel_wall_time()
          end if
 !
 !  compute the expansion coefficients
@@ -587,7 +589,7 @@ contains
 !               enddo
 !            enddo
          if (rank0 .eq. 0 .and. nkq) then
-            time2 = mstm_mpi_wtime() - time1
+            time2 = parallel_wall_time() - time1
             call write_elapsed_time(run_print_unit, ' scat matrix coef time:', time2)
          end if
          deallocate (windex, vindex, wvindex, wvnum, dm)
@@ -595,7 +597,7 @@ contains
          deallocate (aw, bw, cw, dw, pp, bm, am, fm, bmcf, amcf, fmcf, awcf, &
                      bwcf, cwcf, dwcf)
       end if
-      call mstm_mpi(mpi_command='barrier', mpi_comm=mpicomm)
+      call parallel_barrier(mpi_comm=mpicomm)
    end subroutine random_orientation_scattering_matrix
 !
 !  calculation of the RO scattering matrix from the GSF expansion

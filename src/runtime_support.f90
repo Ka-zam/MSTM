@@ -1,6 +1,6 @@
 module runtime_support
    use, intrinsic :: iso_fortran_env, only: real64
-   use parallel_runtime, only: mpi_comm_world, mstm_mpi, mstm_mpi_max
+   use parallel_runtime, only: mpi_comm_world, parallel_allreduce_max
    implicit none
    private
    public :: clear_runtime_status, open_input_file, open_output_file, open_update_file, &
@@ -49,9 +49,8 @@ contains
       if (present(mpi_comm)) communicator = mpi_comm
       local_status(1) = runtime_status_code
       global_status = local_status
-      call mstm_mpi(mpi_command='allreduce', mpi_send_buf_i=local_status, &
-                    mpi_recv_buf_i=global_status, mpi_number=1, mpi_operation=mstm_mpi_max, &
-                    mpi_comm=communicator)
+      call parallel_allreduce_max(send_buffer=local_status, receive_buffer=global_status, &
+                                  mpi_number=1, mpi_comm=communicator)
       runtime_status_code = global_status(1)
       if (global_status(1) /= 0 .and. len_trim(runtime_status_message) == 0) &
          runtime_status_message = 'MSTM failed on another parallel rank'

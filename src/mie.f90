@@ -12,7 +12,6 @@ contains
 !  february 2013: tmatrix file option.
 !
    subroutine calculate_mie_coefficients(qeps)
-      use parallel_runtime
       use sphere_data
       implicit none
       integer :: i, nodrn, nsphere, ntermstot, nblktot, nterms, &

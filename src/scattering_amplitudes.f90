@@ -3,7 +3,8 @@ module scattering_amplitudes
    use constants
    use fft_translation
    use mie
-   use parallel_runtime
+   use parallel_runtime, only: mpi_comm_world, mstm_global_rank, parallel_allreduce_sum, parallel_barrier, &
+                               parallel_rank, parallel_size
    use numerical_tables
    use periodic_lattice_operations
    use angular_functions, only: azimuthal_phase_factors, rotation_coefficients, &
@@ -606,8 +607,8 @@ contains
       end if
       call initialize_numerical_tables(2 * ntot)
       runprintunit = run_print_unit
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
+      call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
       a1 = (0.d0, 0.d0)
       a2 = (0.d0, 0.d0)
       do n = 1, ntot
@@ -689,16 +690,16 @@ contains
             end do
          end do
       end do
-      call mstm_mpi(mpi_command='barrier')
+      call parallel_barrier()
       nsend = 4 * 4 * (2 * ntot + 1)
-      call mstm_mpi(mpi_command='allreduce', mpi_recv_buf_dp=s00, &
-                    mpi_number=nsend, mpi_operation=mstm_mpi_sum, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='allreduce', mpi_recv_buf_dp=s02, &
-                    mpi_number=nsend, mpi_operation=mstm_mpi_sum, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='allreduce', mpi_recv_buf_dp=sp22, &
-                    mpi_number=nsend, mpi_operation=mstm_mpi_sum, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='allreduce', mpi_recv_buf_dp=sm22, &
-                    mpi_number=nsend, mpi_operation=mstm_mpi_sum, mpi_comm=mpicomm)
+      call parallel_allreduce_sum(receive_buffer=s00, &
+                                  mpi_number=nsend, mpi_comm=mpicomm)
+      call parallel_allreduce_sum(receive_buffer=s02, &
+                                  mpi_number=nsend, mpi_comm=mpicomm)
+      call parallel_allreduce_sum(receive_buffer=sp22, &
+                                  mpi_number=nsend, mpi_comm=mpicomm)
+      call parallel_allreduce_sum(receive_buffer=sm22, &
+                                  mpi_number=nsend, mpi_comm=mpicomm)
 !
 !  a patch
 !

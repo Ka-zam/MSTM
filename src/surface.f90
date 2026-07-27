@@ -7,6 +7,7 @@ module surface
    use bessel_functions, only: bessel_integer_complex
    use coefficient_indexing, only: polarized_mode_index
    use quadrature, only: integrate_gauss_kronrod_adaptive, sort_unique_real_values
+   use parallel_runtime, only: mstm_global_rank
    implicit none
    logical :: source_sum, include_direct_source, &
               pole_integration, plane_surface_present

@@ -1,6 +1,7 @@
 module scattering_matrix_driver
    use, intrinsic :: iso_fortran_env, only: real64
    use input_state
+   use parallel_runtime, only: mpi_comm_world
    use scattering_amplitudes, only: common_origin_scattering_matrix, &
                                     evaluate_fixed_orientation_scattering_matrix, multiple_origin_scattering_matrix, &
                                     numerical_scattering_matrix_azimuthal_average_multiple_origin, &

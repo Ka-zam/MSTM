@@ -1,6 +1,7 @@
 module configuration_data
    use, intrinsic :: iso_fortran_env, only: real64
    use input_state
+   use parallel_runtime, only: mpi_comm_world, mstm_global_rank, parallel_barrier, parallel_broadcast, parallel_rank
    use runtime_support, only: open_input_file, runtime_failed, set_runtime_error, synchronize_runtime_status
    implicit none
    private
@@ -20,7 +21,7 @@ contains
       else
          mpicomm = mpi_comm_world
       end if
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
 
       call open_input_file(sphere_data_input_file, input_unit)
       if (runtime_failed()) return
@@ -87,7 +88,7 @@ contains
       else
          mpicomm = mpi_comm_world
       end if
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
       nsphere = number_spheres
       if (random_configuration_host) nsphere = nsphere - 1
       if (rank .eq. 0) then
@@ -122,22 +123,22 @@ contains
       call synchronize_runtime_status(mpicomm)
       if (runtime_failed()) return
       generation_status(1) = ran_config_stat
-      call mstm_mpi(mpi_command='bcast', mpi_send_buf_i=generation_status, mpi_number=1, &
-                    mpi_rank=0, mpi_comm=mpicomm)
+      call parallel_broadcast(send_buffer=generation_status, mpi_number=1, &
+                              mpi_rank=0, mpi_comm=mpicomm)
       ran_config_stat = generation_status(1)
       if (generation_status(1) .ge. 3) then
          call set_runtime_error('Unable to generate random sphere configuration')
          return
       end if
-!         call mstm_mpi(mpi_command='barrier')
+!         call parallel_barrier()
       nsend = nsphere
-      call mstm_mpi(mpi_command='bcast', mpi_send_buf_dp=sphere_radius, &
-                    mpi_number=nsend, mpi_rank=0, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='bcast', mpi_send_buf_i=sphere_index, &
-                    mpi_number=nsend, mpi_rank=0, mpi_comm=mpicomm)
+      call parallel_broadcast(send_buffer=sphere_radius, &
+                              mpi_number=nsend, mpi_rank=0, mpi_comm=mpicomm)
+      call parallel_broadcast(send_buffer=sphere_index, &
+                              mpi_number=nsend, mpi_rank=0, mpi_comm=mpicomm)
       nsend = nsphere * 3
-      call mstm_mpi(mpi_command='bcast', mpi_send_buf_dp=sphere_position, &
-                    mpi_number=nsend, mpi_rank=0, mpi_comm=mpicomm)
+      call parallel_broadcast(send_buffer=sphere_position, &
+                              mpi_number=nsend, mpi_rank=0, mpi_comm=mpicomm)
       sphere_radius(1:nsphere) = sphere_radius(1:nsphere) * length_scale_factor
       sphere_position(:, 1:nsphere) = sphere_position(:, 1:nsphere) * length_scale_factor
       do i = 1, nsphere

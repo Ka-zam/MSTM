@@ -8,7 +8,10 @@
 !
 module solver
    use, intrinsic :: iso_fortran_env, only: real64
-   use parallel_runtime
+   use parallel_runtime, only: mpi_comm_null, mpi_comm_world, mstm_global_rank, parallel_allreduce_sum, &
+                               parallel_barrier, parallel_broadcast, parallel_communicator_create, parallel_group, &
+                               parallel_group_include, parallel_rank, parallel_reduce_sum, parallel_size, &
+                               parallel_split, parallel_wall_time
    use numerical_tables
    use runtime_support, only: open_output_file, runtime_failed, set_runtime_error, synchronize_runtime_status
    use coefficient_indexing, only: polarized_mode_index
@@ -91,9 +94,9 @@ contains
          exlist = .true.
       end if
 
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank0)
+      call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank0)
       if (.not. itersoln) ppsoln = 1
       ppsoln = min(ppsoln, numprocs)
       nssoln = max(1, numprocs / ppsoln)
@@ -102,15 +105,15 @@ contains
          firstrun = .false.
          if (numprocs .gt. 1) then
             pgroup = floor(dble(rank) / dble(ppsoln))
-            call mstm_mpi(mpi_command='split', &
-                          mpi_color=pgroup, mpi_key=rank, &
-                          mpi_new_comm=pcomm, &
-                          mpi_comm=mpicomm)
-            call mstm_mpi(mpi_command='rank', mpi_rank=prank, mpi_comm=pcomm)
-            call mstm_mpi(mpi_command='split', &
-                          mpi_color=prank, mpi_key=rank, &
-                          mpi_new_comm=pcomm0, &
-                          mpi_comm=mpicomm)
+            call parallel_split( &
+               mpi_color=pgroup, mpi_key=rank, &
+               mpi_new_comm=pcomm, &
+               mpi_comm=mpicomm)
+            call parallel_rank(mpi_rank=prank, mpi_comm=pcomm)
+            call parallel_split( &
+               mpi_color=prank, mpi_key=rank, &
+               mpi_new_comm=pcomm0, &
+               mpi_comm=mpicomm)
          else
             pgroup = 0
             pcomm = mpicomm
@@ -130,7 +133,7 @@ contains
          call open_output_file(tmatrixfile, file_unit)
          if (.not. runtime_failed()) then
             write (file_unit, '(2i4)') t_matrix_order, t_matrix_order
-            time0 = mstm_mpi_wtime()
+            time0 = parallel_wall_time()
             close (file_unit)
          end if
       end if
@@ -151,10 +154,10 @@ contains
 
       do l = 1, t_matrix_order
          if (rank .eq. 0) then
-            ttime(0) = mstm_mpi_wtime()
+            ttime(0) = parallel_wall_time()
          end if
          if (rank .eq. 0) then
-            time1 = mstm_mpi_wtime()
+            time1 = parallel_wall_time()
          end if
 
          allocate (pmnp0(0:l + 1, l, 2), amnp0(2 * l * (l + 2)))
@@ -245,14 +248,14 @@ contains
                end if
             end do
             if (rank .eq. 0) then
-               ttime(1) = mstm_mpi_wtime()
+               ttime(1) = parallel_wall_time()
             end if
 
             if (prank .eq. 0) then
-               call mstm_mpi(mpi_command='allreduce', mpi_recv_buf_dp=dqteff, &
-                             mpi_number=3, mpi_operation=mstm_mpi_sum, mpi_comm=pcomm0)
-               call mstm_mpi(mpi_command='allreduce', mpi_recv_buf_dp=dqeffi, &
-                             mpi_number=3 * number_spheres, mpi_operation=mstm_mpi_sum, mpi_comm=pcomm0)
+               call parallel_allreduce_sum(receive_buffer=dqteff, &
+                                           mpi_number=3, mpi_comm=pcomm0)
+               call parallel_allreduce_sum(receive_buffer=dqeffi, &
+                                           mpi_number=3 * number_spheres, mpi_comm=pcomm0)
 
                qeffi = qeffi + dqeffi
                qteff = qteff + dqteff
@@ -272,13 +275,13 @@ contains
                         close (file_unit)
                      end if
                   end if
-                  call mstm_mpi(mpi_command='barrier', mpi_comm=pcomm0)
+                  call parallel_barrier(mpi_comm=pcomm0)
                end do
             end if
          end do
 
 !if(rank.eq.0) then
-!ttime(2)=mstm_mpi_wtime()
+!ttime(2)=parallel_wall_time()
 !write(*,'('' timings:'',2es14.5)') ttime(1)-ttime(0),ttime(2)-ttime(1)
 !endif
 
@@ -294,7 +297,7 @@ contains
             nsolns = nsolns + (l + l + 1) * 2
 
             if (rank0 .eq. 0) then
-               timepersoln = (mstm_mpi_wtime() - time1) / dble((l + l + 1) * 2)
+               timepersoln = (parallel_wall_time() - time1) / dble((l + l + 1) * 2)
                timeleft = timepersoln * (nblkt - nsolns)
                if (timeleft .gt. 3600.d0) then
                   timeleft = timeleft / 3600.d0
@@ -331,7 +334,7 @@ contains
 !            endif
 !            deallocate(sexp,scexp)
 
-         call mstm_mpi(mpi_command='bcast', mpi_rank=0, mpi_send_buf_dp=converr, mpi_number=1, mpi_comm=mpicomm)
+         call parallel_broadcast(mpi_rank=0, send_buffer=converr, mpi_number=1, mpi_comm=mpicomm)
 
          if (conveps .gt. 0.d0 .and. converr(1) .lt. conveps) exit
       end do
@@ -415,8 +418,8 @@ contains
       end if
 
 !         if(mpicomm.eq.mpi_comm_null) return
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
+      call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
 
       if (initialize) then
          if (numprocs .gt. 1 .and. (.not. dirsoln)) then
@@ -424,12 +427,12 @@ contains
             pgroup = floor(dble(2 * rank) / dble(numprocs)) + 1
             p1 = pgroup
             p2 = p1
-            call mstm_mpi(mpi_command='split', &
-                          mpi_color=pgroup, mpi_key=rank, &
-                          mpi_new_comm=pcomm, &
-                          mpi_comm=mpicomm)
-            call mstm_mpi(mpi_command='rank', mpi_rank=prank, mpi_comm=pcomm)
-            call mstm_mpi(mpi_command='group', mpi_group=mpigroup, mpi_comm=mpicomm)
+            call parallel_split( &
+               mpi_color=pgroup, mpi_key=rank, &
+               mpi_new_comm=pcomm, &
+               mpi_comm=mpicomm)
+            call parallel_rank(mpi_rank=prank, mpi_comm=pcomm)
+            call parallel_group(mpi_group=mpigroup, mpi_comm=mpicomm)
             groupsize = numprocs / 2 + 1
             allocate (grouplist(groupsize))
             grouplist(1) = 0
@@ -443,15 +446,15 @@ contains
                   exit
                end if
             end do
-            call mstm_mpi(mpi_command='incl', &
-                          mpi_group=mpigroup, &
-                          mpi_size=groupsize, &
-                          mpi_new_group_list=grouplist, &
-                          mpi_new_group=syncgroup)
-            call mstm_mpi(mpi_command='create', &
-                          mpi_group=syncgroup, &
-                          mpi_comm=mpicomm, &
-                          mpi_new_comm=synccomm1)
+            call parallel_group_include( &
+               mpi_group=mpigroup, &
+               mpi_size=groupsize, &
+               mpi_new_group_list=grouplist, &
+               mpi_new_group=syncgroup)
+            call parallel_communicator_create( &
+               mpi_group=syncgroup, &
+               mpi_comm=mpicomm, &
+               mpi_new_comm=synccomm1)
             deallocate (grouplist)
             groupsize = groupsize + oddnumproc
             allocate (grouplist(groupsize))
@@ -466,15 +469,15 @@ contains
                   exit
                end if
             end do
-            call mstm_mpi(mpi_command='incl', &
-                          mpi_group=mpigroup, &
-                          mpi_size=groupsize, &
-                          mpi_new_group_list=grouplist, &
-                          mpi_new_group=syncgroup)
-            call mstm_mpi(mpi_command='create', &
-                          mpi_group=syncgroup, &
-                          mpi_comm=mpicomm, &
-                          mpi_new_comm=synccomm2)
+            call parallel_group_include( &
+               mpi_group=mpigroup, &
+               mpi_size=groupsize, &
+               mpi_new_group_list=grouplist, &
+               mpi_new_group=syncgroup)
+            call parallel_communicator_create( &
+               mpi_group=syncgroup, &
+               mpi_comm=mpicomm, &
+               mpi_new_comm=synccomm2)
             deallocate (grouplist)
          else
             p1 = 1
@@ -490,7 +493,7 @@ contains
          write (*, '('' s8.2.1 '',i3)') mstm_global_rank
          flush (6)
       end if
-!call mstm_mpi(mpi_command='barrier')
+!call parallel_barrier()
 
       allocate (pmnpan(number_eqns), pmnp0(number_eqns, 2))
       call sphere_plane_wave_coefficients(alpha, sinc, dir, pmnp0, &
@@ -526,11 +529,11 @@ contains
                   return
                end if
                if (numprocs .gt. 1) then
-                  call mstm_mpi(mpi_command='bcast', &
-                                mpi_send_buf_dc=amnp(1:nsend, p), &
-                                mpi_number=number_eqns, &
-                                mpi_rank=0, &
-                                mpi_comm=mpicomm)
+                  call parallel_broadcast( &
+                     send_buffer=amnp(1:nsend, p), &
+                     mpi_number=number_eqns, &
+                     mpi_rank=0, &
+                     mpi_comm=mpicomm)
                end if
                iter = 0
             else
@@ -558,27 +561,27 @@ contains
          if (iter .gt. niter .or. serr .gt. eps) istat = 1
       end do
 
-!         call mstm_mpi(mpi_command='barrier')
+!         call parallel_barrier()
 
       if (numprocs .gt. 1 .and. (.not. dirsoln)) then
          nsend = number_eqns
          if (inp1) then
-            call mstm_mpi(mpi_command='bcast', &
-                          mpi_send_buf_dc=amnp(1:nsend, 1), &
-                          mpi_number=nsend, &
-                          mpi_rank=0, &
-                          mpi_comm=synccomm1)
+            call parallel_broadcast( &
+               send_buffer=amnp(1:nsend, 1), &
+               mpi_number=nsend, &
+               mpi_rank=0, &
+               mpi_comm=synccomm1)
          end if
-!            call mstm_mpi(mpi_command='barrier')
+!            call parallel_barrier()
          if (inp2) then
-            call mstm_mpi(mpi_command='bcast', &
-                          mpi_send_buf_dc=amnp(1:nsend, 2), &
-                          mpi_number=nsend, &
-                          mpi_rank=0, &
-                          mpi_comm=synccomm2)
+            call parallel_broadcast( &
+               send_buffer=amnp(1:nsend, 2), &
+               mpi_number=nsend, &
+               mpi_rank=0, &
+               mpi_comm=synccomm2)
          end if
       end if
-!         call mstm_mpi(mpi_command='barrier')
+!         call parallel_barrier()
 !
 !  efficiency factor calculations
 !
@@ -588,7 +591,7 @@ contains
       end if
 !
 ! what is this doing here?
-!call mstm_mpi(mpi_command='barrier')
+!call parallel_barrier()
       if (qeffdim .eq. 1) then
          i = 1
       else
@@ -636,7 +639,7 @@ contains
       else
          seps = 1.d-12
       end if
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
       if (present(solution_status)) solution_status = 0
 
       if (initialize) then
@@ -644,8 +647,8 @@ contains
          allocate (amat(number_eqns, number_eqns), lumat(number_eqns, number_eqns), indx(number_eqns))
          pl_error_codes = 0
          call general_interaction_matrix(amat, mie_mult=.true., mpi_comm=mpicomm)
-         call mstm_mpi(mpi_command='reduce', mpi_rank=0, mpi_operation=mstm_mpi_sum, &
-                       mpi_recv_buf_i=pl_error_codes, mpi_number=6, mpi_comm=mpicomm)
+         call parallel_reduce_sum(mpi_rank=0, &
+                                  receive_buffer=pl_error_codes, mpi_number=6, mpi_comm=mpicomm)
          ierr = 0
          if (rank .eq. 0) then
             if (any(pl_error_codes .ne. 0)) then
@@ -658,8 +661,8 @@ contains
             end if
          end if
          ierr_buffer(1) = ierr
-         call mstm_mpi(mpi_command='bcast', mpi_send_buf_i=ierr_buffer, mpi_number=1, &
-                       mpi_rank=0, mpi_comm=mpicomm)
+         call parallel_broadcast(send_buffer=ierr_buffer, mpi_number=1, &
+                                 mpi_rank=0, mpi_comm=mpicomm)
          ierr = ierr_buffer(1)
          if (ierr /= 0) then
             call set_runtime_error('Direct solver LU decomposition failed', ierr)
@@ -724,9 +727,9 @@ contains
       end if
       iunit = run_print_unit
       neqns = number_eqns
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
-!         call mstm_mpi(mpi_command='rank',mpi_rank=rank0)
+      call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
+!         call parallel_rank(mpi_rank=rank0)
       rank0 = mstm_global_rank
 
       if (light_up) then
@@ -743,12 +746,12 @@ contains
          if (numprocs .gt. 1 .and. niter .gt. 0) then
             oddnumproc = mod(numprocs, 2)
             pgroup = floor(dble(2 * rank) / dble(numprocs)) + 1
-            call mstm_mpi(mpi_command='split', &
-                          mpi_color=pgroup, mpi_key=rank, &
-                          mpi_new_comm=pcomm, &
-                          mpi_comm=mpicomm)
-            call mstm_mpi(mpi_command='rank', mpi_rank=prank, mpi_comm=pcomm)
-            call mstm_mpi(mpi_command='group', mpi_group=mpigroup, mpi_comm=mpicomm)
+            call parallel_split( &
+               mpi_color=pgroup, mpi_key=rank, &
+               mpi_new_comm=pcomm, &
+               mpi_comm=mpicomm)
+            call parallel_rank(mpi_rank=prank, mpi_comm=pcomm)
+            call parallel_group(mpi_group=mpigroup, mpi_comm=mpicomm)
             groupsize = numprocs / 2 + 1
             allocate (grouplist(groupsize))
             grouplist(1) = 0
@@ -762,15 +765,15 @@ contains
                   exit
                end if
             end do
-            call mstm_mpi(mpi_command='incl', &
-                          mpi_group=mpigroup, &
-                          mpi_size=groupsize, &
-                          mpi_new_group_list=grouplist, &
-                          mpi_new_group=syncgroup)
-            call mstm_mpi(mpi_command='create', &
-                          mpi_group=syncgroup, &
-                          mpi_comm=mpicomm, &
-                          mpi_new_comm=synccomm1)
+            call parallel_group_include( &
+               mpi_group=mpigroup, &
+               mpi_size=groupsize, &
+               mpi_new_group_list=grouplist, &
+               mpi_new_group=syncgroup)
+            call parallel_communicator_create( &
+               mpi_group=syncgroup, &
+               mpi_comm=mpicomm, &
+               mpi_new_comm=synccomm1)
             deallocate (grouplist)
             groupsize = groupsize + oddnumproc
             allocate (grouplist(groupsize))
@@ -785,15 +788,15 @@ contains
                   exit
                end if
             end do
-            call mstm_mpi(mpi_command='incl', &
-                          mpi_group=mpigroup, &
-                          mpi_size=groupsize, &
-                          mpi_new_group_list=grouplist, &
-                          mpi_new_group=syncgroup)
-            call mstm_mpi(mpi_command='create', &
-                          mpi_group=syncgroup, &
-                          mpi_comm=mpicomm, &
-                          mpi_new_comm=synccomm2)
+            call parallel_group_include( &
+               mpi_group=mpigroup, &
+               mpi_size=groupsize, &
+               mpi_new_group_list=grouplist, &
+               mpi_new_group=syncgroup)
+            call parallel_communicator_create( &
+               mpi_group=syncgroup, &
+               mpi_comm=mpicomm, &
+               mpi_new_comm=synccomm2)
             deallocate (grouplist)
          else
             pcomm = mpicomm
@@ -828,9 +831,9 @@ contains
 !
       if (niter .lt. 0) then
          cp = anp
-         if (rank0 .eq. 0) time1 = mstm_mpi_wtime()
+         if (rank0 .eq. 0) time1 = parallel_wall_time()
          do iter = 1, -niter
-            if (rank0 .eq. 0) time0 = mstm_mpi_wtime()
+            if (rank0 .eq. 0) time0 = parallel_wall_time()
             cr = 0.
             if (iter .eq. 1) then
                call sphere_interaction(neqns, 1, cp, cr, &
@@ -848,7 +851,7 @@ contains
                errmax = eerr
                exit
             end if
-            if (rank0 .eq. 0) time2 = mstm_mpi_wtime()
+            if (rank0 .eq. 0) time2 = parallel_wall_time()
             if (rank0 .eq. 0 .and. iterwrite .eq. 1 .and. time2 - time1 .gt. 5.d0) then
                write (iunit, '('' iter,err,tpi:'',i5,2e13.5)') iter, eerr, time2 - time0
                flush (iunit)
@@ -858,7 +861,7 @@ contains
 !write(*,'(i5,6es20.12)') iter,sum(abs(anp)),anp(number_eqns)
 !endif
          end do
-         call mstm_mpi(mpi_command='barrier', mpi_comm=mpicomm)
+         call parallel_barrier(mpi_comm=mpicomm)
          deallocate (cr, cp, cw, cq, cap, caw, capt, cawt)
          return
       end if
@@ -881,14 +884,14 @@ contains
 !
 !  here starts the main iteration loop
 !
-      if (rank0 .eq. 0) time1 = mstm_mpi_wtime()
+      if (rank0 .eq. 0) time1 = parallel_wall_time()
       if (light_up) then
          write (*, '('' s8.2.3.2 '',i3)') mstm_global_rank
          flush (6)
       end if
       do iter = 1, niter
-         call mstm_mpi(mpi_command='barrier', mpi_comm=mpicomm)
-         if (rank0 .eq. 0) time0 = mstm_mpi_wtime()
+         call parallel_barrier(mpi_comm=mpicomm)
+         if (rank0 .eq. 0) time0 = parallel_wall_time()
          cak = 0.d0
          cawt = 0.d0
          capt = 0.d0
@@ -918,24 +921,24 @@ contains
                call sphere_interaction(neqns, 1, cw, caw, &
                                        con_tran=(/.true./), mpi_comm=pcomm)
             end if
-            call mstm_mpi(mpi_command='barrier', mpi_comm=mpicomm)
+            call parallel_barrier(mpi_comm=mpicomm)
             if (inp2) then
-               call mstm_mpi(mpi_command='bcast', &
-                             mpi_send_buf_dc=caw, &
-                             mpi_number=neqns, &
-                             mpi_rank=0, &
-                             mpi_comm=synccomm2)
+               call parallel_broadcast( &
+                  send_buffer=caw, &
+                  mpi_number=neqns, &
+                  mpi_rank=0, &
+                  mpi_comm=synccomm2)
             end if
             if (inp1) then
-               call mstm_mpi(mpi_command='bcast', &
-                             mpi_send_buf_dc=cap, &
-                             mpi_number=neqns, &
-                             mpi_rank=0, &
-                             mpi_comm=synccomm1)
+               call parallel_broadcast( &
+                  send_buffer=cap, &
+                  mpi_number=neqns, &
+                  mpi_rank=0, &
+                  mpi_comm=synccomm1)
             end if
          end if
 
-         call mstm_mpi(mpi_command='barrier', mpi_comm=mpicomm)
+         call parallel_barrier(mpi_comm=mpicomm)
 
          if (light_up) then
             write (*, '('' s8.2.3.4 '',3i3)') mstm_global_rank, iter
@@ -978,7 +981,7 @@ contains
             write (*, '('' s8.2.3.5 '',3i3)') mstm_global_rank, iter
             flush (6)
          end if
-         if (rank0 .eq. 0) time2 = mstm_mpi_wtime()
+         if (rank0 .eq. 0) time2 = parallel_wall_time()
          if (rank0 .eq. 0 .and. iterwrite .eq. 1 .and. time2 - time1 .gt. 5.d0) then
             write (run_print_unit, '('' iter,err,min err, tpi:'',i5,2e12.4,e12.4)') &
                iter, errmax, errmin, time2 - time0
@@ -997,7 +1000,7 @@ contains
       data tiny/1.d-20/
       ierr = 0
       d = 1.d0
-      time1 = mstm_mpi_wtime()
+      time1 = parallel_wall_time()
       do i = 1, n
          aamax = 0.d0
          do j = 1, n
@@ -1010,7 +1013,7 @@ contains
          vv(i) = 1.d0 / aamax
       end do
       do j = 1, n
-         time2 = mstm_mpi_wtime()
+         time2 = parallel_wall_time()
          if (mstm_global_rank .eq. 0 .and. time2 - time1 .gt. 15.d0) then
             write (run_print_unit, '('' lu decomposition, step '', i5,''/'',i5)') j, n
             flush (run_print_unit)

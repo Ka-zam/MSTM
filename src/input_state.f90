@@ -3,7 +3,6 @@
 
 module input_state
    use, intrinsic :: iso_fortran_env, only: real64
-   use parallel_runtime
    use solver
    use sphere_data
    use translation_expansions, only: interaction_radius

@@ -9,7 +9,7 @@ program mstm
                           loop_sphere_number, loop_var_label, loop_var_type, n_nest_loops, output_file, &
                           random_orientation, r_var_start, r_var_step, r_var_stop, repeat_run, run_number
    use mstm_version_info, only: mstm_version
-   use parallel_runtime, only: mstm_mpi
+   use parallel_runtime, only: parallel_barrier, parallel_finalize, parallel_initialize, parallel_rank, parallel_size
    use runtime_support, only: clear_runtime_status, open_input_file, open_output_file, &
                               report_runtime_error, runtime_failed, set_runtime_error, &
                               synchronize_runtime_status
@@ -21,10 +21,10 @@ program mstm
    character(len=256), allocatable :: inputfiledata(:)
    data oldoutputfile/' '/
 
-   call mstm_mpi(mpi_command='init')
+   call parallel_initialize()
    call clear_runtime_status()
-   call mstm_mpi(mpi_command='rank', mpi_rank=rank)
-   call mstm_mpi(mpi_command='size', mpi_size=numprocs)
+   call parallel_rank(mpi_rank=rank)
+   call parallel_size(mpi_size=numprocs)
    call parse_command_line(rank, inputfile)
 
    inquire (file=trim(inputfile), exist=input_exists)
@@ -33,7 +33,7 @@ program mstm
          write (error_unit, '(a)') "mstm: cannot open input file '"//trim(inputfile)//"'"
          write (error_unit, '(a)') "Try 'mstm --help' for usage information."
       end if
-      call mstm_mpi(mpi_command='finalize')
+      call parallel_finalize()
       stop 2, quiet = .true.
    end if
 
@@ -64,12 +64,12 @@ program mstm
             close (input_unit)
          end if
       end if
-      call mstm_mpi(mpi_command='barrier')
+      call parallel_barrier()
    end do
    call synchronize_runtime_status()
    if (runtime_failed()) then
       if (rank .eq. 0) call report_runtime_error(error_unit)
-      call mstm_mpi(mpi_command='finalize')
+      call parallel_finalize()
       stop 2, quiet = .true.
    end if
 
@@ -84,7 +84,7 @@ program mstm
             if (readstat(1) /= 0 .and. .not. runtime_failed()) &
                call set_runtime_error('Invalid simulation input')
          end if
-         call mstm_mpi(mpi_command='barrier')
+         call parallel_barrier()
       end do
       call synchronize_runtime_status()
       if (runtime_failed()) exit simulation_loop
@@ -130,8 +130,8 @@ program mstm
 !         open(20,file='temp_pos.dat')
 !         close(20,status='delete')
 !      endif
-   call mstm_mpi(mpi_command='barrier')
-   call mstm_mpi(mpi_command='finalize')
+   call parallel_barrier()
+   call parallel_finalize()
    if (runtime_failed()) then
       if (rank .eq. 0) call report_runtime_error(error_unit)
       stop 2, quiet = .true.
@@ -149,7 +149,7 @@ contains
       number_arguments = command_argument_count()
       if (number_arguments .eq. 0) then
          if (rank .eq. 0) call print_help()
-         call mstm_mpi(mpi_command='finalize')
+         call parallel_finalize()
          stop 0, quiet = .true.
       end if
 
@@ -157,11 +157,11 @@ contains
       select case (trim(argument))
       case ('help', '--help', '-h')
          if (rank .eq. 0) call print_help()
-         call mstm_mpi(mpi_command='finalize')
+         call parallel_finalize()
          stop 0, quiet = .true.
       case ('version', '--version', '-V')
          if (rank .eq. 0) write (output_unit, '(a)') 'MSTM '//mstm_version
-         call mstm_mpi(mpi_command='finalize')
+         call parallel_finalize()
          stop 0, quiet = .true.
       case default
          if (argument(1:1) .eq. '-') then
@@ -169,7 +169,7 @@ contains
                write (error_unit, '(a)') "mstm: unknown option '"//trim(argument)//"'"
                write (error_unit, '(a)') "Try 'mstm --help' for usage information."
             end if
-            call mstm_mpi(mpi_command='finalize')
+            call parallel_finalize()
             stop 2, quiet = .true.
          end if
       end select
@@ -180,7 +180,7 @@ contains
             write (error_unit, '(a)') "mstm: unexpected argument '"//trim(extra_argument)//"'"
             write (error_unit, '(a)') "Usage: mstm [INPUT_FILE]"
          end if
-         call mstm_mpi(mpi_command='finalize')
+         call parallel_finalize()
          stop 2, quiet = .true.
       end if
 

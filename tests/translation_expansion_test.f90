@@ -1,6 +1,6 @@
 program translation_expansion_test
    use iso_fortran_env, only: real64
-   use parallel_runtime, only: mstm_mpi
+   use parallel_runtime, only: parallel_finalize, parallel_initialize
    use numerical_tables, only: initialize_numerical_tables
    use translation_expansions, only: external_to_internal_expansion, nested_sphere_geometry_view
 
@@ -18,7 +18,7 @@ program translation_expansion_test
    complex(real64) :: second_output(equation_count, rhs_count)
    type(nested_sphere_geometry_view) :: geometry
 
-   call mstm_mpi(mpi_command='init')
+   call parallel_initialize()
    call configure_nested_spheres()
 
    do coefficient = 1, equation_count
@@ -46,7 +46,7 @@ program translation_expansion_test
       error stop 'Second selective RHS result is incorrect'
    end if
 
-   call mstm_mpi(mpi_command='finalize')
+   call parallel_finalize()
 
 contains
 

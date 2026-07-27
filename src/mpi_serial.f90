@@ -1,147 +1,243 @@
-!
-!  MPI alias definitions for serial machines.
-!
-!
-!  last revised: 15 January 2011
-!
 module parallel_runtime
+   use, intrinsic :: iso_c_binding, only: c_f_pointer, c_loc
    use, intrinsic :: iso_fortran_env, only: real32, real64
-   implicit none
-   integer :: mpi_comm_world, mstm_mpi_comm_world, mstm_mpi_sum, mstm_mpi_max, mstm_mpi_min, &
-              mpi_comm_null, mstm_global_rank
-   data mstm_global_rank/0/
+   implicit none(type, external)
+   private
+
+   integer, public :: mpi_comm_world = 1
+   integer, public :: mpi_comm_null = 0
+   integer, public :: mstm_global_rank = 0
+   integer, public :: mstm_global_numprocs = 1
+
+   public :: parallel_wall_time
+   public :: parallel_initialize, parallel_finalize
+   public :: parallel_rank, parallel_size, parallel_barrier
+   public :: parallel_split, parallel_group, parallel_group_include, parallel_communicator_create
+   public :: parallel_broadcast, parallel_reduce_sum, parallel_allreduce_sum, parallel_allreduce_max
+   public :: parallel_allreduce_sum_complex64_sequence
+   public :: parallel_send, parallel_receive
+
+   interface parallel_broadcast
+      module procedure broadcast_integer
+      module procedure broadcast_real64
+      module procedure broadcast_complex64
+   end interface parallel_broadcast
+
+   interface parallel_reduce_sum
+      module procedure reduce_sum_integer
+      module procedure reduce_sum_complex32
+      module procedure reduce_sum_real64
+      module procedure reduce_sum_complex64
+   end interface parallel_reduce_sum
+
+   interface parallel_allreduce_sum
+      module procedure allreduce_sum_real64
+      module procedure allreduce_sum_complex64
+   end interface parallel_allreduce_sum
+
+   interface parallel_send
+      module procedure send_complex64
+   end interface parallel_send
+
+   interface parallel_receive
+      module procedure receive_complex64
+   end interface parallel_receive
 
 contains
 
-   real(real64) function mstm_mpi_wtime()
-      implicit none
-      call cpu_time(mstm_mpi_wtime)
-   end function mstm_mpi_wtime
+   subroutine parallel_initialize()
+      mstm_global_rank = 0
+      mstm_global_numprocs = 1
+   end subroutine parallel_initialize
 
-   subroutine mstm_mpi(mpi_command, mpi_recv_buf_i, mpi_recv_buf_r, mpi_recv_buf_c, mpi_recv_buf_dp, &
-                       mpi_recv_buf_dc, mpi_send_buf_i, mpi_send_buf_r, mpi_send_buf_c, &
-                       mpi_send_buf_dp, mpi_send_buf_dc, mpi_number, mpi_comm, mpi_group, mpi_rank, mpi_size, &
-                       mpi_new_comm, mpi_new_group, mpi_new_group_list, mpi_operation, &
-                       mpi_color, mpi_key, mpi_tag, mpi_flag)
-      integer, optional :: mpi_number, mpi_recv_buf_i(*), mpi_send_buf_i(*), mpi_comm, mpi_group, mpi_rank, &
-                           mpi_size, mpi_new_comm, mpi_new_group, mpi_new_group_list(*), mpi_operation, &
-                           mpi_color, mpi_key, mpi_tag
-      integer :: stat(1)
-      logical, optional :: mpi_flag
-      real(real32), optional :: mpi_recv_buf_r(*), mpi_send_buf_r(*)
-      real(real64), optional :: mpi_recv_buf_dp(*), mpi_send_buf_dp(*)
-      complex(real32), optional :: mpi_recv_buf_c(*), mpi_send_buf_c(*)
-      complex(real64), optional :: mpi_recv_buf_dc(*), mpi_send_buf_dc(*)
-      character(*) :: mpi_command
-      integer :: type, comm, size, rank, newcomm
+   subroutine parallel_finalize()
+   end subroutine parallel_finalize
 
-      if (mpi_command .eq. 'init') then
-         mpi_comm_world = 1
-         return
-      end if
-      if (mpi_command .eq. 'finalize') then
-         return
-      end if
-      if (present(mpi_comm)) then
-         comm = mpi_comm
-      else
-         comm = mpi_comm_world
-      end if
-      if (mpi_command .eq. 'iprobe') then
-         mpi_flag = .true.
-         return
-      end if
-      if (mpi_command .eq. 'size') then
-         mpi_size = 1
-         return
-      end if
-      if (mpi_command .eq. 'rank') then
-         mpi_rank = 0
-         return
-      end if
-      if (mpi_command .eq. 'group') then
-         return
-      end if
-      if (mpi_command .eq. 'incl') then
-         mpi_new_group = 0
-         return
-      end if
-      if (mpi_command .eq. 'create') then
-         mpi_new_comm = 1
-         return
-      end if
-      if (mpi_command .eq. 'split') then
-         mpi_new_comm = 1
-         return
-      end if
-      if (mpi_command .eq. 'barrier') then
-         return
-      end if
+   real(real64) function parallel_wall_time()
+      call cpu_time(parallel_wall_time)
+   end function parallel_wall_time
 
-      if (present(mpi_recv_buf_i) .or. present(mpi_send_buf_i)) then
-         if (mpi_command .eq. 'bcast' .or. mpi_command .eq. 'send' .or. mpi_command .eq. 'recv') then
-            return
-         end if
-         if (mpi_command .eq. 'reduce' .or. mpi_command .eq. 'allreduce' &
-             .or. mpi_command .eq. 'gather') then
-            if (present(mpi_send_buf_i)) then
-               mpi_recv_buf_i(1:mpi_number) = mpi_send_buf_i(1:mpi_number)
-            end if
-         end if
-         return
-      end if
+   subroutine parallel_rank(mpi_rank, mpi_comm)
+      integer, intent(out) :: mpi_rank
+      integer, optional, intent(in) :: mpi_comm
 
-      if (present(mpi_recv_buf_r) .or. present(mpi_send_buf_r)) then
-         if (mpi_command .eq. 'bcast' .or. mpi_command .eq. 'send' .or. mpi_command .eq. 'recv') then
-            return
-         end if
-         if (mpi_command .eq. 'reduce' .or. mpi_command .eq. 'allreduce' &
-             .or. mpi_command .eq. 'gather') then
-            if (present(mpi_send_buf_r)) then
-               mpi_recv_buf_r(1:mpi_number) = mpi_send_buf_r(1:mpi_number)
-            end if
-         end if
-         return
-      end if
+      mpi_rank = 0
+   end subroutine parallel_rank
 
-      if (present(mpi_recv_buf_c) .or. present(mpi_send_buf_c)) then
-         if (mpi_command .eq. 'bcast' .or. mpi_command .eq. 'send' .or. mpi_command .eq. 'recv') then
-            return
-         end if
-         if (mpi_command .eq. 'reduce' .or. mpi_command .eq. 'allreduce' &
-             .or. mpi_command .eq. 'gather') then
-            if (present(mpi_send_buf_c)) then
-               mpi_recv_buf_c(1:mpi_number) = mpi_send_buf_c(1:mpi_number)
-            end if
-         end if
-         return
-      end if
+   subroutine parallel_size(mpi_size, mpi_comm)
+      integer, intent(out) :: mpi_size
+      integer, optional, intent(in) :: mpi_comm
 
-      if (present(mpi_recv_buf_dp) .or. present(mpi_send_buf_dp)) then
-         if (mpi_command .eq. 'bcast' .or. mpi_command .eq. 'send' .or. mpi_command .eq. 'recv') then
-            return
-         end if
-         if (mpi_command .eq. 'reduce' .or. mpi_command .eq. 'allreduce' &
-             .or. mpi_command .eq. 'gather') then
-            if (present(mpi_send_buf_dp)) then
-               mpi_recv_buf_dp(1:mpi_number) = mpi_send_buf_dp(1:mpi_number)
-            end if
-         end if
-         return
-      end if
+      mpi_size = 1
+   end subroutine parallel_size
 
-      if (present(mpi_recv_buf_dc) .or. present(mpi_send_buf_dc)) then
-         if (mpi_command .eq. 'bcast' .or. mpi_command .eq. 'send' .or. mpi_command .eq. 'recv') then
-            return
-         end if
-         if (mpi_command .eq. 'reduce' .or. mpi_command .eq. 'allreduce' &
-             .or. mpi_command .eq. 'gather') then
-            if (present(mpi_send_buf_dc)) then
-               mpi_recv_buf_dc(1:mpi_number) = mpi_send_buf_dc(1:mpi_number)
-            end if
-         end if
-         return
-      end if
+   subroutine parallel_barrier(mpi_comm)
+      integer, optional, intent(in) :: mpi_comm
+   end subroutine parallel_barrier
 
-   end subroutine mstm_mpi
+   subroutine parallel_split(mpi_color, mpi_key, mpi_new_comm, mpi_comm)
+      integer, intent(in) :: mpi_color, mpi_key
+      integer, intent(out) :: mpi_new_comm
+      integer, optional, intent(in) :: mpi_comm
+
+      mpi_new_comm = mpi_comm_world
+   end subroutine parallel_split
+
+   subroutine parallel_group(mpi_group, mpi_comm)
+      integer, intent(out) :: mpi_group
+      integer, optional, intent(in) :: mpi_comm
+
+      mpi_group = 0
+   end subroutine parallel_group
+
+   subroutine parallel_group_include(mpi_group, mpi_size, mpi_new_group_list, mpi_new_group, mpi_comm)
+      integer, intent(in) :: mpi_group, mpi_size, mpi_new_group_list(*)
+      integer, intent(out) :: mpi_new_group
+      integer, optional, intent(in) :: mpi_comm
+
+      mpi_new_group = 0
+   end subroutine parallel_group_include
+
+   subroutine parallel_communicator_create(mpi_group, mpi_new_comm, mpi_comm)
+      integer, intent(in) :: mpi_group
+      integer, intent(out) :: mpi_new_comm
+      integer, optional, intent(in) :: mpi_comm
+
+      mpi_new_comm = mpi_comm_world
+   end subroutine parallel_communicator_create
+
+   subroutine broadcast_integer(send_buffer, mpi_number, mpi_rank, mpi_comm)
+      integer, contiguous, target, intent(inout) :: send_buffer(..)
+      integer, intent(in) :: mpi_number, mpi_rank
+      integer, optional, intent(in) :: mpi_comm
+   end subroutine broadcast_integer
+
+   subroutine broadcast_real64(send_buffer, mpi_number, mpi_rank, mpi_comm)
+      real(real64), contiguous, target, intent(inout) :: send_buffer(..)
+      integer, intent(in) :: mpi_number, mpi_rank
+      integer, optional, intent(in) :: mpi_comm
+   end subroutine broadcast_real64
+
+   subroutine broadcast_complex64(send_buffer, mpi_number, mpi_rank, mpi_comm)
+      complex(real64), contiguous, target, intent(inout) :: send_buffer(..)
+      integer, intent(in) :: mpi_number, mpi_rank
+      integer, optional, intent(in) :: mpi_comm
+   end subroutine broadcast_complex64
+
+   subroutine reduce_sum_integer(receive_buffer, mpi_number, mpi_rank, mpi_comm, send_buffer)
+      integer, contiguous, target, intent(inout) :: receive_buffer(..)
+      integer, contiguous, optional, target, intent(in) :: send_buffer(..)
+      integer, intent(in) :: mpi_number, mpi_rank
+      integer, optional, intent(in) :: mpi_comm
+      integer, pointer :: receive_values(:), send_values(:)
+
+      if (present(send_buffer)) then
+         call c_f_pointer(c_loc(receive_buffer), receive_values, [mpi_number])
+         call c_f_pointer(c_loc(send_buffer), send_values, [mpi_number])
+         receive_values = send_values
+      end if
+   end subroutine reduce_sum_integer
+
+   subroutine reduce_sum_complex32(receive_buffer, mpi_number, mpi_rank, mpi_comm, send_buffer)
+      complex(real32), contiguous, target, intent(inout) :: receive_buffer(..)
+      complex(real32), contiguous, optional, target, intent(in) :: send_buffer(..)
+      integer, intent(in) :: mpi_number, mpi_rank
+      integer, optional, intent(in) :: mpi_comm
+      complex(real32), pointer :: receive_values(:), send_values(:)
+
+      if (present(send_buffer)) then
+         call c_f_pointer(c_loc(receive_buffer), receive_values, [mpi_number])
+         call c_f_pointer(c_loc(send_buffer), send_values, [mpi_number])
+         receive_values = send_values
+      end if
+   end subroutine reduce_sum_complex32
+
+   subroutine reduce_sum_real64(receive_buffer, mpi_number, mpi_rank, mpi_comm, send_buffer)
+      real(real64), contiguous, target, intent(inout) :: receive_buffer(..)
+      real(real64), contiguous, optional, target, intent(in) :: send_buffer(..)
+      integer, intent(in) :: mpi_number, mpi_rank
+      integer, optional, intent(in) :: mpi_comm
+      real(real64), pointer :: receive_values(:), send_values(:)
+
+      if (present(send_buffer)) then
+         call c_f_pointer(c_loc(receive_buffer), receive_values, [mpi_number])
+         call c_f_pointer(c_loc(send_buffer), send_values, [mpi_number])
+         receive_values = send_values
+      end if
+   end subroutine reduce_sum_real64
+
+   subroutine reduce_sum_complex64(receive_buffer, mpi_number, mpi_rank, mpi_comm, send_buffer)
+      complex(real64), contiguous, target, intent(inout) :: receive_buffer(..)
+      complex(real64), contiguous, optional, target, intent(in) :: send_buffer(..)
+      integer, intent(in) :: mpi_number, mpi_rank
+      integer, optional, intent(in) :: mpi_comm
+      complex(real64), pointer :: receive_values(:), send_values(:)
+
+      if (present(send_buffer)) then
+         call c_f_pointer(c_loc(receive_buffer), receive_values, [mpi_number])
+         call c_f_pointer(c_loc(send_buffer), send_values, [mpi_number])
+         receive_values = send_values
+      end if
+   end subroutine reduce_sum_complex64
+
+   subroutine allreduce_sum_real64(receive_buffer, mpi_number, mpi_comm, send_buffer)
+      real(real64), contiguous, target, intent(inout) :: receive_buffer(..)
+      real(real64), contiguous, optional, target, intent(in) :: send_buffer(..)
+      integer, intent(in) :: mpi_number
+      integer, optional, intent(in) :: mpi_comm
+      real(real64), pointer :: receive_values(:), send_values(:)
+
+      if (present(send_buffer)) then
+         call c_f_pointer(c_loc(receive_buffer), receive_values, [mpi_number])
+         call c_f_pointer(c_loc(send_buffer), send_values, [mpi_number])
+         receive_values = send_values
+      end if
+   end subroutine allreduce_sum_real64
+
+   subroutine allreduce_sum_complex64(receive_buffer, mpi_number, mpi_comm, send_buffer)
+      complex(real64), contiguous, target, intent(inout) :: receive_buffer(..)
+      complex(real64), contiguous, optional, target, intent(in) :: send_buffer(..)
+      integer, intent(in) :: mpi_number
+      integer, optional, intent(in) :: mpi_comm
+      complex(real64), pointer :: receive_values(:), send_values(:)
+
+      if (present(send_buffer)) then
+         call c_f_pointer(c_loc(receive_buffer), receive_values, [mpi_number])
+         call c_f_pointer(c_loc(send_buffer), send_values, [mpi_number])
+         receive_values = send_values
+      end if
+   end subroutine allreduce_sum_complex64
+
+   subroutine parallel_allreduce_sum_complex64_sequence(receive_buffer, mpi_number, mpi_comm)
+      complex(real64), intent(inout) :: receive_buffer(*)
+      integer, intent(in) :: mpi_number
+      integer, optional, intent(in) :: mpi_comm
+   end subroutine parallel_allreduce_sum_complex64_sequence
+
+   subroutine parallel_allreduce_max(receive_buffer, mpi_number, mpi_comm, send_buffer)
+      integer, contiguous, target, intent(inout) :: receive_buffer(..)
+      integer, contiguous, optional, target, intent(in) :: send_buffer(..)
+      integer, intent(in) :: mpi_number
+      integer, optional, intent(in) :: mpi_comm
+      integer, pointer :: receive_values(:), send_values(:)
+
+      if (present(send_buffer)) then
+         call c_f_pointer(c_loc(receive_buffer), receive_values, [mpi_number])
+         call c_f_pointer(c_loc(send_buffer), send_values, [mpi_number])
+         receive_values = send_values
+      end if
+   end subroutine parallel_allreduce_max
+
+   subroutine send_complex64(send_buffer, mpi_number, mpi_rank, mpi_comm)
+      complex(real64), contiguous, target, intent(in) :: send_buffer(..)
+      integer, intent(in) :: mpi_number, mpi_rank
+      integer, optional, intent(in) :: mpi_comm
+   end subroutine send_complex64
+
+   subroutine receive_complex64(receive_buffer, mpi_number, mpi_rank, mpi_comm)
+      complex(real64), contiguous, target, intent(out) :: receive_buffer(..)
+      integer, intent(in) :: mpi_number, mpi_rank
+      integer, optional, intent(in) :: mpi_comm
+   end subroutine receive_complex64
+
 end module parallel_runtime

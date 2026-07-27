@@ -1,6 +1,7 @@
 module near_field
    use, intrinsic :: iso_fortran_env, only: real32, real64
-   use parallel_runtime
+   use parallel_runtime, only: mpi_comm_world, mstm_global_rank, parallel_rank, parallel_reduce_sum, &
+                               parallel_size, parallel_wall_time
    use wave_functions, only: vector_spherical_wave_functions
    use sphere_data
    use mie
@@ -89,8 +90,8 @@ contains
       end if
       incident_gb = gaussian_beam_constant .ne. 0.d0
 
-      call mstm_mpi(mpi_command='size', mpi_size=local_numprocs, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='rank', mpi_rank=local_rank, mpi_comm=mpicomm)
+      call parallel_size(mpi_size=local_numprocs, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=local_rank, mpi_comm=mpicomm)
       do i = 1, 3
          if (griddim(i) .eq. 1) then
             grid_spacing(i) = 0.d0
@@ -160,7 +161,7 @@ contains
 !if(.not.associated(clist)) exit
 !enddo
 
-      time0 = mstm_mpi_wtime()
+      time0 = parallel_wall_time()
       point = 0
       if (local_rank .eq. 0 .and. present(e_field_ave_array)) e_field_ave_array = 0.d0
       do iz = 1, griddim(3)
@@ -170,7 +171,7 @@ contains
             do ix = 1, griddim(1)
                cellnum = gridinfo(ix, iy, iz)%cellnum
                point = point + 1
-               time1 = mstm_mpi_wtime()
+               time1 = parallel_wall_time()
 !                  if(time1-time0.gt.15.d0.and.local_rank.eq.0.and.(.not.present(e_field_ave_array))) then
                if (time1 - time0 .gt. 15.d0 .and. mstm_global_rank .eq. 0) then
                   write (run_print_unit, '('' completed field point calculation '',i8,''/'',i8)') point, totpoints
@@ -221,10 +222,10 @@ contains
 
          if (local_numprocs .gt. 1) then
             nsend = 3 * 2 * product(griddim(1:2))
-            call mstm_mpi(mpi_command='reduce', mpi_recv_buf_c=earray, &
-                          mpi_number=nsend, mpi_operation=mstm_mpi_sum, mpi_rank=0, mpi_comm=mpicomm)
-            call mstm_mpi(mpi_command='reduce', mpi_recv_buf_c=harray, &
-                          mpi_number=nsend, mpi_operation=mstm_mpi_sum, mpi_rank=0, mpi_comm=mpicomm)
+            call parallel_reduce_sum(receive_buffer=earray, &
+                                     mpi_number=nsend, mpi_rank=0, mpi_comm=mpicomm)
+            call parallel_reduce_sum(receive_buffer=harray, &
+                                     mpi_number=nsend, mpi_rank=0, mpi_comm=mpicomm)
          end if
          if (local_rank .eq. 0 .and. present(e_field_ave_array)) then
             do iy = 1, griddim(2)

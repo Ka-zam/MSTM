@@ -3,7 +3,8 @@ module scattering_efficiencies
    use constants
    use fft_translation
    use mie
-   use parallel_runtime
+   use parallel_runtime, only: mpi_comm_world, mstm_global_rank, parallel_allreduce_sum, parallel_rank, &
+                               parallel_receive, parallel_send, parallel_size
    use numerical_tables
    use periodic_lattice_operations
    use bessel_functions, only: riccati_bessel, riccati_hankel
@@ -154,8 +155,8 @@ contains
       else
          mpicomm = mpi_comm_world
       end if
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
+      call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
       neqns = number_eqns
       allocate (gmnp(neqns, npol), qeffi(3, 2 * npol - 1))
       gmnp = 0.d0
@@ -324,10 +325,10 @@ contains
       else
          mpicomm = mpi_comm_world
       end if
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs, &
-                    mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, &
-                    mpi_comm=mpicomm)
+      call parallel_size(mpi_size=numprocs, &
+                         mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, &
+                         mpi_comm=mpicomm)
 
       qbsca = 0.d0
       task = 0
@@ -366,10 +367,9 @@ contains
       if (numprocs .gt. 1) then
          nsend = 4
          qt2 = qbsca
-         call mstm_mpi(mpi_command='allreduce', mpi_number=nsend, &
-                       mpi_send_buf_dp=qt2, mpi_recv_buf_dp=qbsca, &
-                       mpi_operation=mstm_mpi_sum, &
-                       mpi_comm=mpicomm)
+         call parallel_allreduce_sum(mpi_number=nsend, &
+                                     send_buffer=qt2, receive_buffer=qbsca, &
+                                     mpi_comm=mpicomm)
       end if
    end subroutine boundary_scattering
 
@@ -438,10 +438,10 @@ contains
       else
          mpicomm = mpi_comm_world
       end if
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs, &
-                    mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, &
-                    mpi_comm=mpicomm)
+      call parallel_size(mpi_size=numprocs, &
+                         mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, &
+                         mpi_comm=mpicomm)
 
       if (.not. numerical) then
          if (singleorigin) then
@@ -484,13 +484,13 @@ contains
          end do
          if (numprocs .gt. 1) then
             if (rank .eq. 1) then
-               call mstm_mpi(mpi_command='send', mpi_number=2, &
-                             mpi_send_buf_dc=cq(:, 2), mpi_rank=0, &
-                             mpi_comm=mpicomm)
+               call parallel_send(mpi_number=2, &
+                                  send_buffer=cq(:, 2), mpi_rank=0, &
+                                  mpi_comm=mpicomm)
             elseif (rank .eq. 0) then
-               call mstm_mpi(mpi_command='recv', mpi_number=2, &
-                             mpi_recv_buf_dc=cq(:, 2), mpi_rank=1, &
-                             mpi_comm=mpicomm)
+               call parallel_receive(mpi_number=2, &
+                                     receive_buffer=cq(:, 2), mpi_rank=1, &
+                                     mpi_comm=mpicomm)
             end if
          end if
          qbsca = cq * 4.d0 / cross_section_radius**2.

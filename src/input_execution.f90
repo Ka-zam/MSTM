@@ -7,6 +7,8 @@ module input_execution
    use effective_medium_analysis
    use input_parser
    use input_reporting
+   use parallel_runtime, only: mpi_comm_world, mstm_global_rank, parallel_barrier, parallel_broadcast, &
+                               parallel_rank, parallel_reduce_sum, parallel_size, parallel_split, parallel_wall_time
    use runtime_support, only: open_output_file, runtime_failed
    use random_orientation_scattering, only: evaluate_random_orientation_scattering_matrix
    use scattering_amplitudes, only: fixed_orientation_scattering_matrix_expansion, periodic_lattice_scattering
@@ -56,8 +58,8 @@ contains
       end if
 
       first_run = .false.
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
+      call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
 !         if(rank.ne.0) light_up=.false.
       local_rank = rank
       global_rank = rank
@@ -119,13 +121,13 @@ contains
       if (random_configuration) then
          if (print_timings .and. mstm_global_rank .eq. 0) then
             write (run_print_unit, '('' generating random configuration:'')', advance='no')
-            timet = mstm_mpi_wtime()
+            timet = parallel_wall_time()
          end if
          call generate_random_configuration(mpi_comm=mpicomm, skip_diffusion=dryrun)
          if (runtime_failed()) return
 !            call generate_random_configuration(mpi_comm=mpicomm)
          if (print_timings .and. mstm_global_rank .eq. 0) then
-            write (run_print_unit, '('' completed, time:'',es12.5,'' s'')') mstm_mpi_wtime() - timet
+            write (run_print_unit, '('' completed, time:'',es12.5,'' s'')') parallel_wall_time() - timet
          end if
          if (rank .eq. 0) then
 !               if(print_random_configuration.and.(.not.configuration_average)) then
@@ -374,8 +376,8 @@ contains
                if (host_sphere(itemp(1)) .eq. 0) exit
             end do
          end if
-         call mstm_mpi(mpi_command='bcast', mpi_rank=0, &
-                       mpi_send_buf_i=itemp(1), mpi_number=1, mpi_comm=mpicomm)
+         call parallel_broadcast(mpi_rank=0, &
+                                 send_buffer=itemp(1), mpi_number=1, mpi_comm=mpicomm)
          sphere_excitation_switch(itemp(1)) = .true.
       end if
       if (light_up) then
@@ -482,8 +484,8 @@ contains
          write (*, '('' s8 '',i3)') mstm_global_rank
          flush (6)
       end if
-!call mstm_mpi(mpi_command='barrier')
-      if (rank .eq. 0) time1 = mstm_mpi_wtime()
+!call parallel_barrier()
+      if (rank .eq. 0) time1 = parallel_wall_time()
       if (rank .eq. 0 .and. printout) then
          if (check_positions) call check_sphere_positions()
          call print_run_variables(run_print_unit)
@@ -536,7 +538,7 @@ contains
             write (*, '('' s8.1 '',i3)') mstm_global_rank
             flush (6)
          end if
-!call mstm_mpi(mpi_command='barrier')
+!call parallel_barrier()
 
          if (allocated(amnp_s)) deallocate (amnp_s)
          allocate (amnp_s(number_eqns, 2))
@@ -549,10 +551,10 @@ contains
             write (*, '('' s8.2 '',i3)') mstm_global_rank
             flush (6)
          end if
-!call mstm_mpi(mpi_command='barrier')
+!call parallel_barrier()
          if (print_timings .and. mstm_global_rank .eq. 0) then
             write (run_print_unit, '('' generating solution:'')', advance='no')
-            timet = mstm_mpi_wtime()
+            timet = parallel_wall_time()
          end if
          call solve_fixed_orientation(alpha, incident_sin_beta, incident_direction, solution_epsilon, niter, &
                                       amnp_s, q_eff, &
@@ -563,7 +565,7 @@ contains
                                       initialize_solver=.true.)
          if (runtime_failed()) return
          if (print_timings .and. mstm_global_rank .eq. 0) then
-            write (run_print_unit, '('' completed, time:'',es12.5,'' s'')') mstm_mpi_wtime() - timet
+            write (run_print_unit, '('' completed, time:'',es12.5,'' s'')') parallel_wall_time() - timet
          end if
          if (fft_translation_option) then
             call clear_fft_matrix()
@@ -577,10 +579,10 @@ contains
             write (*, '('' s8.3 '',i3)') mstm_global_rank
             flush (6)
          end if
-!call mstm_mpi(mpi_command='barrier')
+!call parallel_barrier()
          if (print_timings .and. mstm_global_rank .eq. 0) then
             write (run_print_unit, '('' post processing solution:'')', advance='no')
-            timet = mstm_mpi_wtime()
+            timet = parallel_wall_time()
          end if
 
          call total_efficiency_factors(number_spheres, qeff_dim, cross_section_radius, &
@@ -595,7 +597,7 @@ contains
                write (*, '('' s8.3.1 '',i3)') mstm_global_rank
                flush (6)
             end if
-!call mstm_mpi(mpi_command='barrier')
+!call parallel_barrier()
             do i = 1, 2
                call merge_to_common_origin(t_matrix_order, amnp_s(:, i), amnp_0(:, i), &
                                            origin_position=cluster_origin, merge_procs=.true., &
@@ -609,7 +611,7 @@ contains
                write (*, '('' s8.3.2 '',i3)') mstm_global_rank
                flush (6)
             end if
-!call mstm_mpi(mpi_command='barrier')
+!call parallel_barrier()
             if (singleorigin .and. azimuthal_average .and. (.not. numerical_azimuthal_average)) then
                if (allocated(scat_mat_exp_coef)) deallocate (scat_mat_exp_coef)
                allocate (scat_mat_exp_coef(16, 0:2 * t_matrix_order, 4))
@@ -621,7 +623,7 @@ contains
                write (*, '('' s8.3.4 '',i3)') mstm_global_rank
                flush (6)
             end if
-!call mstm_mpi(mpi_command='barrier')
+!call parallel_barrier()
             if (calculate_scattering_matrix) then
                call compute_scattering_matrix(amnp_0, scat_mat, mpi_comm=mpicomm)
             end if
@@ -629,7 +631,7 @@ contains
                write (*, '('' s8.3.5 '',i3)') mstm_global_rank
                flush (6)
             end if
-!call mstm_mpi(mpi_command='barrier')
+!call parallel_barrier()
             if (gaussian_beam_constant .eq. 0.d0) then
                boundary_ext = 0.d0
                ! A finite cluster without interfaces does not use plane-boundary
@@ -645,12 +647,12 @@ contains
                write (*, '('' s8.3.5 '',i3)') mstm_global_rank
                flush (6)
             end if
-!call mstm_mpi(mpi_command='barrier')
+!call parallel_barrier()
             if (light_up) then
                write (*, '('' s8.3.5 '',i3)') mstm_global_rank
                flush (6)
             end if
-!call mstm_mpi(mpi_command='barrier')
+!call parallel_barrier()
             if (calculate_scattering_matrix) then
                call compute_scattering_matrix(amnp_s, scat_mat, mpi_comm=mpicomm)
             end if
@@ -697,12 +699,12 @@ contains
          end if
 
          if (print_timings .and. mstm_global_rank .eq. 0) then
-            write (run_print_unit, '('' completed, time:'',es12.5,'' s'')') mstm_mpi_wtime() - timet
+            write (run_print_unit, '('' completed, time:'',es12.5,'' s'')') parallel_wall_time() - timet
          end if
 
       end if
 
-      if (rank .eq. 0) solution_time = mstm_mpi_wtime() - time1
+      if (rank .eq. 0) solution_time = parallel_wall_time() - time1
 
       call gather_error_codes(mpicomm)
       if (light_up) then
@@ -758,15 +760,15 @@ contains
       integer :: mpicomm, itemp(6)
       if (number_plane_boundaries .gt. 0) then
          itemp(1:4) = error_codes
-         call mstm_mpi(mpi_command='reduce', mpi_rank=0, mpi_number=4, mpi_operation=mstm_mpi_sum, &
-                       mpi_recv_buf_i=error_codes, mpi_send_buf_i=itemp(1:4), mpi_comm=mpicomm)
+         call parallel_reduce_sum(mpi_rank=0, mpi_number=4, &
+                                  receive_buffer=error_codes, send_buffer=itemp(1:4), mpi_comm=mpicomm)
       else
          error_codes = 0
       end if
       if (periodic_lattice) then
          itemp(1:6) = pl_error_codes
-         call mstm_mpi(mpi_command='reduce', mpi_rank=0, mpi_number=6, mpi_operation=mstm_mpi_sum, &
-                       mpi_recv_buf_i=pl_error_codes, mpi_send_buf_i=itemp(1:6), mpi_comm=mpicomm)
+         call parallel_reduce_sum(mpi_rank=0, mpi_number=6, &
+                                  receive_buffer=pl_error_codes, send_buffer=itemp(1:6), mpi_comm=mpicomm)
       else
          pl_error_codes = 0
       end if
@@ -784,8 +786,8 @@ contains
       character(len=256) :: tmatchar1, tmatchar2
       data tmatchar1, tmatchar2/'tmat-', '.tmp'/
       first_run = .false.
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank)
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs)
+      call parallel_rank(mpi_rank=rank)
+      call parallel_size(mpi_size=numprocs)
 !         if(rank.ne.0) light_up=.false.
       local_rank = rank
       global_rank = rank
@@ -801,16 +803,16 @@ contains
       n_configuration_groups = max(n_configuration_groups, 1)
       configcolor = floor(dble(n_configuration_groups * rank) / dble(numprocs))
       configgroup = configcolor
-      call mstm_mpi(mpi_command='split', &
-                    mpi_color=configcolor, mpi_key=rank, &
-                    mpi_new_comm=configcomm)
-      call mstm_mpi(mpi_command='rank', &
-                    mpi_rank=configrank, &
-                    mpi_comm=configcomm)
+      call parallel_split( &
+         mpi_color=configcolor, mpi_key=rank, &
+         mpi_new_comm=configcomm)
+      call parallel_rank( &
+         mpi_rank=configrank, &
+         mpi_comm=configcomm)
       configcolor = configrank
-      call mstm_mpi(mpi_command='split', &
-                    mpi_color=configcolor, mpi_key=rank, &
-                    mpi_new_comm=config0comm)
+      call parallel_split( &
+         mpi_color=configcolor, mpi_key=rank, &
+         mpi_new_comm=config0comm)
       random_configuration = .true.
       singleorigin = number_plane_boundaries .eq. 0 .and. single_origin_expansion
 !singleorigin=.true.
@@ -890,7 +892,7 @@ contains
                random_configuration_number * n_configuration_groups
          end if
 
-         if (rank .eq. 0) time1 = mstm_mpi_wtime()
+         if (rank .eq. 0) time1 = parallel_wall_time()
 
          call execute_simulation(print_output=.false., set_t_matrix_order=.false., mpi_comm=configcomm)
          if (runtime_failed()) return
@@ -900,7 +902,7 @@ contains
          end if
 
          if (configrank .eq. 0) then
-            if (rank .eq. 0) solution_time = mstm_mpi_wtime() - time1
+            if (rank .eq. 0) solution_time = parallel_wall_time() - time1
             q_eff_ave = q_eff_ave + q_eff
             q_eff_tot_ave = q_eff_tot_ave + q_eff_tot
             q_vabs_ave = q_vabs_ave + q_vabs
@@ -949,131 +951,116 @@ contains
          end if
 
          nsend = 3 * number_spheres
-         call mstm_mpi(mpi_command='reduce', &
-                       mpi_operation=mstm_mpi_sum, &
-                       mpi_send_buf_dp=sphere_position_ave, &
-                       mpi_recv_buf_dp=sphere_position, &
-                       mpi_rank=0, &
-                       mpi_number=nsend, &
-                       mpi_comm=config0comm)
+         call parallel_reduce_sum( &
+            send_buffer=sphere_position_ave, &
+            receive_buffer=sphere_position, &
+            mpi_rank=0, &
+            mpi_number=nsend, &
+            mpi_comm=config0comm)
          nsend = 3 * qeff_dim * number_spheres
-         call mstm_mpi(mpi_command='reduce', &
-                       mpi_operation=mstm_mpi_sum, &
-                       mpi_send_buf_dp=q_eff_ave, &
-                       mpi_recv_buf_dp=q_eff, &
-                       mpi_rank=0, &
-                       mpi_number=nsend, &
-                       mpi_comm=config0comm)
+         call parallel_reduce_sum( &
+            send_buffer=q_eff_ave, &
+            receive_buffer=q_eff, &
+            mpi_rank=0, &
+            mpi_number=nsend, &
+            mpi_comm=config0comm)
          nsend = 3 * qeff_dim
-         call mstm_mpi(mpi_command='reduce', &
-                       mpi_operation=mstm_mpi_sum, &
-                       mpi_send_buf_dp=q_eff_tot_ave, &
-                       mpi_recv_buf_dp=q_eff_tot, &
-                       mpi_rank=0, &
-                       mpi_number=nsend, &
-                       mpi_comm=config0comm)
+         call parallel_reduce_sum( &
+            send_buffer=q_eff_tot_ave, &
+            receive_buffer=q_eff_tot, &
+            mpi_rank=0, &
+            mpi_number=nsend, &
+            mpi_comm=config0comm)
          nsend = qeff_dim * number_spheres
-         call mstm_mpi(mpi_command='reduce', &
-                       mpi_operation=mstm_mpi_sum, &
-                       mpi_send_buf_dp=q_vabs_ave, &
-                       mpi_recv_buf_dp=q_vabs, &
-                       mpi_rank=0, &
-                       mpi_number=nsend, &
-                       mpi_comm=config0comm)
+         call parallel_reduce_sum( &
+            send_buffer=q_vabs_ave, &
+            receive_buffer=q_vabs, &
+            mpi_rank=0, &
+            mpi_number=nsend, &
+            mpi_comm=config0comm)
          nsend = 4
-         call mstm_mpi(mpi_command='reduce', &
-                       mpi_operation=mstm_mpi_sum, &
-                       mpi_send_buf_dp=pl_sca_ave, &
-                       mpi_recv_buf_dp=pl_sca, &
-                       mpi_rank=0, &
-                       mpi_number=nsend, &
-                       mpi_comm=config0comm)
+         call parallel_reduce_sum( &
+            send_buffer=pl_sca_ave, &
+            receive_buffer=pl_sca, &
+            mpi_rank=0, &
+            mpi_number=nsend, &
+            mpi_comm=config0comm)
          nsend = 2
-         call mstm_mpi(mpi_command='reduce', &
-                       mpi_operation=mstm_mpi_sum, &
-                       mpi_send_buf_dp=surface_absorptance_ave, &
-                       mpi_recv_buf_dp=surface_absorptance, &
-                       mpi_rank=0, &
-                       mpi_number=nsend, &
-                       mpi_comm=config0comm)
+         call parallel_reduce_sum( &
+            send_buffer=surface_absorptance_ave, &
+            receive_buffer=surface_absorptance, &
+            mpi_rank=0, &
+            mpi_number=nsend, &
+            mpi_comm=config0comm)
          if (calculate_up_down_scattering) then
             nsend = 4
-            call mstm_mpi(mpi_command='reduce', &
-                          mpi_operation=mstm_mpi_sum, &
-                          mpi_send_buf_dp=boundary_sca_ave, &
-                          mpi_recv_buf_dp=boundary_sca, &
-                          mpi_rank=0, &
-                          mpi_number=nsend, &
-                          mpi_comm=config0comm)
+            call parallel_reduce_sum( &
+               send_buffer=boundary_sca_ave, &
+               receive_buffer=boundary_sca, &
+               mpi_rank=0, &
+               mpi_number=nsend, &
+               mpi_comm=config0comm)
          end if
-         call mstm_mpi(mpi_command='reduce', &
-                       mpi_operation=mstm_mpi_sum, &
-                       mpi_send_buf_dp=boundary_ext_ave, &
-                       mpi_recv_buf_dp=boundary_ext, &
-                       mpi_rank=0, &
-                       mpi_number=nsend, &
-                       mpi_comm=config0comm)
+         call parallel_reduce_sum( &
+            send_buffer=boundary_ext_ave, &
+            receive_buffer=boundary_ext, &
+            mpi_rank=0, &
+            mpi_number=nsend, &
+            mpi_comm=config0comm)
          if (singleorigin) then
             nsend = 4 * t_matrix_order * (t_matrix_order + 2)
-            call mstm_mpi(mpi_command='reduce', &
-                          mpi_operation=mstm_mpi_sum, &
-                          mpi_send_buf_dc=amnp_0_ave, &
-                          mpi_recv_buf_dc=amnp_0, &
-                          mpi_rank=0, &
-                          mpi_number=nsend, &
-                          mpi_comm=config0comm)
+            call parallel_reduce_sum( &
+               send_buffer=amnp_0_ave, &
+               receive_buffer=amnp_0, &
+               mpi_rank=0, &
+               mpi_number=nsend, &
+               mpi_comm=config0comm)
             nsend = 1
-            call mstm_mpi(mpi_command='reduce', &
-                          mpi_operation=mstm_mpi_sum, &
-                          mpi_send_buf_dp=tot_csca_ave, &
-                          mpi_recv_buf_dp=csca, &
-                          mpi_rank=0, &
-                          mpi_number=nsend, &
-                          mpi_comm=config0comm)
+            call parallel_reduce_sum( &
+               send_buffer=tot_csca_ave, &
+               receive_buffer=csca, &
+               mpi_rank=0, &
+               mpi_number=nsend, &
+               mpi_comm=config0comm)
          end if
          if (calculate_scattering_matrix) then
             nsend = scat_mat_mdim * (scat_mat_udim - scat_mat_ldim + 1)
-            call mstm_mpi(mpi_command='reduce', &
-                          mpi_operation=mstm_mpi_sum, &
-                          mpi_send_buf_dp=scat_mat_ave, &
-                          mpi_recv_buf_dp=scat_mat, &
-                          mpi_rank=0, &
-                          mpi_number=nsend, &
-                          mpi_comm=config0comm)
+            call parallel_reduce_sum( &
+               send_buffer=scat_mat_ave, &
+               receive_buffer=scat_mat, &
+               mpi_rank=0, &
+               mpi_number=nsend, &
+               mpi_comm=config0comm)
          end if
          if (singleorigin .and. azimuthal_average .and. (.not. numerical_azimuthal_average)) then
             nsend = 16 * 4 * (2 * t_matrix_order + 1)
-            call mstm_mpi(mpi_command='reduce', &
-                          mpi_operation=mstm_mpi_sum, &
-                          mpi_send_buf_dp=scat_mat_exp_coef_ave, &
-                          mpi_recv_buf_dp=scat_mat_exp_coef, &
-                          mpi_rank=0, &
-                          mpi_number=nsend, &
-                          mpi_comm=config0comm)
+            call parallel_reduce_sum( &
+               send_buffer=scat_mat_exp_coef_ave, &
+               receive_buffer=scat_mat_exp_coef, &
+               mpi_rank=0, &
+               mpi_number=nsend, &
+               mpi_comm=config0comm)
          end if
          if (calculate_near_field) then
             nsend = 6 * product(griddim)
-            call mstm_mpi(mpi_command='reduce', &
-                          mpi_operation=mstm_mpi_sum, &
-                          mpi_send_buf_dc=e_field_ave, &
-                          mpi_recv_buf_dc=e_field, &
-                          mpi_rank=0, &
-                          mpi_number=nsend, &
-                          mpi_comm=config0comm)
-            call mstm_mpi(mpi_command='reduce', &
-                          mpi_operation=mstm_mpi_sum, &
-                          mpi_send_buf_dc=h_field_ave, &
-                          mpi_recv_buf_dc=h_field, &
-                          mpi_rank=0, &
-                          mpi_number=nsend, &
-                          mpi_comm=config0comm)
-            call mstm_mpi(mpi_command='reduce', &
-                          mpi_operation=mstm_mpi_sum, &
-                          mpi_send_buf_dp=s_field_ave, &
-                          mpi_recv_buf_dp=s_field, &
-                          mpi_rank=0, &
-                          mpi_number=nsend, &
-                          mpi_comm=config0comm)
+            call parallel_reduce_sum( &
+               send_buffer=e_field_ave, &
+               receive_buffer=e_field, &
+               mpi_rank=0, &
+               mpi_number=nsend, &
+               mpi_comm=config0comm)
+            call parallel_reduce_sum( &
+               send_buffer=h_field_ave, &
+               receive_buffer=h_field, &
+               mpi_rank=0, &
+               mpi_number=nsend, &
+               mpi_comm=config0comm)
+            call parallel_reduce_sum( &
+               send_buffer=s_field_ave, &
+               receive_buffer=s_field, &
+               mpi_rank=0, &
+               mpi_number=nsend, &
+               mpi_comm=config0comm)
          end if
 
          nconfigave = nconfigave + n_configuration_groups
@@ -1084,7 +1071,7 @@ contains
 
          if (singleorigin) then
             if (rank .eq. 0 .and. print_timings) then
-               timet = mstm_mpi_wtime()
+               timet = parallel_wall_time()
                write (run_print_unit, '('' calculating diffuse field:'')', advance='no')
             end if
             amnp_0 = amnp_0 / dble(nconfigave)
@@ -1127,7 +1114,7 @@ contains
             call hemispherical_scattering(amnp_0, .true., numerical_hemispherical_integration, &
                                           dif_boundary_sca, mpi_comm=configcomm)
 !               call common_origin_hemispherical_scattering(amnp_0,dif_boundary_sca)
-          if (rank .eq. 0 .and. print_timings) write (run_print_unit, '('' completed, '',es12.4,'' sec'')') mstm_mpi_wtime() - timet
+      if (rank .eq. 0 .and. print_timings) write (run_print_unit, '('' completed, '',es12.4,'' sec'')') parallel_wall_time() - timet
             if (rank .eq. 0 .and. target_shape .eq. 2 .and. (.not. random_configuration_host)) then
                allocate (pmnp0(2 * t_matrix_order * (t_matrix_order + 2), 2), anp0(2, t_matrix_order))
                call generate_plane_wave_coefficients(0.d0, (1.d0, 0.d0), t_matrix_order, pmnp0, lr_tran=.false.)
@@ -1211,8 +1198,8 @@ contains
          end if
          if (effective_medium_simulation) then
             ctemp = effective_ref_index
-            call mstm_mpi(mpi_command='bcast', mpi_rank=0, mpi_number=1, &
-                          mpi_send_buf_dc=ctemp)
+            call parallel_broadcast(mpi_rank=0, mpi_number=1, &
+                                    send_buffer=ctemp)
             effective_ref_index = ctemp(1)
          end if
       end do
@@ -1229,8 +1216,8 @@ contains
       character(len=256) :: tmatchar1, tmatchar2
       data tmatchar1, tmatchar2/'tmat-', '.tmp'/
       first_run = .false.
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank)
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs)
+      call parallel_rank(mpi_rank=rank)
+      call parallel_size(mpi_size=numprocs)
 !         if(rank.ne.0) light_up=.false.
       local_rank = rank
       global_rank = rank
@@ -1244,16 +1231,16 @@ contains
       n_configuration_groups = max(n_configuration_groups, 1)
       configcolor = floor(dble(n_configuration_groups * rank) / dble(numprocs))
       configgroup = configcolor
-      call mstm_mpi(mpi_command='split', &
-                    mpi_color=configcolor, mpi_key=rank, &
-                    mpi_new_comm=configcomm)
-      call mstm_mpi(mpi_command='rank', &
-                    mpi_rank=configrank, &
-                    mpi_comm=configcomm)
+      call parallel_split( &
+         mpi_color=configcolor, mpi_key=rank, &
+         mpi_new_comm=configcomm)
+      call parallel_rank( &
+         mpi_rank=configrank, &
+         mpi_comm=configcomm)
       configcolor = configrank
-      call mstm_mpi(mpi_command='split', &
-                    mpi_color=configcolor, mpi_key=rank, &
-                    mpi_new_comm=config0comm)
+      call parallel_split( &
+         mpi_color=configcolor, mpi_key=rank, &
+         mpi_new_comm=config0comm)
       random_configuration = .true.
 !singleorigin=.true.
 
@@ -1297,13 +1284,13 @@ contains
                random_configuration_number * n_configuration_groups
          end if
 
-         if (rank .eq. 0) time1 = mstm_mpi_wtime()
+         if (rank .eq. 0) time1 = parallel_wall_time()
 
          call execute_simulation(print_output=.false., set_t_matrix_order=.false., mpi_comm=configcomm)
          if (runtime_failed()) return
 
          if (configrank .eq. 0) then
-            if (rank .eq. 0) solution_time = mstm_mpi_wtime() - time1
+            if (rank .eq. 0) solution_time = parallel_wall_time() - time1
             allocate (tpos(3, number_spheres))
             call cartesian_vectors_to_spherical(number_spheres, sphere_position(:, 1:number_spheres), &
                                                 tpos(:, 1:number_spheres))
@@ -1322,69 +1309,61 @@ contains
          end if
 
          nsend = 3 * number_spheres
-         call mstm_mpi(mpi_command='reduce', &
-                       mpi_operation=mstm_mpi_sum, &
-                       mpi_send_buf_dp=sphere_position_ave, &
-                       mpi_recv_buf_dp=sphere_position, &
-                       mpi_rank=0, &
-                       mpi_number=nsend, &
-                       mpi_comm=config0comm)
+         call parallel_reduce_sum( &
+            send_buffer=sphere_position_ave, &
+            receive_buffer=sphere_position, &
+            mpi_rank=0, &
+            mpi_number=nsend, &
+            mpi_comm=config0comm)
          nsend = 3 * qeff_dim * number_spheres
-         call mstm_mpi(mpi_command='reduce', &
-                       mpi_operation=mstm_mpi_sum, &
-                       mpi_send_buf_dp=q_eff_ave, &
-                       mpi_recv_buf_dp=q_eff, &
-                       mpi_rank=0, &
-                       mpi_number=nsend, &
-                       mpi_comm=config0comm)
+         call parallel_reduce_sum( &
+            send_buffer=q_eff_ave, &
+            receive_buffer=q_eff, &
+            mpi_rank=0, &
+            mpi_number=nsend, &
+            mpi_comm=config0comm)
          nsend = 3 * qeff_dim
-         call mstm_mpi(mpi_command='reduce', &
-                       mpi_operation=mstm_mpi_sum, &
-                       mpi_send_buf_dp=q_eff_tot_ave, &
-                       mpi_recv_buf_dp=q_eff_tot, &
-                       mpi_rank=0, &
-                       mpi_number=nsend, &
-                       mpi_comm=config0comm)
+         call parallel_reduce_sum( &
+            send_buffer=q_eff_tot_ave, &
+            receive_buffer=q_eff_tot, &
+            mpi_rank=0, &
+            mpi_number=nsend, &
+            mpi_comm=config0comm)
          nsend = qeff_dim * number_spheres
-         call mstm_mpi(mpi_command='reduce', &
-                       mpi_operation=mstm_mpi_sum, &
-                       mpi_send_buf_dp=q_vabs_ave, &
-                       mpi_recv_buf_dp=q_vabs, &
-                       mpi_rank=0, &
-                       mpi_number=nsend, &
-                       mpi_comm=config0comm)
+         call parallel_reduce_sum( &
+            send_buffer=q_vabs_ave, &
+            receive_buffer=q_vabs, &
+            mpi_rank=0, &
+            mpi_number=nsend, &
+            mpi_comm=config0comm)
          nsend = 2 * t_matrix_order
-         call mstm_mpi(mpi_command='reduce', &
-                       mpi_operation=mstm_mpi_sum, &
-                       mpi_send_buf_dc=mean_t_ave, &
-                       mpi_recv_buf_dc=mean_t, &
-                       mpi_rank=0, &
-                       mpi_number=nsend, &
-                       mpi_comm=config0comm)
+         call parallel_reduce_sum( &
+            send_buffer=mean_t_ave, &
+            receive_buffer=mean_t, &
+            mpi_rank=0, &
+            mpi_number=nsend, &
+            mpi_comm=config0comm)
          if (calculate_scattering_matrix) then
             nsend = scat_mat_mdim * (scat_mat_udim - scat_mat_ldim + 1)
-            call mstm_mpi(mpi_command='reduce', &
-                          mpi_operation=mstm_mpi_sum, &
-                          mpi_send_buf_dp=scat_mat_ave, &
-                          mpi_recv_buf_dp=scat_mat, &
-                          mpi_rank=0, &
-                          mpi_number=nsend, &
-                          mpi_comm=config0comm)
+            call parallel_reduce_sum( &
+               send_buffer=scat_mat_ave, &
+               receive_buffer=scat_mat, &
+               mpi_rank=0, &
+               mpi_number=nsend, &
+               mpi_comm=config0comm)
             nsend = 16 * (2 * t_matrix_order + 1)
-            call mstm_mpi(mpi_command='reduce', &
-                          mpi_operation=mstm_mpi_sum, &
-                          mpi_send_buf_dp=scat_mat_exp_coef_ave, &
-                          mpi_recv_buf_dp=scat_mat_exp_coef, &
-                          mpi_rank=0, &
-                          mpi_number=nsend, &
-                          mpi_comm=config0comm)
-            call mstm_mpi(mpi_command='reduce', &
-                          mpi_operation=mstm_mpi_sum, &
-                          mpi_send_buf_dp=coh_scat_mat_exp_coef_ave, &
-                          mpi_recv_buf_dp=coh_scat_mat_exp_coef, &
-                          mpi_rank=0, &
-                          mpi_number=nsend, &
-                          mpi_comm=config0comm)
+            call parallel_reduce_sum( &
+               send_buffer=scat_mat_exp_coef_ave, &
+               receive_buffer=scat_mat_exp_coef, &
+               mpi_rank=0, &
+               mpi_number=nsend, &
+               mpi_comm=config0comm)
+            call parallel_reduce_sum( &
+               send_buffer=coh_scat_mat_exp_coef_ave, &
+               receive_buffer=coh_scat_mat_exp_coef, &
+               mpi_rank=0, &
+               mpi_number=nsend, &
+               mpi_comm=config0comm)
          end if
 
          nconfigave = nconfigave + n_configuration_groups
@@ -1407,8 +1386,8 @@ contains
 !            if(random_configuration_host) then
 !               ctemp=effective_ref_index
 !               if(rank.eq.0) write(*,'('' new ri:'',2es12.4)') effective_ref_index
-!               call mstm_mpi(mpi_command='bcast',mpi_rank=0,mpi_number=1, &
-!                 mpi_send_buf_dc=ctemp)
+!               call parallel_broadcast(mpi_rank=0,mpi_number=1, &
+!                 send_buffer=ctemp)
 !               layer_ref_index(0)=ctemp(1)
 !            endif
 !if(rank.eq.0) then
@@ -1426,8 +1405,8 @@ contains
       real(real64), allocatable :: texpcoef(:, :, :)
       character(len=256) :: sdatfile
       first_run = .false.
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank)
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs)
+      call parallel_rank(mpi_rank=rank)
+      call parallel_size(mpi_size=numprocs)
 !         if(rank.ne.0) light_up=.false.
       local_rank = rank
       global_rank = rank
@@ -1452,16 +1431,16 @@ contains
       n_configuration_groups = max(n_configuration_groups, 1)
       configcolor = floor(dble(n_configuration_groups * rank) / dble(numprocs))
       configgroup = configcolor
-      call mstm_mpi(mpi_command='split', &
-                    mpi_color=configcolor, mpi_key=rank, &
-                    mpi_new_comm=configcomm)
-      call mstm_mpi(mpi_command='rank', &
-                    mpi_rank=configrank, &
-                    mpi_comm=configcomm)
+      call parallel_split( &
+         mpi_color=configcolor, mpi_key=rank, &
+         mpi_new_comm=configcomm)
+      call parallel_rank( &
+         mpi_rank=configrank, &
+         mpi_comm=configcomm)
       configcolor = configrank
-      call mstm_mpi(mpi_command='split', &
-                    mpi_color=configcolor, mpi_key=rank, &
-                    mpi_new_comm=config0comm)
+      call parallel_split( &
+         mpi_color=configcolor, mpi_key=rank, &
+         mpi_new_comm=config0comm)
       singleorigin = number_plane_boundaries .eq. 0 .and. single_origin_expansion
       incident_beta_specified = .true.
 
@@ -1515,7 +1494,7 @@ contains
 
          call sample_incident_direction(mpi_comm=configcomm)
 
-         if (rank .eq. 0) time1 = mstm_mpi_wtime()
+         if (rank .eq. 0) time1 = parallel_wall_time()
 
          call execute_simulation(print_output=.false., set_t_matrix_order=.false., mpi_comm=configcomm)
          if (runtime_failed()) return
@@ -1525,7 +1504,7 @@ contains
          end if
 
          if (configrank .eq. 0) then
-            if (rank .eq. 0) solution_time = mstm_mpi_wtime() - time1
+            if (rank .eq. 0) solution_time = parallel_wall_time() - time1
             q_eff_ave = q_eff_ave + q_eff
             q_eff_tot_ave = q_eff_tot_ave + q_eff_tot
             q_vabs_ave = q_vabs_ave + q_vabs
@@ -1541,90 +1520,81 @@ contains
          end if
 
          nsend = 3 * qeff_dim * number_spheres
-         call mstm_mpi(mpi_command='reduce', &
-                       mpi_operation=mstm_mpi_sum, &
-                       mpi_send_buf_dp=q_eff_ave, &
-                       mpi_recv_buf_dp=q_eff, &
-                       mpi_rank=0, &
-                       mpi_number=nsend, &
-                       mpi_comm=config0comm)
+         call parallel_reduce_sum( &
+            send_buffer=q_eff_ave, &
+            receive_buffer=q_eff, &
+            mpi_rank=0, &
+            mpi_number=nsend, &
+            mpi_comm=config0comm)
          nsend = 3 * qeff_dim
-         call mstm_mpi(mpi_command='reduce', &
-                       mpi_operation=mstm_mpi_sum, &
-                       mpi_send_buf_dp=q_eff_tot_ave, &
-                       mpi_recv_buf_dp=q_eff_tot, &
-                       mpi_rank=0, &
-                       mpi_number=nsend, &
-                       mpi_comm=config0comm)
+         call parallel_reduce_sum( &
+            send_buffer=q_eff_tot_ave, &
+            receive_buffer=q_eff_tot, &
+            mpi_rank=0, &
+            mpi_number=nsend, &
+            mpi_comm=config0comm)
          nsend = qeff_dim * number_spheres
-         call mstm_mpi(mpi_command='reduce', &
-                       mpi_operation=mstm_mpi_sum, &
-                       mpi_send_buf_dp=q_vabs_ave, &
-                       mpi_recv_buf_dp=q_vabs, &
-                       mpi_rank=0, &
-                       mpi_number=nsend, &
-                       mpi_comm=config0comm)
+         call parallel_reduce_sum( &
+            send_buffer=q_vabs_ave, &
+            receive_buffer=q_vabs, &
+            mpi_rank=0, &
+            mpi_number=nsend, &
+            mpi_comm=config0comm)
          nsend = 4
-         call mstm_mpi(mpi_command='reduce', &
-                       mpi_operation=mstm_mpi_sum, &
-                       mpi_send_buf_dp=pl_sca_ave, &
-                       mpi_recv_buf_dp=pl_sca, &
-                       mpi_rank=0, &
-                       mpi_number=nsend, &
-                       mpi_comm=config0comm)
+         call parallel_reduce_sum( &
+            send_buffer=pl_sca_ave, &
+            receive_buffer=pl_sca, &
+            mpi_rank=0, &
+            mpi_number=nsend, &
+            mpi_comm=config0comm)
          if (calculate_up_down_scattering) then
             nsend = 4
-            call mstm_mpi(mpi_command='reduce', &
-                          mpi_operation=mstm_mpi_sum, &
-                          mpi_send_buf_dp=boundary_sca_ave, &
-                          mpi_recv_buf_dp=boundary_sca, &
-                          mpi_rank=0, &
-                          mpi_number=nsend, &
-                          mpi_comm=config0comm)
+            call parallel_reduce_sum( &
+               send_buffer=boundary_sca_ave, &
+               receive_buffer=boundary_sca, &
+               mpi_rank=0, &
+               mpi_number=nsend, &
+               mpi_comm=config0comm)
          end if
-         call mstm_mpi(mpi_command='reduce', &
-                       mpi_operation=mstm_mpi_sum, &
-                       mpi_send_buf_dp=boundary_ext_ave, &
-                       mpi_recv_buf_dp=boundary_ext, &
-                       mpi_rank=0, &
-                       mpi_number=nsend, &
-                       mpi_comm=config0comm)
+         call parallel_reduce_sum( &
+            send_buffer=boundary_ext_ave, &
+            receive_buffer=boundary_ext, &
+            mpi_rank=0, &
+            mpi_number=nsend, &
+            mpi_comm=config0comm)
          if (singleorigin) then
             nsend = 4 * t_matrix_order * (t_matrix_order + 2)
-            call mstm_mpi(mpi_command='reduce', &
-                          mpi_operation=mstm_mpi_sum, &
-                          mpi_send_buf_dc=amnp_0_ave, &
-                          mpi_recv_buf_dc=amnp_0, &
-                          mpi_rank=0, &
-                          mpi_number=nsend, &
-                          mpi_comm=config0comm)
+            call parallel_reduce_sum( &
+               send_buffer=amnp_0_ave, &
+               receive_buffer=amnp_0, &
+               mpi_rank=0, &
+               mpi_number=nsend, &
+               mpi_comm=config0comm)
          end if
          if (calculate_scattering_matrix) then
             nsend = scat_mat_mdim * (scat_mat_udim - scat_mat_ldim + 1)
-            call mstm_mpi(mpi_command='reduce', &
-                          mpi_operation=mstm_mpi_sum, &
-                          mpi_send_buf_dp=scat_mat_ave, &
-                          mpi_recv_buf_dp=scat_mat, &
-                          mpi_rank=0, &
-                          mpi_number=nsend, &
-                          mpi_comm=config0comm)
+            call parallel_reduce_sum( &
+               send_buffer=scat_mat_ave, &
+               receive_buffer=scat_mat, &
+               mpi_rank=0, &
+               mpi_number=nsend, &
+               mpi_comm=config0comm)
          end if
          if (singleorigin .and. azimuthal_average .and. (.not. numerical_azimuthal_average)) then
             nsend = 16 * 4 * (2 * t_matrix_order + 1)
-            call mstm_mpi(mpi_command='reduce', &
-                          mpi_operation=mstm_mpi_sum, &
-                          mpi_send_buf_dp=scat_mat_exp_coef_ave, &
-                          mpi_recv_buf_dp=scat_mat_exp_coef, &
-                          mpi_rank=0, &
-                          mpi_number=nsend, &
-                          mpi_comm=config0comm)
+            call parallel_reduce_sum( &
+               send_buffer=scat_mat_exp_coef_ave, &
+               receive_buffer=scat_mat_exp_coef, &
+               mpi_rank=0, &
+               mpi_number=nsend, &
+               mpi_comm=config0comm)
          end if
 
          nconfigave = nconfigave + n_configuration_groups
 
          if (singleorigin) then
             if (rank .eq. 0 .and. print_timings) then
-               timet = mstm_mpi_wtime()
+               timet = parallel_wall_time()
                write (run_print_unit, '('' calculating diffuse field:'')', advance='no')
             end if
             amnp_0 = amnp_0 / dble(nconfigave)
@@ -1643,7 +1613,7 @@ contains
                deallocate (texpcoef)
             end if
             call common_origin_hemispherical_scattering(amnp_0, dif_boundary_sca)
-          if (rank .eq. 0 .and. print_timings) write (run_print_unit, '('' completed, '',es12.4,'' sec'')') mstm_mpi_wtime() - timet
+      if (rank .eq. 0 .and. print_timings) write (run_print_unit, '('' completed, '',es12.4,'' sec'')') parallel_wall_time() - timet
          end if
          if (allocated(amnp_0)) deallocate (amnp_0)
 
@@ -1746,8 +1716,8 @@ contains
       else
          mpicomm = mpi_comm_world
       end if
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
+      call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
       if (rank .eq. 0) then
          call random_number(rnum)
          cbeta = 2.d0 * rnum(1) - 1.d0
@@ -1755,8 +1725,8 @@ contains
          sbuf(2) = 360.d0 * rnum(2)
       end if
       if (numprocs .gt. 1) then
-         call mstm_mpi(mpi_command='bcast', mpi_number=2, &
-                       mpi_rank=0, mpi_send_buf_dp=sbuf, mpi_comm=mpicomm)
+         call parallel_broadcast(mpi_number=2, &
+                                 mpi_rank=0, send_buffer=sbuf, mpi_comm=mpicomm)
       end if
       incident_beta_deg = sbuf(1)
       incident_alpha_deg = sbuf(2)

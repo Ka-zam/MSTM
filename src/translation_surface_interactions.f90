@@ -2,7 +2,7 @@ module translation_surface_interactions
    use angular_functions, only: axial_translation_offset, axial_translation_size
    use coefficient_indexing, only: polarized_mode_index
    use iso_fortran_env, only: real64
-   use parallel_runtime, only: mpi_comm_world, mstm_mpi, mstm_mpi_wtime
+   use parallel_runtime, only: mpi_comm_world, parallel_wall_time, parallel_rank, parallel_size
    use periodic_lattice_operations, only: periodic_lattice, plane_boundary_lattice_interaction
    use sphere_data, only: host_sphere, number_spheres, one_side_only, recalculate_surface_matrix, &
                           run_print_unit, sphere_block, sphere_layer, sphere_offset, sphere_order, sphere_position, &
@@ -138,9 +138,9 @@ contains
       else
          smopt = .true.
       end if
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank0)
+      call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank0)
       calcmat = initrun
       if (.not. (smopt .and. store_translation_matrix)) calcmat = .true.
 
@@ -168,7 +168,7 @@ contains
       task = 0
       nmat = 0
       aout = 0.0_real64
-      time1 = mstm_mpi_wtime()
+      time1 = parallel_wall_time()
       do i = 1, number_spheres
          i1 = sphere_offset(i) + 1
          i2 = sphere_offset(i) + sphere_block(i)
@@ -201,7 +201,7 @@ contains
                                                              rp(1), rp(2), sphere_position(3, i), sphere_position(3, j), &
                                                     loc_rmat%matrix, include_source=.true., lr_transformation=.true., index_model=2)
                      if (smopt .and. store_translation_matrix .and. rank0 .eq. 0) then
-                        time2 = mstm_mpi_wtime()
+                        time2 = parallel_wall_time()
                         if (time2 - time1 .ge. 15.0_real64) then
                            write (run_print_unit, '('' assembling pl matrix '',i5,''/'',i5)') &
                               nmat, nmat_tot
@@ -313,9 +313,9 @@ contains
       else
          contran = .false.
       end if
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank0)
+      call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank0)
       calcmat = initrun .and. recalculate_surface_matrix
       if (.not. store_surface_matrix) calcmat = .true.
 
@@ -348,7 +348,7 @@ contains
       task = 0
       nmat = 0
       aout = 0.0_real64
-      time1 = mstm_mpi_wtime()
+      time1 = parallel_wall_time()
       do i = 1, number_spheres
          i1 = sphere_offset(i) + 1
          i2 = sphere_offset(i) + sphere_block(i)
@@ -387,7 +387,7 @@ contains
                                                      index_model=2, lr_transformation=.true., &
                                                      make_symmetric=rmatsymm)
                      if (store_surface_matrix .and. rank0 .eq. 0) then
-                        time2 = mstm_mpi_wtime()
+                        time2 = parallel_wall_time()
                         if (time2 - time1 .ge. 15.0_real64) then
                            write (run_print_unit, '('' assembling surf matrix '',i5,''/'',i5)') &
                               nmat, nmat_tot

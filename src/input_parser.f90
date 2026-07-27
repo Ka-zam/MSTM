@@ -2,6 +2,7 @@ module input_parser
    use, intrinsic :: iso_fortran_env, only: real64
    use input_state
    use input_value_parsing
+   use parallel_runtime, only: parallel_rank
    use runtime_support, only: open_output_file, runtime_failed, set_runtime_error
    implicit none
 contains
@@ -608,7 +609,7 @@ contains
       character(len=256) :: parmid, parmval, varop, inputfiledata(*)
       data inputline/1/
 
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank)
+      call parallel_rank(mpi_rank=rank)
       readok = 0
       stopit = 0
       varstat = 0

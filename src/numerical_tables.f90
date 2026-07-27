@@ -6,7 +6,6 @@
 !
 module numerical_tables
    use, intrinsic :: iso_fortran_env, only: real64
-   use parallel_runtime
    implicit none
    logical, target :: light_up
    integer :: print_intermediate_results, global_rank

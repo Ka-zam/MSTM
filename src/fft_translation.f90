@@ -3,7 +3,9 @@ module fft_translation
    use constants
    use gpfa_controller, only: cgpfa
    use gpfa_setup, only: setgpfa
-   use parallel_runtime
+   use parallel_runtime, only: mpi_comm_world, mstm_global_rank, parallel_allreduce_sum, parallel_barrier, &
+                               parallel_broadcast, parallel_communicator_create, parallel_group, &
+                               parallel_group_include, parallel_rank, parallel_size, parallel_split, parallel_wall_time
    use numerical_tables
    use angular_functions, only: generate_translation_matrix
    use sphere_data
@@ -118,8 +120,8 @@ contains
       else
          contran = .false.
       end if
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
+      call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
       gout = 0.
 
       if (firstrun) then
@@ -128,12 +130,12 @@ contains
             pgroup = floor(dble(2 * rank) / dble(numprocs)) + 1
             p1 = pgroup
             p2 = p1
-            call mstm_mpi(mpi_command='split', &
-                          mpi_color=pgroup, mpi_key=rank, &
-                          mpi_new_comm=pcomm, &
-                          mpi_comm=mpicomm)
-            call mstm_mpi(mpi_command='rank', mpi_rank=prank, mpi_comm=pcomm)
-            call mstm_mpi(mpi_command='group', mpi_group=mpigroup, mpi_comm=mpicomm)
+            call parallel_split( &
+               mpi_color=pgroup, mpi_key=rank, &
+               mpi_new_comm=pcomm, &
+               mpi_comm=mpicomm)
+            call parallel_rank(mpi_rank=prank, mpi_comm=pcomm)
+            call parallel_group(mpi_group=mpigroup, mpi_comm=mpicomm)
             groupsize = numprocs / 2 + 1
             allocate (grouplist(groupsize))
             grouplist(1) = 0
@@ -147,15 +149,15 @@ contains
                   exit
                end if
             end do
-            call mstm_mpi(mpi_command='incl', &
-                          mpi_group=mpigroup, &
-                          mpi_size=groupsize, &
-                          mpi_new_group_list=grouplist, &
-                          mpi_new_group=syncgroup)
-            call mstm_mpi(mpi_command='create', &
-                          mpi_group=syncgroup, &
-                          mpi_comm=mpicomm, &
-                          mpi_new_comm=synccomm1)
+            call parallel_group_include( &
+               mpi_group=mpigroup, &
+               mpi_size=groupsize, &
+               mpi_new_group_list=grouplist, &
+               mpi_new_group=syncgroup)
+            call parallel_communicator_create( &
+               mpi_group=syncgroup, &
+               mpi_comm=mpicomm, &
+               mpi_new_comm=synccomm1)
             deallocate (grouplist)
             groupsize = groupsize + oddnumproc
             allocate (grouplist(groupsize))
@@ -170,15 +172,15 @@ contains
                   exit
                end if
             end do
-            call mstm_mpi(mpi_command='incl', &
-                          mpi_group=mpigroup, &
-                          mpi_size=groupsize, &
-                          mpi_new_group_list=grouplist, &
-                          mpi_new_group=syncgroup)
-            call mstm_mpi(mpi_command='create', &
-                          mpi_group=syncgroup, &
-                          mpi_comm=mpicomm, &
-                          mpi_new_comm=synccomm2)
+            call parallel_group_include( &
+               mpi_group=mpigroup, &
+               mpi_size=groupsize, &
+               mpi_new_group_list=grouplist, &
+               mpi_new_group=syncgroup)
+            call parallel_communicator_create( &
+               mpi_group=syncgroup, &
+               mpi_comm=mpicomm, &
+               mpi_new_comm=synccomm2)
             deallocate (grouplist)
          else
             pgroup = 1
@@ -234,19 +236,19 @@ contains
          flush (6)
       end if
 
-!timedat(1)=mstm_mpi_wtime()
+!timedat(1)=parallel_wall_time()
       call local_sphere_to_node_translation(nrhs, ain_t, anode, &
                                             store_matrix_option=smopt, initial_run=firstrun, &
                                             mpi_comm=mpicomm, local_host=fft_local_host, sphere_to_node=.true., &
                                             merge_procs=.true.)
-!timedat(1)=mstm_mpi_wtime()-timedat(1)
+!timedat(1)=parallel_wall_time()-timedat(1)
 
       if (light_up) then
          write (*, '('' fft4 '',i3)') mstm_global_rank
          flush (6)
       end if
 
-!timedat(2)=mstm_mpi_wtime()
+!timedat(2)=parallel_wall_time()
       do p = p1, p2
          do rhs = 1, nrhs
             call fft_node_to_node_translation(anode(:, :, :, :, rhs), &
@@ -254,56 +256,56 @@ contains
                                               gnode(:, :, :, :, rhs), p, mpi_comm=pcomm)
          end do
       end do
-!timedat(2)=mstm_mpi_wtime()-timedat(2)
+!timedat(2)=parallel_wall_time()-timedat(2)
 
-      call mstm_mpi(mpi_command='barrier', mpi_comm=mpicomm)
+      call parallel_barrier(mpi_comm=mpicomm)
       if (numprocs .gt. 1) then
          nsend = cell_dim(1) * cell_dim(2) * cell_dim(3) * node_order * (node_order + 2)
          do rhs = 1, nrhs
             if (inp1) then
-               call mstm_mpi(mpi_command='bcast', &
-                             mpi_send_buf_dc=gnode(:, :, :, 1:node_order * (node_order + 2), rhs), &
-                             mpi_number=nsend, &
-                             mpi_rank=0, &
-                             mpi_comm=synccomm1)
+               call parallel_broadcast( &
+                  send_buffer=gnode(:, :, :, 1:node_order * (node_order + 2), rhs), &
+                  mpi_number=nsend, &
+                  mpi_rank=0, &
+                  mpi_comm=synccomm1)
             end if
             if (inp2) then
-               call mstm_mpi(mpi_command='bcast', &
-                             mpi_send_buf_dc=gnode(:, :, :, &
-                                                   node_order * (node_order + 2) + 1:node_order * (node_order + 2) * 2, rhs), &
-                             mpi_number=nsend, &
-                             mpi_rank=0, &
-                             mpi_comm=synccomm2)
+               call parallel_broadcast( &
+                  send_buffer=gnode(:, :, :, &
+                                    node_order * (node_order + 2) + 1:node_order * (node_order + 2) * 2, rhs), &
+                  mpi_number=nsend, &
+                  mpi_rank=0, &
+                  mpi_comm=synccomm2)
             end if
          end do
       end if
-      call mstm_mpi(mpi_command='barrier', mpi_comm=mpicomm)
+      call parallel_barrier(mpi_comm=mpicomm)
 
 !         if(numprocs/2.gt.1) then
 !            nsend=cell_dim(1)*cell_dim(2)*cell_dim(3)*node_order*(node_order+2)*2*nrhs
-!            call mstm_mpi(mpi_command='allreduce',mpi_recv_buf_dc=gnode, &
-!                 mpi_number=nsend,mpi_operation=mstm_mpi_sum,mpi_comm=mpicomm)
+!            call parallel_allreduce_sum(receive_buffer=gnode, &
+!                 mpi_number=nsend,mpi_comm=mpicomm)
 !         endif
       if (light_up) then
          write (*, '('' fft5 '',i3)') mstm_global_rank
          flush (6)
       end if
 
-!timedat(3)=mstm_mpi_wtime()
+!timedat(3)=parallel_wall_time()
 
       call local_sphere_to_node_translation(nrhs, gout_t, gnode, &
                                             store_matrix_option=smopt, &
                                             mpi_comm=mpicomm, local_host=fft_local_host, sphere_to_node=.false., &
                                             merge_procs=.false.)
 
-!timedat(3)=mstm_mpi_wtime()-timedat(3)
-!timedat(4)=mstm_mpi_wtime()
+!timedat(3)=parallel_wall_time()-timedat(3)
+!timedat(4)=parallel_wall_time()
 
       call local_sphere_to_sphere_expansion(nrhs, ain_t, gout_loc, &
                                             store_matrix_option=smopt, initial_run=firstrun, &
                                             mpi_comm=mpicomm, merge_procs=.false., &
                                             local_host=fft_local_host)
-!timedat(4)=mstm_mpi_wtime()-timedat(4)
+!timedat(4)=parallel_wall_time()-timedat(4)
 
       gout_t = gout_t + gout_loc
 
@@ -333,7 +335,7 @@ contains
          write (*, '('' fft7 '',i3)') mstm_global_rank
          flush (6)
       end if
-      call mstm_mpi(mpi_command='barrier', mpi_comm=mpicomm)
+      call parallel_barrier(mpi_comm=mpicomm)
 
 !         deallocate(anode,gnode,gout_loc,ain_t,gout_t)
       firstrun = .false.
@@ -394,8 +396,8 @@ contains
       else
          mergeprocs = .true.
       end if
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
+      call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
       gout = 0.
 !
 !  compute offsets for scattering coefficients
@@ -471,8 +473,8 @@ contains
 
       if (numprocs .gt. 1 .and. mergeprocs) then
          nsend = number_eqns * nrhs
-         call mstm_mpi(mpi_command='allreduce', mpi_recv_buf_dc=gout, &
-                       mpi_number=nsend, mpi_operation=mstm_mpi_sum, mpi_comm=mpicomm)
+         call parallel_allreduce_sum(receive_buffer=gout, &
+                                     mpi_number=nsend, mpi_comm=mpicomm)
       end if
    end subroutine local_sphere_to_sphere_expansion
 
@@ -532,8 +534,8 @@ contains
       else
          mergeprocs = .true.
       end if
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
+      call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
       nsphere = number_spheres
       neqns = number_eqns
 !
@@ -622,12 +624,12 @@ contains
       if (numprocs .gt. 1 .and. mergeprocs) then
          if (spheretonode) then
             nsend = cell_dim(1) * cell_dim(2) * cell_dim(3) * node_order * (node_order + 2) * 2 * nrhs
-            call mstm_mpi(mpi_command='allreduce', mpi_recv_buf_dc=anode, &
-                          mpi_number=nsend, mpi_operation=mstm_mpi_sum, mpi_comm=mpicomm)
+            call parallel_allreduce_sum(receive_buffer=anode, &
+                                        mpi_number=nsend, mpi_comm=mpicomm)
          else
             nsend = number_eqns * nrhs
-            call mstm_mpi(mpi_command='allreduce', mpi_recv_buf_dc=asphere, &
-                          mpi_number=nsend, mpi_operation=mstm_mpi_sum, mpi_comm=mpicomm)
+            call parallel_allreduce_sum(receive_buffer=asphere, &
+                                        mpi_number=nsend, mpi_comm=mpicomm)
          end if
       end if
    end subroutine local_sphere_to_node_translation
@@ -827,8 +829,8 @@ contains
       else
          tranop = .false.
       end if
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
+      call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
       nblk = node_order * (node_order + 2)
       celldim2 = 2 * cell_dim
       ncells = cell_dim(1) * cell_dim(2) * cell_dim(3)
@@ -856,9 +858,9 @@ contains
 
       if (numprocs .gt. 1) then
          nsend = nblk * ncells8
-         call mstm_mpi(mpi_command='allreduce', &
-                       mpi_recv_buf_dc=gft(1:ncells8, 1:nblk), &
-                       mpi_number=nsend, mpi_operation=mstm_mpi_sum, mpi_comm=mpicomm)
+         call parallel_allreduce_sum( &
+            receive_buffer=gft(1:ncells8, 1:nblk), &
+            mpi_number=nsend, mpi_comm=mpicomm)
       end if
 
       task = 0
@@ -872,9 +874,9 @@ contains
       end do
       if (numprocs .gt. 1) then
          nsend = nblk * ncells
-         call mstm_mpi(mpi_command='allreduce', &
-                       mpi_recv_buf_dc=gcoef(1:ncells, 1:nblk, pmode), &
-                       mpi_number=nsend, mpi_operation=mstm_mpi_sum, mpi_comm=mpicomm)
+         call parallel_allreduce_sum( &
+            receive_buffer=gcoef(1:ncells, 1:nblk, pmode), &
+            mpi_number=nsend, mpi_comm=mpicomm)
       end if
       gcoef(1:ncells, 1:nblk, pmode) = gcoef(1:ncells, 1:nblk, pmode) / dble(ncells8)
    end subroutine fft_node_to_node_translation

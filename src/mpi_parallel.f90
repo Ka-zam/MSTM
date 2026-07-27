@@ -1,449 +1,377 @@
 module parallel_runtime
+   use, intrinsic :: iso_c_binding, only: c_f_pointer, c_loc
    use, intrinsic :: iso_fortran_env, only: real32, real64
-   use mpi
-   implicit none
+   use mpi, only: mpi_allreduce, mpi_barrier, mpi_bcast, mpi_comm_create, mpi_comm_group, &
+                  mpi_comm_null, mpi_comm_rank, mpi_comm_size, mpi_comm_split, mpi_comm_world, &
+                  mpi_complex, mpi_double_complex, mpi_double_precision, mpi_finalize, mpi_group_incl, &
+                  mpi_init, mpi_integer, mpi_max, mpi_real, mpi_recv, mpi_reduce, mpi_send, mpi_status_size, &
+                  mpi_sum, mpi_wtime
+   implicit none(type, external)
+   private
 
-!=      include 'mpif.h'
-   integer :: mstm_mpi_comm_world, mstm_mpi_sum, mstm_mpi_max, mstm_mpi_min, mstm_global_rank, mstm_global_numprocs
+   integer, public :: mstm_global_rank = 0
+   integer, public :: mstm_global_numprocs = 1
+
+   public :: mpi_comm_world, mpi_comm_null
+   public :: parallel_wall_time
+   public :: parallel_initialize, parallel_finalize
+   public :: parallel_rank, parallel_size, parallel_barrier
+   public :: parallel_split, parallel_group, parallel_group_include, parallel_communicator_create
+   public :: parallel_broadcast, parallel_reduce_sum, parallel_allreduce_sum, parallel_allreduce_max
+   public :: parallel_allreduce_sum_complex64_sequence
+   public :: parallel_send, parallel_receive
+
+   interface parallel_broadcast
+      module procedure broadcast_integer
+      module procedure broadcast_real64
+      module procedure broadcast_complex64
+   end interface parallel_broadcast
+
+   interface parallel_reduce_sum
+      module procedure reduce_sum_integer
+      module procedure reduce_sum_complex32
+      module procedure reduce_sum_real64
+      module procedure reduce_sum_complex64
+   end interface parallel_reduce_sum
+
+   interface parallel_allreduce_sum
+      module procedure allreduce_sum_real64
+      module procedure allreduce_sum_complex64
+   end interface parallel_allreduce_sum
+
+   interface parallel_send
+      module procedure send_complex64
+   end interface parallel_send
+
+   interface parallel_receive
+      module procedure receive_complex64
+   end interface parallel_receive
 
 contains
 
-   real(real64) function mstm_mpi_wtime()
-      implicit none
-      mstm_mpi_wtime = mpi_wtime()
-   end function mstm_mpi_wtime
+   subroutine parallel_initialize()
+      integer :: error_code
 
-   subroutine mstm_mpi(mpi_command, mpi_recv_buf_i, mpi_recv_buf_r, mpi_recv_buf_c, mpi_recv_buf_dp, &
-                       mpi_recv_buf_dc, mpi_send_buf_i, mpi_send_buf_r, mpi_send_buf_c, &
-                       mpi_send_buf_dp, mpi_send_buf_dc, mpi_number, mpi_comm, mpi_group, mpi_rank, mpi_size, &
-                       mpi_new_comm, mpi_new_group, mpi_new_group_list, mpi_operation, &
-                       mpi_color, mpi_key, mpi_tag, mpi_flag, mpi_recv_buf_char, mpi_send_buf_char)
-      integer, optional :: mpi_number, mpi_recv_buf_i(*), mpi_send_buf_i(*), mpi_comm, mpi_group, mpi_rank, &
-                           mpi_size, mpi_new_comm, mpi_new_group, mpi_new_group_list(*), mpi_operation, &
-                           mpi_color, mpi_key, mpi_tag
-      integer :: stat(MPI_STATUS_SIZE), mpitag, mpisource
-      integer :: i
-      logical, optional :: mpi_flag
-      real(real32), optional :: mpi_recv_buf_r(*), mpi_send_buf_r(*)
-      real(real64), optional :: mpi_recv_buf_dp(*), mpi_send_buf_dp(*)
-      real(real64), allocatable :: dptemp(:)
-      complex(real32), optional :: mpi_recv_buf_c(*), mpi_send_buf_c(*)
-      complex(real32), allocatable :: ctemp(:)
-      complex(real64), optional :: mpi_recv_buf_dc(*), mpi_send_buf_dc(*)
-      complex(real64), allocatable :: dctemp(:)
-      character, optional :: mpi_recv_buf_char(*), mpi_send_buf_char(*)
-      character(*) :: mpi_command
-      integer :: ntype, ierr, comm, size, rank, group, newcomm, trank
+      call mpi_init(error_code)
+      call mpi_comm_rank(mpi_comm_world, mstm_global_rank, error_code)
+      call mpi_comm_size(mpi_comm_world, mstm_global_numprocs, error_code)
+   end subroutine parallel_initialize
 
-      if (mpi_command .eq. 'init') then
-         call mpi_init(ierr)
-         mstm_mpi_comm_world = mpi_comm_world
-         mstm_mpi_sum = mpi_sum
-         mstm_mpi_max = mpi_max
-         mstm_mpi_min = mpi_min
-         call mpi_comm_rank(mpi_comm_world, mstm_global_rank, ierr)
-         call mpi_comm_size(mpi_comm_world, mstm_global_numprocs, ierr)
-         return
-      end if
-      if (mpi_command .eq. 'finalize') then
-         call mpi_finalize(ierr)
-         return
-      end if
-      if (present(mpi_comm)) then
-         comm = mpi_comm
+   subroutine parallel_finalize()
+      integer :: error_code
+
+      call mpi_finalize(error_code)
+   end subroutine parallel_finalize
+
+   real(real64) function parallel_wall_time()
+      parallel_wall_time = mpi_wtime()
+   end function parallel_wall_time
+
+   subroutine parallel_rank(mpi_rank, mpi_comm)
+      integer, intent(out) :: mpi_rank
+      integer, optional, intent(in) :: mpi_comm
+      integer :: communicator, error_code
+
+      communicator = mpi_comm_world
+      if (present(mpi_comm)) communicator = mpi_comm
+      call mpi_comm_rank(communicator, mpi_rank, error_code)
+   end subroutine parallel_rank
+
+   subroutine parallel_size(mpi_size, mpi_comm)
+      integer, intent(out) :: mpi_size
+      integer, optional, intent(in) :: mpi_comm
+      integer :: communicator, error_code
+
+      communicator = mpi_comm_world
+      if (present(mpi_comm)) communicator = mpi_comm
+      call mpi_comm_size(communicator, mpi_size, error_code)
+   end subroutine parallel_size
+
+   subroutine parallel_barrier(mpi_comm)
+      integer, optional, intent(in) :: mpi_comm
+      integer :: communicator, error_code
+
+      communicator = mpi_comm_world
+      if (present(mpi_comm)) communicator = mpi_comm
+      call mpi_barrier(communicator, error_code)
+   end subroutine parallel_barrier
+
+   subroutine parallel_split(mpi_color, mpi_key, mpi_new_comm, mpi_comm)
+      integer, intent(in) :: mpi_color, mpi_key
+      integer, intent(out) :: mpi_new_comm
+      integer, optional, intent(in) :: mpi_comm
+      integer :: communicator, error_code
+
+      communicator = mpi_comm_world
+      if (present(mpi_comm)) communicator = mpi_comm
+      call mpi_comm_split(communicator, mpi_color, mpi_key, mpi_new_comm, error_code)
+   end subroutine parallel_split
+
+   subroutine parallel_group(mpi_group, mpi_comm)
+      integer, intent(out) :: mpi_group
+      integer, optional, intent(in) :: mpi_comm
+      integer :: communicator, error_code
+
+      communicator = mpi_comm_world
+      if (present(mpi_comm)) communicator = mpi_comm
+      call mpi_comm_group(communicator, mpi_group, error_code)
+   end subroutine parallel_group
+
+   subroutine parallel_group_include(mpi_group, mpi_size, mpi_new_group_list, mpi_new_group, mpi_comm)
+      integer, intent(in) :: mpi_group, mpi_size, mpi_new_group_list(*)
+      integer, intent(out) :: mpi_new_group
+      integer, optional, intent(in) :: mpi_comm
+      integer :: error_code
+
+      call mpi_group_incl(mpi_group, mpi_size, mpi_new_group_list, mpi_new_group, error_code)
+   end subroutine parallel_group_include
+
+   subroutine parallel_communicator_create(mpi_group, mpi_new_comm, mpi_comm)
+      integer, intent(in) :: mpi_group
+      integer, intent(out) :: mpi_new_comm
+      integer, optional, intent(in) :: mpi_comm
+      integer :: communicator, error_code
+
+      communicator = mpi_comm_world
+      if (present(mpi_comm)) communicator = mpi_comm
+      call mpi_comm_create(communicator, mpi_group, mpi_new_comm, error_code)
+   end subroutine parallel_communicator_create
+
+   subroutine broadcast_integer(send_buffer, mpi_number, mpi_rank, mpi_comm)
+      integer, contiguous, target, intent(inout) :: send_buffer(..)
+      integer, intent(in) :: mpi_number, mpi_rank
+      integer, optional, intent(in) :: mpi_comm
+      integer :: communicator, error_code
+      integer, pointer :: buffer(:)
+
+      communicator = mpi_comm_world
+      if (present(mpi_comm)) communicator = mpi_comm
+      call c_f_pointer(c_loc(send_buffer), buffer, [mpi_number])
+      call mpi_bcast(buffer, mpi_number, mpi_integer, mpi_rank, communicator, error_code)
+   end subroutine broadcast_integer
+
+   subroutine broadcast_real64(send_buffer, mpi_number, mpi_rank, mpi_comm)
+      real(real64), contiguous, target, intent(inout) :: send_buffer(..)
+      integer, intent(in) :: mpi_number, mpi_rank
+      integer, optional, intent(in) :: mpi_comm
+      integer :: communicator, error_code
+      real(real64), pointer :: buffer(:)
+
+      communicator = mpi_comm_world
+      if (present(mpi_comm)) communicator = mpi_comm
+      call c_f_pointer(c_loc(send_buffer), buffer, [mpi_number])
+      call mpi_bcast(buffer, mpi_number, mpi_double_precision, mpi_rank, communicator, error_code)
+   end subroutine broadcast_real64
+
+   subroutine broadcast_complex64(send_buffer, mpi_number, mpi_rank, mpi_comm)
+      complex(real64), contiguous, target, intent(inout) :: send_buffer(..)
+      integer, intent(in) :: mpi_number, mpi_rank
+      integer, optional, intent(in) :: mpi_comm
+      integer :: communicator, error_code
+      complex(real64), pointer :: buffer(:)
+
+      communicator = mpi_comm_world
+      if (present(mpi_comm)) communicator = mpi_comm
+      call c_f_pointer(c_loc(send_buffer), buffer, [mpi_number])
+      call mpi_bcast(buffer, mpi_number, mpi_double_complex, mpi_rank, communicator, error_code)
+   end subroutine broadcast_complex64
+
+   subroutine reduce_sum_integer(receive_buffer, mpi_number, mpi_rank, mpi_comm, send_buffer)
+      integer, contiguous, target, intent(inout) :: receive_buffer(..)
+      integer, contiguous, optional, target, intent(in) :: send_buffer(..)
+      integer, intent(in) :: mpi_number, mpi_rank
+      integer, optional, intent(in) :: mpi_comm
+      integer :: communicator, error_code
+      integer, allocatable :: local_buffer(:)
+      integer, pointer :: receive_values(:), send_values(:)
+
+      communicator = mpi_comm_world
+      if (present(mpi_comm)) communicator = mpi_comm
+      call c_f_pointer(c_loc(receive_buffer), receive_values, [mpi_number])
+      if (present(send_buffer)) then
+         call c_f_pointer(c_loc(send_buffer), send_values, [mpi_number])
+         call mpi_reduce(send_values, receive_values, mpi_number, mpi_integer, mpi_sum, mpi_rank, communicator, error_code)
       else
-         comm = mpi_comm_world
+         allocate (local_buffer(mpi_number))
+         local_buffer = receive_values
+         call mpi_reduce(local_buffer, receive_values, mpi_number, mpi_integer, mpi_sum, mpi_rank, communicator, error_code)
       end if
-      if (mpi_command .eq. 'iprobe') then
-         if (present(mpi_tag)) then
-            mpitag = mpi_tag
-         else
-            mpitag = mpi_any_tag
-         end if
-         if (present(mpi_rank)) then
-            mpisource = mpi_rank
-         else
-            mpisource = mpi_any_source
-         end if
-         call mpi_iprobe(mpisource, mpitag, comm, mpi_flag, stat, ierr)
-         return
-      end if
-      if (present(mpi_tag)) then
-         mpitag = mpi_tag
+   end subroutine reduce_sum_integer
+
+   subroutine reduce_sum_complex32(receive_buffer, mpi_number, mpi_rank, mpi_comm, send_buffer)
+      complex(real32), contiguous, target, intent(inout) :: receive_buffer(..)
+      complex(real32), contiguous, optional, target, intent(in) :: send_buffer(..)
+      integer, intent(in) :: mpi_number, mpi_rank
+      integer, optional, intent(in) :: mpi_comm
+      integer :: communicator, error_code
+      complex(real32), allocatable :: local_buffer(:)
+      complex(real32), pointer :: receive_values(:), send_values(:)
+
+      communicator = mpi_comm_world
+      if (present(mpi_comm)) communicator = mpi_comm
+      call c_f_pointer(c_loc(receive_buffer), receive_values, [mpi_number])
+      if (present(send_buffer)) then
+         call c_f_pointer(c_loc(send_buffer), send_values, [mpi_number])
+         call mpi_reduce(send_values, receive_values, mpi_number, mpi_complex, mpi_sum, mpi_rank, communicator, error_code)
       else
-         mpitag = 1
+         allocate (local_buffer(mpi_number))
+         local_buffer = receive_values
+         call mpi_reduce(local_buffer, receive_values, mpi_number, mpi_complex, mpi_sum, mpi_rank, communicator, error_code)
       end if
-      if (mpi_command .eq. 'size') then
-         call mpi_comm_size(comm, size, ierr)
-         mpi_size = size
-         return
-      end if
-      if (mpi_command .eq. 'rank') then
-         call mpi_comm_rank(comm, rank, ierr)
-         mpi_rank = rank
-         return
-      end if
-      if (mpi_command .eq. 'group') then
-         call mpi_comm_group(comm, group, ierr)
-         mpi_group = group
-         return
-      end if
-      if (mpi_command .eq. 'incl') then
-         call mpi_group_incl(mpi_group, mpi_size, mpi_new_group_list, group, ierr)
-         mpi_new_group = group
-         return
-      end if
-      if (mpi_command .eq. 'create') then
-         call mpi_comm_create(comm, mpi_group, newcomm, ierr)
-         mpi_new_comm = newcomm
-         return
-      end if
-      if (mpi_command .eq. 'split') then
-         call mpi_comm_split(comm, mpi_color, mpi_key, newcomm, ierr)
-         mpi_new_comm = newcomm
-         return
-      end if
-      if (mpi_command .eq. 'barrier') then
-         call mpi_barrier(comm, ierr)
-         return
-      end if
-      if (mpi_command .eq. 'free') then
-         call mpi_comm_free(comm, ierr)
-         return
-      end if
+   end subroutine reduce_sum_complex32
 
-!         if(present(mpi_recv_buf_char).or.present(mpi_send_buf_char)) then
-!            ntype=mpi_character
-!            if(mpi_command.eq.'bcast') then
-!               call MPI_BCAST (mpi_send_buf_char,mpi_number,ntype,mpi_rank,comm,ierr)
-!               return
-!            endif
-!         endif
+   subroutine reduce_sum_real64(receive_buffer, mpi_number, mpi_rank, mpi_comm, send_buffer)
+      real(real64), contiguous, target, intent(inout) :: receive_buffer(..)
+      real(real64), contiguous, optional, target, intent(in) :: send_buffer(..)
+      integer, intent(in) :: mpi_number, mpi_rank
+      integer, optional, intent(in) :: mpi_comm
+      integer :: communicator, error_code
+      real(real64), allocatable :: local_buffer(:)
+      real(real64), pointer :: receive_values(:), send_values(:)
 
-      if (present(mpi_recv_buf_i) .or. present(mpi_send_buf_i)) then
-         ntype = mpi_integer
-         if (mpi_command .eq. 'bcast') then
-            call MPI_BCAST(mpi_send_buf_i, mpi_number, ntype, mpi_rank, comm, ierr)
-            return
-         end if
-         if (mpi_command .eq. 'send') then
-            call mpi_send(mpi_send_buf_i, mpi_number, ntype, mpi_rank, mpitag, comm, ierr)
-            return
-         end if
-         if (mpi_command .eq. 'recv') then
-            call mpi_recv(mpi_recv_buf_i, mpi_number, ntype, mpi_rank, mpitag, comm, stat, ierr)
-            return
-         end if
-         if (mpi_command .eq. 'reduce') then
-            if (present(mpi_send_buf_i)) then
-               call mpi_reduce(mpi_send_buf_i, mpi_recv_buf_i, mpi_number, ntype, mpi_operation, &
-                               mpi_rank, comm, ierr)
-            else
-               call mpi_reduce(mpi_in_place, mpi_recv_buf_i, mpi_number, ntype, mpi_operation, &
-                               mpi_rank, comm, ierr)
-            end if
-            return
-         end if
-         if (mpi_command .eq. 'allreduce') then
-            if (present(mpi_send_buf_i)) then
-               call mpi_allreduce(mpi_send_buf_i, mpi_recv_buf_i, mpi_number, ntype, mpi_operation, &
-                                  comm, ierr)
-            else
-               call mpi_allreduce(mpi_in_place, mpi_recv_buf_i, mpi_number, ntype, mpi_operation, &
-                                  comm, ierr)
-            end if
-            return
-         end if
-         if (mpi_command .eq. 'gather') then
-            if (present(mpi_send_buf_i)) then
-               call mpi_gather(mpi_send_buf_i, mpi_number, ntype, mpi_recv_buf_i, mpi_number, ntype, &
-                               mpi_rank, comm, ierr)
-            else
-               call mpi_gather(mpi_in_place, mpi_number, ntype, mpi_recv_buf_i, mpi_number, ntype, &
-                               mpi_rank, comm, ierr)
-            end if
-            return
-         end if
+      communicator = mpi_comm_world
+      if (present(mpi_comm)) communicator = mpi_comm
+      call c_f_pointer(c_loc(receive_buffer), receive_values, [mpi_number])
+      if (present(send_buffer)) then
+         call c_f_pointer(c_loc(send_buffer), send_values, [mpi_number])
+         call mpi_reduce(send_values, receive_values, mpi_number, mpi_double_precision, mpi_sum, &
+                         mpi_rank, communicator, error_code)
+      else
+         allocate (local_buffer(mpi_number))
+         local_buffer = receive_values
+         call mpi_reduce(local_buffer, receive_values, mpi_number, mpi_double_precision, mpi_sum, &
+                         mpi_rank, communicator, error_code)
       end if
+   end subroutine reduce_sum_real64
 
-      if (present(mpi_recv_buf_r) .or. present(mpi_send_buf_r)) then
-         ntype = mpi_real
-         if (mpi_command .eq. 'bcast') then
-            call MPI_BCAST(mpi_send_buf_r, mpi_number, ntype, mpi_rank, comm, ierr)
-            return
-         end if
-         if (mpi_command .eq. 'send') then
-            call mpi_send(mpi_send_buf_r, mpi_number, ntype, mpi_rank, mpitag, comm, ierr)
-            return
-         end if
-         if (mpi_command .eq. 'recv') then
-            call mpi_recv(mpi_recv_buf_r, mpi_number, ntype, mpi_rank, mpitag, comm, stat, ierr)
-            return
-         end if
-         if (mpi_command .eq. 'reduce') then
-            if (present(mpi_send_buf_r)) then
-               call mpi_reduce(mpi_send_buf_r, mpi_recv_buf_r, mpi_number, ntype, mpi_operation, &
-                               mpi_rank, comm, ierr)
-            else
-               call mpi_reduce(mpi_in_place, mpi_recv_buf_r, mpi_number, ntype, mpi_operation, &
-                               mpi_rank, comm, ierr)
-            end if
-            return
-         end if
-         if (mpi_command .eq. 'allreduce') then
-            if (present(mpi_send_buf_r)) then
-               call mpi_allreduce(mpi_send_buf_r, mpi_recv_buf_r, mpi_number, ntype, mpi_operation, &
-                                  comm, ierr)
-            else
-               call mpi_allreduce(mpi_in_place, mpi_recv_buf_r, mpi_number, ntype, mpi_operation, &
-                                  comm, ierr)
-            end if
-            return
-         end if
-         if (mpi_command .eq. 'gather') then
-            if (present(mpi_send_buf_r)) then
-               call mpi_gather(mpi_send_buf_r, mpi_number, ntype, mpi_recv_buf_r, mpi_number, ntype, &
-                               mpi_rank, comm, ierr)
-            else
-               call mpi_gather(mpi_in_place, mpi_number, ntype, mpi_recv_buf_r, mpi_number, ntype, &
-                               mpi_rank, comm, ierr)
-            end if
-            return
-         end if
+   subroutine reduce_sum_complex64(receive_buffer, mpi_number, mpi_rank, mpi_comm, send_buffer)
+      complex(real64), contiguous, target, intent(inout) :: receive_buffer(..)
+      complex(real64), contiguous, optional, target, intent(in) :: send_buffer(..)
+      integer, intent(in) :: mpi_number, mpi_rank
+      integer, optional, intent(in) :: mpi_comm
+      integer :: communicator, error_code
+      complex(real64), allocatable :: local_buffer(:)
+      complex(real64), pointer :: receive_values(:), send_values(:)
+
+      communicator = mpi_comm_world
+      if (present(mpi_comm)) communicator = mpi_comm
+      call c_f_pointer(c_loc(receive_buffer), receive_values, [mpi_number])
+      if (present(send_buffer)) then
+         call c_f_pointer(c_loc(send_buffer), send_values, [mpi_number])
+         call mpi_reduce(send_values, receive_values, mpi_number, mpi_double_complex, mpi_sum, &
+                         mpi_rank, communicator, error_code)
+      else
+         allocate (local_buffer(mpi_number))
+         local_buffer = receive_values
+         call mpi_reduce(local_buffer, receive_values, mpi_number, mpi_double_complex, mpi_sum, &
+                         mpi_rank, communicator, error_code)
       end if
+   end subroutine reduce_sum_complex64
 
-      if (present(mpi_recv_buf_c) .or. present(mpi_send_buf_c)) then
-         ntype = mpi_complex
-         if (mpi_command .eq. 'bcast') then
-            call MPI_BCAST(mpi_send_buf_c, mpi_number, ntype, mpi_rank, comm, ierr)
-            return
-         end if
-         if (mpi_command .eq. 'send') then
-            call mpi_send(mpi_send_buf_c, mpi_number, ntype, mpi_rank, mpitag, comm, ierr)
-            return
-         end if
-         if (mpi_command .eq. 'recv') then
-            call mpi_recv(mpi_recv_buf_c, mpi_number, ntype, mpi_rank, mpitag, comm, stat, ierr)
-            return
-         end if
-         if (mpi_command .eq. 'allreduce' .or. mpi_command .eq. 'reduce') then
-            if (mpi_command .eq. 'allreduce') then
-               trank = 0
-            else
-               trank = mpi_rank
-            end if
-            if (mpi_operation .eq. mstm_mpi_sum) then
-               call mpi_comm_size(comm, size, ierr)
-               call mpi_comm_rank(comm, rank, ierr)
-               if (rank .eq. trank) then
-                  if (present(mpi_send_buf_c)) mpi_recv_buf_c(1:mpi_number) = mpi_send_buf_c(1:mpi_number)
-                  allocate (ctemp(mpi_number))
-                  do i = 0, size - 1
-                     if (i .ne. trank) then
-                        call mpi_recv(ctemp, mpi_number, ntype, i, mpitag, comm, stat, ierr)
-                        mpi_recv_buf_c(1:mpi_number) = mpi_recv_buf_c(1:mpi_number) + ctemp(1:mpi_number)
-                     end if
-                  end do
-                  deallocate (ctemp)
-               else
-                  if (present(mpi_send_buf_c)) then
-                     call mpi_send(mpi_send_buf_c, mpi_number, ntype, trank, mpitag, comm, ierr)
-                  else
-                     call mpi_send(mpi_recv_buf_c, mpi_number, ntype, trank, mpitag, comm, ierr)
-                  end if
-               end if
-            else
-               if (present(mpi_send_buf_c)) then
-                  call mpi_reduce(mpi_send_buf_c, mpi_recv_buf_c, mpi_number, ntype, mpi_operation, &
-                                  trank, comm, ierr)
-               else
-                  allocate (ctemp(mpi_number))
-                  ctemp(1:mpi_number) = mpi_recv_buf_c(1:mpi_number)
-                  mpi_recv_buf_c(1:mpi_number) = 0.d0
-                  call mpi_reduce(ctemp, mpi_recv_buf_c, mpi_number, ntype, mpi_operation, &
-                                  trank, comm, ierr)
-                  deallocate (ctemp)
-               end if
-            end if
-            if (mpi_command .eq. 'allreduce') call MPI_BCAST(mpi_recv_buf_c, mpi_number, ntype, trank, comm, ierr)
-         end if
-         if (mpi_command .eq. 'gather') then
-            if (present(mpi_send_buf_c)) then
-               call mpi_gather(mpi_send_buf_c, mpi_number, ntype, mpi_recv_buf_c, mpi_number, ntype, &
-                               mpi_rank, comm, ierr)
-            else
-               call mpi_gather(mpi_in_place, mpi_number, ntype, mpi_recv_buf_c, mpi_number, ntype, &
-                               mpi_rank, comm, ierr)
-            end if
-            return
-         end if
+   subroutine allreduce_sum_real64(receive_buffer, mpi_number, mpi_comm, send_buffer)
+      real(real64), contiguous, target, intent(inout) :: receive_buffer(..)
+      real(real64), contiguous, optional, target, intent(in) :: send_buffer(..)
+      integer, intent(in) :: mpi_number
+      integer, optional, intent(in) :: mpi_comm
+      integer :: communicator, error_code
+      real(real64), allocatable :: local_buffer(:)
+      real(real64), pointer :: receive_values(:), send_values(:)
 
+      communicator = mpi_comm_world
+      if (present(mpi_comm)) communicator = mpi_comm
+      call c_f_pointer(c_loc(receive_buffer), receive_values, [mpi_number])
+      allocate (local_buffer(mpi_number))
+      if (present(send_buffer)) then
+         call c_f_pointer(c_loc(send_buffer), send_values, [mpi_number])
+         local_buffer = send_values
+      else
+         local_buffer = receive_values
       end if
+      call mpi_allreduce(local_buffer, receive_values, mpi_number, mpi_double_precision, mpi_sum, communicator, error_code)
+   end subroutine allreduce_sum_real64
 
-      if (present(mpi_recv_buf_dp) .or. present(mpi_send_buf_dp)) then
-         ntype = mpi_double_precision
-         if (mpi_command .eq. 'bcast') then
-            call MPI_BCAST(mpi_send_buf_dp, mpi_number, ntype, mpi_rank, comm, ierr)
-            return
-         end if
-         if (mpi_command .eq. 'send') then
-            call mpi_send(mpi_send_buf_dp, mpi_number, ntype, mpi_rank, mpitag, comm, ierr)
-            return
-         end if
-         if (mpi_command .eq. 'recv') then
-            call mpi_recv(mpi_recv_buf_dp, mpi_number, ntype, mpi_rank, mpitag, comm, stat, ierr)
-            return
-         end if
-         if (mpi_command .eq. 'allreduce' .or. mpi_command .eq. 'reduce') then
-            if (mpi_command .eq. 'allreduce') then
-               trank = 0
-            else
-               trank = mpi_rank
-            end if
-            if (mpi_operation .eq. mstm_mpi_sum) then
-               call mpi_comm_size(comm, size, ierr)
-               call mpi_comm_rank(comm, rank, ierr)
-               if (rank .eq. trank) then
-                  if (present(mpi_send_buf_dp)) mpi_recv_buf_dp(1:mpi_number) = mpi_send_buf_dp(1:mpi_number)
-                  allocate (dptemp(mpi_number))
-                  do i = 0, size - 1
-                     if (i .ne. trank) then
-                        call mpi_recv(dptemp, mpi_number, ntype, i, mpitag, comm, stat, ierr)
-                        mpi_recv_buf_dp(1:mpi_number) = mpi_recv_buf_dp(1:mpi_number) + dptemp(1:mpi_number)
-                     end if
-                  end do
-                  deallocate (dptemp)
-               else
-                  if (present(mpi_send_buf_dp)) then
-                     call mpi_send(mpi_send_buf_dp, mpi_number, ntype, trank, mpitag, comm, ierr)
-                  else
-                     call mpi_send(mpi_recv_buf_dp, mpi_number, ntype, trank, mpitag, comm, ierr)
-                  end if
-               end if
-            else
-               if (present(mpi_send_buf_dp)) then
-                  call mpi_reduce(mpi_send_buf_dp, mpi_recv_buf_dp, mpi_number, ntype, mpi_operation, &
-                                  trank, comm, ierr)
-               else
-                  allocate (dptemp(mpi_number))
-                  dptemp(1:mpi_number) = mpi_recv_buf_dp(1:mpi_number)
-                  mpi_recv_buf_dp(1:mpi_number) = 0.d0
-                  call mpi_reduce(dptemp, mpi_recv_buf_dp, mpi_number, ntype, mpi_operation, &
-                                  trank, comm, ierr)
-                  deallocate (dptemp)
-               end if
-            end if
-            if (mpi_command .eq. 'allreduce') call MPI_BCAST(mpi_recv_buf_dp, mpi_number, ntype, trank, comm, ierr)
-         end if
-         if (mpi_command .eq. 'gather') then
-            if (present(mpi_send_buf_dp)) then
-               call mpi_gather(mpi_send_buf_dp, mpi_number, ntype, mpi_recv_buf_dp, mpi_number, ntype, &
-                               mpi_rank, comm, ierr)
-            else
-               call mpi_gather(mpi_in_place, mpi_number, ntype, mpi_recv_buf_dp, mpi_number, ntype, &
-                               mpi_rank, comm, ierr)
-            end if
-            return
-         end if
+   subroutine allreduce_sum_complex64(receive_buffer, mpi_number, mpi_comm, send_buffer)
+      complex(real64), contiguous, target, intent(inout) :: receive_buffer(..)
+      complex(real64), contiguous, optional, target, intent(in) :: send_buffer(..)
+      integer, intent(in) :: mpi_number
+      integer, optional, intent(in) :: mpi_comm
+      integer :: communicator, error_code
+      complex(real64), allocatable :: local_buffer(:)
+      complex(real64), pointer :: receive_values(:), send_values(:)
+
+      communicator = mpi_comm_world
+      if (present(mpi_comm)) communicator = mpi_comm
+      call c_f_pointer(c_loc(receive_buffer), receive_values, [mpi_number])
+      allocate (local_buffer(mpi_number))
+      if (present(send_buffer)) then
+         call c_f_pointer(c_loc(send_buffer), send_values, [mpi_number])
+         local_buffer = send_values
+      else
+         local_buffer = receive_values
       end if
+      call mpi_allreduce(local_buffer, receive_values, mpi_number, mpi_double_complex, mpi_sum, communicator, error_code)
+   end subroutine allreduce_sum_complex64
 
-      if (present(mpi_recv_buf_dc) .or. present(mpi_send_buf_dc)) then
-         ntype = mpi_double_complex
-         if (mpi_command .eq. 'bcast') then
-            call MPI_BCAST(mpi_send_buf_dc, mpi_number, ntype, mpi_rank, comm, ierr)
-            return
-         end if
-         if (mpi_command .eq. 'send') then
-            call mpi_send(mpi_send_buf_dc, mpi_number, ntype, mpi_rank, mpitag, comm, ierr)
-            return
-         end if
-         if (mpi_command .eq. 'recv') then
-            call mpi_recv(mpi_recv_buf_dc, mpi_number, ntype, mpi_rank, mpitag, comm, stat, ierr)
-            return
-         end if
-         if (mpi_command .eq. 'allreduce' .or. mpi_command .eq. 'reduce') then
-            if (mpi_command .eq. 'allreduce') then
-               trank = 0
-            else
-               trank = mpi_rank
-            end if
-            if (mpi_operation .eq. mstm_mpi_sum) then
-               call mpi_comm_size(comm, size, ierr)
-               call mpi_comm_rank(comm, rank, ierr)
-               if (rank .eq. trank) then
-                  if (present(mpi_send_buf_dc)) mpi_recv_buf_dc(1:mpi_number) = mpi_send_buf_dc(1:mpi_number)
-                  allocate (dctemp(mpi_number))
-                  do i = 0, size - 1
-                     if (i .ne. trank) then
-                        call mpi_recv(dctemp, mpi_number, ntype, i, mpitag, comm, stat, ierr)
-                        mpi_recv_buf_dc(1:mpi_number) = mpi_recv_buf_dc(1:mpi_number) + dctemp(1:mpi_number)
-                     end if
-                  end do
-                  deallocate (dctemp)
-               else
-                  if (present(mpi_send_buf_dc)) then
-                     call mpi_send(mpi_send_buf_dc, mpi_number, ntype, trank, mpitag, comm, ierr)
-                  else
-                     call mpi_send(mpi_recv_buf_dc, mpi_number, ntype, trank, mpitag, comm, ierr)
-                  end if
-               end if
-            else
-               if (present(mpi_send_buf_dc)) then
-                  call mpi_reduce(mpi_send_buf_dc, mpi_recv_buf_dc, mpi_number, ntype, mpi_operation, &
-                                  trank, comm, ierr)
-               else
-                  allocate (dctemp(mpi_number))
-                  dctemp(1:mpi_number) = mpi_recv_buf_dc(1:mpi_number)
-                  mpi_recv_buf_dc(1:mpi_number) = 0.d0
-                  call mpi_reduce(dctemp, mpi_recv_buf_dc, mpi_number, ntype, mpi_operation, &
-                                  trank, comm, ierr)
-                  deallocate (dctemp)
-               end if
-            end if
-            if (mpi_command .eq. 'allreduce') call MPI_BCAST(mpi_recv_buf_dc, mpi_number, ntype, trank, comm, ierr)
-         end if
+   subroutine parallel_allreduce_sum_complex64_sequence(receive_buffer, mpi_number, mpi_comm)
+      complex(real64), intent(inout) :: receive_buffer(*)
+      integer, intent(in) :: mpi_number
+      integer, optional, intent(in) :: mpi_comm
+      integer :: communicator, error_code
+      complex(real64), allocatable :: local_buffer(:)
 
-         if (mpi_command .eq. 'gather') then
-            if (present(mpi_send_buf_dc) .and. present(mpi_recv_buf_dc)) then
-               call mpi_gather(mpi_send_buf_dc, mpi_number, ntype, mpi_recv_buf_dc, mpi_number, ntype, &
-                               mpi_rank, comm, ierr)
-            else
-               call mpi_gather(mpi_recv_buf_dc, mpi_number, ntype, mpi_recv_buf_dc, mpi_number, ntype, &
-                               mpi_rank, comm, ierr)
-            end if
-            return
-         end if
-         if (mpi_command .eq. 'allgather') then
-            if (present(mpi_send_buf_dc) .and. present(mpi_recv_buf_dc)) then
-               call mpi_allgather(mpi_send_buf_dc, mpi_number, ntype, mpi_recv_buf_dc, mpi_number, ntype, &
-                                  comm, ierr)
-            else
-               call mpi_allgather(mpi_in_place, mpi_number, ntype, mpi_recv_buf_dc, mpi_number, ntype, &
-                                  comm, ierr)
-            end if
-            return
-         end if
-         if (mpi_command .eq. 'alltoall') then
-            if (present(mpi_send_buf_dc) .and. present(mpi_recv_buf_dc)) then
-               call mpi_alltoall(mpi_send_buf_dc, mpi_number, ntype, mpi_recv_buf_dc, mpi_number, ntype, &
-                                 comm, ierr)
-            else
-               call mpi_alltoall(mpi_in_place, mpi_number, ntype, mpi_recv_buf_dc, mpi_number, ntype, &
-                                 comm, ierr)
-            end if
-            return
-         end if
-         if (mpi_command .eq. 'scatter') then
-            if (present(mpi_send_buf_dc) .and. present(mpi_recv_buf_dc)) then
-               call mpi_scatter(mpi_send_buf_dc, mpi_number, ntype, mpi_recv_buf_dc, mpi_number, ntype, &
-                                mpi_rank, comm, ierr)
-            else
-               call mpi_scatter(mpi_recv_buf_dc, mpi_number, ntype, mpi_recv_buf_dc, mpi_number, ntype, &
-                                mpi_rank, comm, ierr)
-            end if
-            return
-         end if
+      communicator = mpi_comm_world
+      if (present(mpi_comm)) communicator = mpi_comm
+      allocate (local_buffer(mpi_number))
+      local_buffer = receive_buffer(1:mpi_number)
+      call mpi_allreduce(local_buffer, receive_buffer, mpi_number, mpi_double_complex, mpi_sum, communicator, error_code)
+   end subroutine parallel_allreduce_sum_complex64_sequence
+
+   subroutine parallel_allreduce_max(receive_buffer, mpi_number, mpi_comm, send_buffer)
+      integer, contiguous, target, intent(inout) :: receive_buffer(..)
+      integer, contiguous, optional, target, intent(in) :: send_buffer(..)
+      integer, intent(in) :: mpi_number
+      integer, optional, intent(in) :: mpi_comm
+      integer :: communicator, error_code
+      integer, allocatable :: local_buffer(:)
+      integer, pointer :: receive_values(:), send_values(:)
+
+      communicator = mpi_comm_world
+      if (present(mpi_comm)) communicator = mpi_comm
+      call c_f_pointer(c_loc(receive_buffer), receive_values, [mpi_number])
+      allocate (local_buffer(mpi_number))
+      if (present(send_buffer)) then
+         call c_f_pointer(c_loc(send_buffer), send_values, [mpi_number])
+         local_buffer = send_values
+      else
+         local_buffer = receive_values
       end if
+      call mpi_allreduce(local_buffer, receive_values, mpi_number, mpi_integer, mpi_max, communicator, error_code)
+   end subroutine parallel_allreduce_max
 
-   end subroutine mstm_mpi
+   subroutine send_complex64(send_buffer, mpi_number, mpi_rank, mpi_comm)
+      complex(real64), contiguous, target, intent(in) :: send_buffer(..)
+      integer, intent(in) :: mpi_number, mpi_rank
+      integer, optional, intent(in) :: mpi_comm
+      integer :: communicator, error_code
+      complex(real64), pointer :: send_values(:)
+
+      communicator = mpi_comm_world
+      if (present(mpi_comm)) communicator = mpi_comm
+      call c_f_pointer(c_loc(send_buffer), send_values, [mpi_number])
+      call mpi_send(send_values, mpi_number, mpi_double_complex, mpi_rank, 1, communicator, error_code)
+   end subroutine send_complex64
+
+   subroutine receive_complex64(receive_buffer, mpi_number, mpi_rank, mpi_comm)
+      complex(real64), contiguous, target, intent(out) :: receive_buffer(..)
+      integer, intent(in) :: mpi_number, mpi_rank
+      integer, optional, intent(in) :: mpi_comm
+      integer :: communicator, error_code, status(mpi_status_size)
+      complex(real64), pointer :: receive_values(:)
+
+      communicator = mpi_comm_world
+      if (present(mpi_comm)) communicator = mpi_comm
+      call c_f_pointer(c_loc(receive_buffer), receive_values, [mpi_number])
+      call mpi_recv(receive_values, mpi_number, mpi_double_complex, mpi_rank, 1, communicator, status, error_code)
+   end subroutine receive_complex64
+
 end module parallel_runtime

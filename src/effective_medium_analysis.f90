@@ -69,7 +69,7 @@ contains
 
    subroutine effective_refractive_index(ndat, edat, d, rieff, &
                                          e0)
-      use parallel_runtime
+      use parallel_runtime, only: parallel_rank
       implicit none
       integer :: ndat, i, rank
       real(real64) :: d, xdat(ndat), phase(ndat), amplitude(ndat), &
@@ -77,7 +77,7 @@ contains
                       ampslope, ampintercept, oldphase, &
                       newphase
       complex(real64) :: edat(ndat), rieff, e0
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank)
+      call parallel_rank(mpi_rank=rank)
 
       oldphase = -1.d10
       do i = 1, ndat

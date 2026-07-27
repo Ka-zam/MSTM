@@ -2,7 +2,7 @@ module translation_expansions
    use angular_functions, only: generate_translation_matrix
    use iso_fortran_env, only: real64
    use mie, only: apply_mie_coefficients, exterior_refractive_index
-   use parallel_runtime, only: mpi_comm_world, mstm_global_rank, mstm_mpi, mstm_mpi_sum
+   use parallel_runtime, only: mpi_comm_world, mstm_global_rank, parallel_rank, parallel_reduce_sum, parallel_size
    use numerical_tables, only: light_up
    use periodic_lattice_operations, only: periodic_lattice, plane_boundary_lattice_interaction
    use sphere_data, only: host_sphere, number_eqns, number_spheres, sphere_block, sphere_layer, sphere_offset, &
@@ -101,8 +101,8 @@ contains
       else
          miemult = .true.
       end if
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
+      call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
 
       matrix = 0.0_real64
       task = 0
@@ -197,8 +197,8 @@ contains
       end do
       if (numprocs .gt. 1) then
          nsend = number_eqns * number_eqns
-         call mstm_mpi(mpi_command='reduce', mpi_operation=mstm_mpi_sum, mpi_rank=0, &
-                       mpi_recv_buf_dc=matrix, mpi_number=nsend, mpi_comm=mpicomm)
+         call parallel_reduce_sum(mpi_rank=0, &
+                                  receive_buffer=matrix, mpi_number=nsend, mpi_comm=mpicomm)
       end if
       if (rank .eq. 0) then
          if (miemult) then
@@ -244,8 +244,8 @@ contains
       else
          mpicomm = mpi_comm_world
       end if
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
+      call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
       nsphere = number_spheres
       gout = 0.0_real64
       if (present(store_matrix_option)) then
@@ -380,8 +380,8 @@ contains
       else
          contran = .false.
       end if
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
+      call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
       bout = 0.0_real64
 
       if (present(geometry)) then

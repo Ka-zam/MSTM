@@ -3,7 +3,8 @@ module scattering_interactions
    use constants
    use fft_translation
    use mie
-   use parallel_runtime
+   use parallel_runtime, only: mpi_comm_world, mstm_global_rank, parallel_allreduce_sum, &
+                               parallel_allreduce_sum_complex64_sequence, parallel_barrier, parallel_rank, parallel_size
    use numerical_tables
    use periodic_lattice_operations
    use angular_functions, only: estimate_translation_order, generate_gaussian_beam_coefficients
@@ -74,8 +75,8 @@ contains
       else
          etopt = .true.
       end if
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
+      call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
 !
 ! sphere-to-sphere H (i-j) interaction
 !
@@ -94,7 +95,7 @@ contains
          end if
       end do
 
-      call mstm_mpi(mpi_command='barrier', mpi_comm=mpicomm)
+      call parallel_barrier(mpi_comm=mpicomm)
       aout_t = 0.
       if (etopt) then
          if (periodic_lattice) then
@@ -111,8 +112,8 @@ contains
                                                      store_matrix_option=smopt, initial_run=initrun, &
                                                      rhs_list=rhslist, mpi_comm=mpicomm, con_tran=contran)
 !            nsend=neqns*nrhs
-!            call mstm_mpi(mpi_command='allreduce',mpi_recv_buf_dc=aout_t, &
-!                 mpi_number=nsend,mpi_operation=mstm_mpi_sum,mpi_comm=mpicomm)
+!            call parallel_allreduce_sum(receive_buffer=aout_t, &
+!                 mpi_number=nsend,mpi_comm=mpicomm)
 
          else
             if (light_up) then
@@ -131,7 +132,7 @@ contains
          end if
       end if
 
-      call mstm_mpi(mpi_command='barrier', mpi_comm=mpicomm)
+      call parallel_barrier(mpi_comm=mpicomm)
       if (number_host_spheres .gt. 0) then
          aout_t2 = 0.
          call external_to_internal_expansion(neqns, nrhs, ain_t, aout_t2, &
@@ -149,8 +150,8 @@ contains
 
       if (numprocs .gt. 1) then
          nsend = neqns * nrhs
-         call mstm_mpi(mpi_command='allreduce', mpi_recv_buf_dc=aout_t, &
-                       mpi_number=nsend, mpi_operation=mstm_mpi_sum, mpi_comm=mpicomm)
+         call parallel_allreduce_sum(receive_buffer=aout_t, &
+                                     mpi_number=nsend, mpi_comm=mpicomm)
       end if
 
       do rhs = 1, nrhs
@@ -167,8 +168,8 @@ contains
 
 !         if(numprocs.gt.1) then
 !            nsend=neqns*nrhs
-!            call mstm_mpi(mpi_command='allreduce',mpi_recv_buf_dc=aout, &
-!                 mpi_number=nsend,mpi_operation=mstm_mpi_sum,mpi_comm=mpicomm)
+!            call parallel_allreduce_sum(receive_buffer=aout, &
+!                 mpi_number=nsend,mpi_comm=mpicomm)
 !         endif
       if (light_up) then
          write (*, '('' si3 '',i3)') mstm_global_rank
@@ -231,7 +232,7 @@ contains
       else
          mpicomm = mpi_comm_world
       end if
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
       if (effective_medium_simulation) then
          allocate (dnpeff(2, 2, t_matrix_order), pmnp0(t_matrix_order * (t_matrix_order + 2), 2, 2))
          ri0 = effective_ref_index
@@ -463,8 +464,8 @@ contains
       else
          tlist = .true.
       end if
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
+      call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
       amnp0(:, :, :, 1:nrhs) = (0.d0, 0.d0)
       task = 0
       do i = startsphere, endsphere
@@ -503,8 +504,8 @@ contains
       end do
       if (numprocs .gt. 1 .and. mergeprocs) then
          nsend = 2 * nodrt * (nodrt + 2) * nrhs
-         call mstm_mpi(mpi_command='allreduce', mpi_recv_buf_dc=amnp0, &
-                       mpi_number=nsend, mpi_operation=mstm_mpi_sum, mpi_comm=mpicomm)
+         call parallel_allreduce_sum_complex64_sequence(receive_buffer=amnp0, &
+                                                        mpi_number=nsend, mpi_comm=mpicomm)
       end if
    end subroutine merge_to_common_origin
 
@@ -570,8 +571,8 @@ contains
          tlist = .true.
       end if
 
-      call mstm_mpi(mpi_command='size', mpi_size=numprocs, mpi_comm=mpicomm)
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
+      call parallel_size(mpi_size=numprocs, mpi_comm=mpicomm)
+      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
       amnp(1:number_eqns, 1:nrhs) = (0.d0, 0.d0)
       task = 0
       do i = startsphere, endsphere
@@ -597,8 +598,8 @@ contains
       end do
       if (numprocs .gt. 1 .and. mergeprocs) then
          nsend = number_eqns * nrhs
-         call mstm_mpi(mpi_command='allreduce', mpi_recv_buf_dc=amnp, &
-                       mpi_number=nsend, mpi_operation=mstm_mpi_sum, mpi_comm=mpicomm)
+         call parallel_allreduce_sum_complex64_sequence(receive_buffer=amnp, &
+                                                        mpi_number=nsend, mpi_comm=mpicomm)
       end if
    end subroutine distribute_from_common_origin
 end module scattering_interactions

@@ -1,7 +1,7 @@
 module random_sphere_configuration
    use, intrinsic :: iso_fortran_env, only: real64
    use constants
-   use parallel_runtime
+   use parallel_runtime, only: mstm_global_rank, parallel_rank, parallel_wall_time
    use random_configuration_dynamics
    use random_configuration_geometry
    use random_configuration_sorting
@@ -65,7 +65,7 @@ contains
          firstrun = .false.
       end if
       allocate (coll_data(numberspheres))
-      call mstm_mpi(mpi_command='rank', mpi_rank=rank)
+      call parallel_rank(mpi_rank=rank)
       trystage1 = .false.
 
       nscompi(1:number_components) = numberspheres * component_number_fraction(1:number_components)
@@ -208,18 +208,18 @@ contains
       if ((.not. skipdif) .and. max_number_time_steps .gt. 0 .and. max_diffusion_simulation_time .gt. 0.) then
          call sample_random_velocities(numberspheres, u)
          ncollstot = 0
-         time1 = mstm_mpi_wtime()
+         time1 = parallel_wall_time()
          time0 = time1
          do j = 1, max_number_time_steps
             call move_spheres(numberspheres, sphereradius, sphereposition, u, time_step, wallboundaries, &
                               number_wall_hits=ncolls)
             ncollstot = ncollstot + ncolls
             collspersphere = dble(ncollstot) / dble(numberspheres)
-            time2 = mstm_mpi_wtime()
+            time2 = parallel_wall_time()
             if (mstm_global_rank .eq. 0 .and. pprog .and. time2 - time1 .gt. 15.d0) then
                write (iunit, '('' diffusion step, collision per sphere:'',i8,es12.4)') j, collspersphere
                flush (iunit)
-               time1 = mstm_mpi_wtime()
+               time1 = parallel_wall_time()
             end if
             if (time2 - time0 .gt. max_diffusion_cpu_time) exit
             if (j * time_step .gt. max_diffusion_simulation_time) exit

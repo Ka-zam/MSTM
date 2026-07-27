@@ -1,7 +1,7 @@
 module random_configuration_dynamics
    use, intrinsic :: iso_fortran_env, only: real64
    use constants
-   use parallel_runtime, only: mstm_mpi_wtime
+   use parallel_runtime, only: parallel_wall_time
    use random_configuration_geometry, only: check_position_in_target, modify_cells, position_to_cell_index
    use random_configuration_state
    implicit none
@@ -28,15 +28,15 @@ contains
       tmove = maxtime
       i = 1
       nwhits = 0
-      time_0 = mstm_mpi_wtime()
+      time_0 = parallel_wall_time()
       call find_next_sphere_collision(nsphere, radius, pos, u, tmove, wallboundaries, &
                                       collision, tcoll, collisionpair)
-      sim_timings(1) = sim_timings(1) + mstm_mpi_wtime() - time_0
+      sim_timings(1) = sim_timings(1) + parallel_wall_time() - time_0
       do while (tmove .gt. 0.d0)
-         time_0 = mstm_mpi_wtime()
+         time_0 = parallel_wall_time()
          call modify_cells(nsphere, pos)
-         sim_timings(2) = sim_timings(2) + mstm_mpi_wtime() - time_0
-         time_0 = mstm_mpi_wtime()
+         sim_timings(2) = sim_timings(2) + parallel_wall_time() - time_0
+         time_0 = parallel_wall_time()
          tcoll = tmove
          collision = .false.
          do is = 1, nsphere
@@ -48,13 +48,13 @@ contains
                collpos(:) = coll_data(is)%collpos(:)
             end if
          end do
-         sim_timings(3) = sim_timings(3) + mstm_mpi_wtime() - time_0
-         time_0 = mstm_mpi_wtime()
+         sim_timings(3) = sim_timings(3) + parallel_wall_time() - time_0
+         time_0 = parallel_wall_time()
          tcmin = tcoll
          call find_next_wall_collision(nsphere, radius, pos, u, tmove, wallboundaries, &
                                        twallmin, iswall, iwall)
-         sim_timings(4) = sim_timings(4) + mstm_mpi_wtime() - time_0
-         time_0 = mstm_mpi_wtime()
+         sim_timings(4) = sim_timings(4) + parallel_wall_time() - time_0
+         time_0 = parallel_wall_time()
          wallcollision = (twallmin .lt. tcmin)
          tcmin = min(tcmin, twallmin)
          do is = 1, nsphere
@@ -81,8 +81,8 @@ contains
                write (*, '(8es12.4)') tpos, sqrt(sum(tpos**2)), tcmin, tcoll, twallmin
             end if
          end do
-         sim_timings(5) = sim_timings(5) + mstm_mpi_wtime() - time_0
-         time_0 = mstm_mpi_wtime()
+         sim_timings(5) = sim_timings(5) + parallel_wall_time() - time_0
+         time_0 = parallel_wall_time()
          if (tcmin .lt. tmove) then
             nwhits = nwhits + 1
             if (wallcollision) then
@@ -155,7 +155,7 @@ contains
          end if
          i = i + 1
          if (sphere_1_fixed) u(:, 1) = 0.d0
-         sim_timings(6) = sim_timings(6) + mstm_mpi_wtime() - time_0
+         sim_timings(6) = sim_timings(6) + parallel_wall_time() - time_0
       end do
       if (present(number_wall_hits)) number_wall_hits = nwhits
    end subroutine move_spheres
