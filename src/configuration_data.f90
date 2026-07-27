@@ -103,9 +103,9 @@ contains
             end if
             if (allocated(sphereradius)) deallocate (sphereradius, sphereposition, sphereindex)
             allocate (sphereradius(nspheresamp), sphereposition(3, nspheresamp), sphereindex(nspheresamp))
-            call random_cluster_of_spheres(nspheresamp, targetdimensions, sphereposition, sphereradius, &
-                                           sphereindex, run_print_unit, ran_config_stat, ran_config_time_steps, &
-                                           skip_diffusion=skipdif, print_progress=.true.)
+            call generate_random_sphere_cluster(nspheresamp, targetdimensions, sphereposition, sphereradius, &
+                                                sphereindex, run_print_unit, ran_config_stat, ran_config_time_steps, &
+                                                skip_diffusion=skipdif, print_progress=.true.)
             firstrun = .false.
             if (ran_config_stat .ge. 3) then
                write (run_print_unit, '('' unable to generate random configuration'')')

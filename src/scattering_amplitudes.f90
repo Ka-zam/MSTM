@@ -16,7 +16,7 @@ module scattering_amplitudes
              multiple_origin_scattering_matrix, &
              numerical_scattering_matrix_azimuthal_average_multiple_origin, &
              numerical_scattering_matrix_azimuthal_average_single_origin, periodic_lattice_scattering, &
-             s11_expansion
+             s11_phase_function_expansion
 contains
 
    subroutine periodic_lattice_scattering(amnp, qsca, scat_mat, krho_vec, num_dirs, dry_run)
@@ -436,7 +436,7 @@ contains
 !   c                                                                               c
 !   c  gmn(1)/3 is the asymmetry parameter.                                         c
 !   c                                                                               c
-   subroutine s11_expansion(amn0, nodrt, mmax, nodrg, gmn)
+   subroutine s11_phase_function_expansion(amn0, nodrt, mmax, nodrg, gmn)
       implicit none
       integer :: nodrt, m, n, p, ma, na, mmax, nodrg, w, w1, w2, u, uw, ww1, &
                  l1, l2, ka, la, k, l, q, ik
@@ -507,7 +507,7 @@ contains
             gmn(uw) = (-1)**u * 2.d0 * gmn(uw) / g0
          end do
       end do
-   end subroutine s11_expansion
+   end subroutine s11_phase_function_expansion
 !
 !  calculate azimuth--averaged scattering matrix from expansion, for cos(theta) = ct
 !

@@ -12,7 +12,7 @@ module random_sphere_configuration
              check_position_in_target, circumscribing_sphere, clear_cells, direct_overlap_test, &
              find_next_sphere_collision, find_next_wall_collision, generate_hexagonal_positions, &
              heap_sort_with_tolerance, initialize_cells, modify_cells, move_spheres, position_to_cell_index, &
-             random_cluster_of_spheres, resolve_collision_velocities, sample_layered_configuration, &
+             generate_random_sphere_cluster, resolve_collision_velocities, sample_layered_configuration, &
              sample_particle_radius, sample_random_velocities, sample_target_position, sort_sphere_positions, &
              sort_sphere_radii, swap_cell_contents, test_pair_collision
    public :: c_list, c_temp, cell_list, coll_data, coll_list, component_number_fraction, component_radii, &
@@ -22,9 +22,9 @@ module random_sphere_configuration
              target_width, target_width_specified, time_0, wall_boundary_model
 contains
 
-   subroutine random_cluster_of_spheres(numberspheres, targetdimensions, sphereposition, sphereradius, &
-                                        sphereindex, iunit, istatus, &
-                                        ntsteps, skip_diffusion, use_saved_values, print_progress, simulation_file)
+   subroutine generate_random_sphere_cluster(numberspheres, targetdimensions, sphereposition, sphereradius, &
+                                             sphereindex, iunit, istatus, &
+                                             ntsteps, skip_diffusion, use_saved_values, print_progress, simulation_file)
       implicit none
       logical :: fitok, allin, initial0, initial1, trystage1, skipdif, pprog, printsim, multicomp
       logical, optional :: skip_diffusion, use_saved_values, print_progress
@@ -258,5 +258,5 @@ contains
       saved_sphereradius = sphereradius
       call clear_cells()
       deallocate (coll_data)
-   end subroutine random_cluster_of_spheres
+   end subroutine generate_random_sphere_cluster
 end module random_sphere_configuration
