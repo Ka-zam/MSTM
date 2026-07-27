@@ -17,6 +17,9 @@ option(MSTM_ENABLE_WARNINGS "Enable GNU Fortran diagnostics" ON)
 option(MSTM_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(MSTM_ENABLE_RUNTIME_CHECKS "Enable GNU Fortran runtime checks" OFF)
 option(MSTM_ENABLE_COVERAGE "Instrument GNU Fortran targets for gcov coverage" OFF)
+set(MSTM_SERIAL_REFERENCE_EXECUTABLE "" CACHE FILEPATH
+  "Serial MSTM executable used by MPI equivalence tests"
+)
 
 if(NOT CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
   message(FATAL_ERROR "MSTM currently requires GNU Fortran 15.2 or newer")
@@ -473,6 +476,47 @@ if(BUILD_TESTING)
         "-DMSTM_MPI_RANKS=2"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunSmokeTest.cmake"
     )
+
+    if(MSTM_SERIAL_REFERENCE_EXECUTABLE)
+      if(NOT EXISTS "${MSTM_SERIAL_REFERENCE_EXECUTABLE}")
+        message(FATAL_ERROR
+          "MSTM_SERIAL_REFERENCE_EXECUTABLE does not exist: ${MSTM_SERIAL_REFERENCE_EXECUTABLE}"
+        )
+      endif()
+
+      function(add_mstm_parallel_equivalence_test test_name input_path output_name regression_case)
+        set(test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/${test_name}")
+        file(MAKE_DIRECTORY "${test_work_dir}")
+        add_test(
+          NAME "${test_name}"
+          COMMAND "${CMAKE_COMMAND}"
+            "-DMSTM_SERIAL_EXECUTABLE=${MSTM_SERIAL_REFERENCE_EXECUTABLE}"
+            "-DMSTM_MPI_EXECUTABLE=$<TARGET_FILE:mstm>"
+            "-DMSTM_MPIEXEC=${MPIEXEC_EXECUTABLE}"
+            "-DMSTM_MPI_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+            "-DMSTM_INPUT=${input_path}"
+            "-DMSTM_OUTPUT_NAME=${output_name}"
+            "-DMSTM_WORK_DIR=${test_work_dir}"
+            "-DMSTM_REGRESSION_EXECUTABLE=$<TARGET_FILE:output_regression_test>"
+            "-DMSTM_REGRESSION_CASE=${regression_case}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunParallelEquivalence.cmake"
+        )
+        set_tests_properties("${test_name}" PROPERTIES PROCESSORS 4 TIMEOUT 300)
+      endfunction()
+
+      add_mstm_parallel_equivalence_test(
+        serial_two_four_rank_solver_equivalence
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/solver-validation.inp"
+        solver-validation.dat
+        parallel_solver_equivalence
+      )
+      add_mstm_parallel_equivalence_test(
+        serial_two_four_rank_fft_equivalence
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/fft-translation-validation.inp"
+        fft-translation-validation.dat
+        parallel_fft_equivalence
+      )
+    endif()
   endif()
 endif()
 

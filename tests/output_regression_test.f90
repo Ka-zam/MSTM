@@ -4,7 +4,7 @@ program output_regression_test
    implicit none
 
    character(len=64) :: case_name
-   character(len=1024) :: work_directory
+   character(len=1024) :: comparison_directory_1, comparison_directory_2, work_directory
    integer :: failures
 
    call get_command_argument(1, case_name)
@@ -38,6 +38,16 @@ program output_regression_test
       call check_near_field_modes(trim(work_directory), failures)
    case ('state_lifecycle')
       call check_state_lifecycle(trim(work_directory), failures)
+   case ('parallel_solver_equivalence')
+      call get_command_argument(3, comparison_directory_1)
+      call get_command_argument(4, comparison_directory_2)
+      call check_parallel_equivalence(trim(work_directory), trim(comparison_directory_1), &
+                                      trim(comparison_directory_2), 'solver-validation.dat', 3, failures)
+   case ('parallel_fft_equivalence')
+      call get_command_argument(3, comparison_directory_1)
+      call get_command_argument(4, comparison_directory_2)
+      call check_parallel_equivalence(trim(work_directory), trim(comparison_directory_1), &
+                                      trim(comparison_directory_2), 'fft-translation-validation.dat', 2, failures)
    case default
       write (error_unit, '(a)') 'Unknown regression case: '//trim(case_name)
       error stop 2
@@ -383,6 +393,43 @@ contains
       end do
    end subroutine check_state_lifecycle
 
+   subroutine check_parallel_equivalence(serial_directory, two_rank_directory, four_rank_directory, &
+                                         output_name, number_runs, failure_count)
+      character(len=*), intent(in) :: serial_directory, two_rank_directory, four_rank_directory, output_name
+      integer, intent(in) :: number_runs
+      integer, intent(inout) :: failure_count
+      real(real64), allocatable :: four_rank_efficiency(:, :), serial_efficiency(:, :), two_rank_efficiency(:, :)
+      integer :: component, run
+
+      allocate (serial_efficiency(9, number_runs), two_rank_efficiency(9, number_runs), &
+                four_rank_efficiency(9, number_runs))
+      call read_efficiency_runs(serial_directory//'/'//output_name, serial_efficiency)
+      call read_efficiency_runs(two_rank_directory//'/'//output_name, two_rank_efficiency)
+      call read_efficiency_runs(four_rank_directory//'/'//output_name, four_rank_efficiency)
+
+      do run = 1, number_runs
+         do component = 1, 9
+            call assert_parallel_close('Serial/two-rank efficiency', two_rank_efficiency(component, run), &
+                                       serial_efficiency(component, run), failure_count)
+            call assert_parallel_close('Serial/four-rank efficiency', four_rank_efficiency(component, run), &
+                                       serial_efficiency(component, run), failure_count)
+         end do
+      end do
+   end subroutine check_parallel_equivalence
+
+   subroutine read_efficiency_runs(path, efficiency)
+      character(len=*), intent(in) :: path
+      real(real64), intent(out) :: efficiency(:, :)
+      integer :: run, unit
+
+      call open_regression_file(path, unit)
+      do run = 1, size(efficiency, 2)
+         call find_line(unit, 'total extinction, absorption, scattering efficiencies', .true.)
+         read (unit, *) efficiency(:, run)
+      end do
+      close (unit)
+   end subroutine read_efficiency_runs
+
    subroutine open_regression_file(path, unit)
       character(len=*), intent(in) :: path
       integer, intent(out) :: unit
@@ -469,5 +516,22 @@ contains
          failure_count = failure_count + 1
       end if
    end subroutine assert_close
+
+   subroutine assert_parallel_close(label, actual, expected, failure_count)
+      character(len=*), intent(in) :: label
+      real(real64), intent(in) :: actual, expected
+      integer, intent(inout) :: failure_count
+      real(real64), parameter :: absolute_tolerance = 2.0e-10_real64
+      real(real64), parameter :: relative_tolerance = 2.0e-8_real64
+
+      if (.not. ieee_is_finite(actual)) then
+         write (error_unit, '(a,es14.6)') trim(label)//' is not finite: actual=', actual
+         failure_count = failure_count + 1
+      elseif (abs(actual - expected) > absolute_tolerance + relative_tolerance * abs(expected)) then
+         write (error_unit, '(a,2(a,es14.6))') trim(label)//' differs:', &
+            ' actual=', actual, ' expected=', expected
+         failure_count = failure_count + 1
+      end if
+   end subroutine assert_parallel_close
 
 end program output_regression_test

@@ -41,6 +41,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install CMake, Ninja, and MPI
         run: apt-get update && apt-get install --yes cmake ninja-build openmpi-bin libopenmpi-dev
+      - name: Build serial reference
+        run: |
+          cmake -S . -B build/serial-reference -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+          cmake --build build/serial-reference --target mstm
       - name: Configure
         run: >-
           cmake -S . -B build/mpi -G Ninja
@@ -48,6 +52,7 @@ jobs:
           -DCMAKE_Fortran_COMPILER=mpifort
           -DMSTM_ENABLE_MPI=ON
           -DMSTM_WARNINGS_AS_ERRORS=ON
+          -DMSTM_SERIAL_REFERENCE_EXECUTABLE=${{ github.workspace }}/build/serial-reference/mstm
       - name: Build
         run: cmake --build build/mpi
       - name: Test
