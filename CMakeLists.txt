@@ -201,6 +201,7 @@ if(FPRETTIFY_EXECUTABLE)
       tests/concurrent_kernels_test.f90
       tests/direct_lu_solver_test.f90
       tests/gpfa_test.f90
+      tests/mie_test.f90
       tests/output_regression_test.f90
       tests/sphere_cluster_test.f90
       tests/translation_expansion_test.f90
@@ -221,6 +222,11 @@ if(BUILD_TESTING)
   mstm_apply_fortran_options(gpfa_test)
   target_link_libraries(gpfa_test PRIVATE mstm_gpfa)
   add_test(NAME gpfa_unit COMMAND gpfa_test)
+
+  add_executable(mie_test tests/mie_test.f90)
+  mstm_apply_fortran_options(mie_test)
+  target_link_libraries(mie_test PRIVATE mstm_core)
+  add_test(NAME mie_unit COMMAND mie_test)
 
   add_executable(direct_lu_solver_test tests/direct_lu_solver_test.f90)
   mstm_apply_fortran_options(direct_lu_solver_test)
@@ -451,6 +457,7 @@ if(MSTM_ENABLE_COVERAGE)
       concurrent_kernels_test
       direct_lu_solver_test
       gpfa_test
+      mie_test
       output_regression_test
       sphere_cluster_test
       translation_expansion_test
