@@ -4,6 +4,7 @@ module input_execution
    use effective_medium_analysis
    use input_parser
    use input_reporting
+   use runtime_support, only: open_output_file, runtime_failed
    use scattering_matrix_driver
    implicit none
 contains
@@ -12,7 +13,7 @@ contains
       implicit none
       logical :: stopit, singleorigin, iframe, sett, printout, dryrun, averagerun
       logical, optional :: print_output, set_t_matrix_order, dry_run
-      integer :: n, istat, niter, rank, numprocs, i, nodrw, celldim(3), itemp(6), sx, sy, maxt, &
+      integer :: file_unit, n, istat, niter, rank, numprocs, i, nodrw, celldim(3), itemp(6), sx, sy, maxt, &
                  mpicomm, lochost
       integer, optional :: mpi_comm
       real(8) :: alpha, time1, r0(3), rtran, costheta, &
@@ -113,27 +114,26 @@ contains
             timet = mstm_mpi_wtime()
          end if
          call generate_random_configuration(mpi_comm=mpicomm, skip_diffusion=dryrun)
+         if (runtime_failed()) return
 !            call generate_random_configuration(mpi_comm=mpicomm)
          if (print_timings .and. mstm_global_rank .eq. 0) then
             write (run_print_unit, '('' completed, time:'',es12.5,'' s'')') mstm_mpi_wtime() - timet
          end if
          if (rank .eq. 0) then
-            if (ran_config_stat .ge. 3) then
-               write (run_print_unit, '('' unable to generate random configuration'')')
-               stop
-            end if
 !               if(print_random_configuration.and.(.not.configuration_average)) then
             if (print_random_configuration .and. mstm_global_rank .eq. 0) then
-               open (2, file=trim(random_configuration_output_file))
+               call open_output_file(trim(random_configuration_output_file), file_unit)
+               if (runtime_failed()) return
                do i = 1, number_spheres
-                  write (2, '(4es13.5)') sphere_position(:, i) / length_scale_factor, &
+                  write (file_unit, '(4es13.5)') sphere_position(:, i) / length_scale_factor, &
                      sphere_radius(i) / length_scale_factor
                end do
-               close (2)
+               close (file_unit)
             end if
          end if
       else
          call read_sphere_data_input_file(mpi_comm=mpicomm)
+         if (runtime_failed()) return
       end if
 
       position_shift = (/x_shift, y_shift, z_shift/) * length_scale_factor
@@ -477,9 +477,10 @@ contains
       if (rank .eq. 0 .and. printout) then
          if (check_positions) call check_sphere_positions()
          call print_run_variables(run_print_unit)
-         open (2, file=output_file, position='append')
-         call print_run_variables(2)
-         close (2)
+         call open_output_file(output_file, file_unit, append=.true.)
+         if (runtime_failed()) return
+         call print_run_variables(file_unit)
+         close (file_unit)
          time1 = mstm_mpi_wtime()
       end if
 
@@ -501,6 +502,7 @@ contains
                              solution_status=istat, &
                              mpi_comm=mpicomm, &
                              sphere_excitation_list=sphere_excitation_switch)
+         if (runtime_failed()) return
          if (fft_translation_option) call clear_fft_matrix(clear_h=.true.)
          if (calculate_scattering_matrix) then
             if (allocated(scat_mat_exp_coef)) deallocate (scat_mat_exp_coef)
@@ -550,6 +552,7 @@ contains
                                       excited_spheres=sphere_excitation_switch, &
                                       solution_method=solution_method(1:1), &
                                       initialize_solver=.true.)
+         if (runtime_failed()) return
          if (print_timings .and. mstm_global_rank .eq. 0) then
             write (run_print_unit, '('' completed, time:'',es12.5,'' s'')') mstm_mpi_wtime() - timet
          end if
@@ -715,15 +718,16 @@ contains
                                     e_field_array=e_field, h_field_array=h_field, mpi_comm=mpicomm)
          else
             if (append_near_field_output_file) then
-               open (2, file=near_field_output_file, position='append')
+               call open_output_file(near_field_output_file, file_unit, append=.true.)
             else
-               open (2, file=near_field_output_file)
+               call open_output_file(near_field_output_file, file_unit)
             end if
+            if (runtime_failed()) return
             append_near_field_output_file = .true.
             call compute_near_field(amnp_s, alpha, incident_sin_beta, incident_direction, &
                                     near_field_plane_vertices, celldim, &
-                                    incident_model=near_field_calculation_model, output_unit=2, output_header=.true.)
-            close (2)
+                                    incident_model=near_field_calculation_model, output_unit=file_unit, output_header=.true.)
+            close (file_unit)
          end if
          call gather_error_codes(mpicomm)
          if (rank .eq. 0) call print_error_codes(run_print_unit)
@@ -753,7 +757,7 @@ contains
    subroutine run_configuration_average()
       implicit none
       logical :: singleorigin, iframe
-      integer :: rank, numprocs, m, n, p, mnp, griddim(3), ipos(3), ix, iy, iz, &
+      integer :: file_unit, rank, numprocs, m, n, p, mnp, griddim(3), ipos(3), ix, iy, iz, &
                  numprocsperconfig, configcolor, configgroup, configcomm, configrank, config0comm, nconfigave, nsend
       real(8) :: time1, timet, diffac, csca(1), xspfit, rpos(3), rtemp(1)
       real(8), allocatable :: texpcoef(:, :, :), spherical_position(:, :)
@@ -795,6 +799,7 @@ contains
       iframe = singleorigin .and. incident_frame
 
       call execute_simulation(print_output=.false., set_t_matrix_order=.true., dry_run=.true.)
+      if (runtime_failed()) return
 
       if (allocated(q_eff_ave)) deallocate (q_eff_ave, q_eff_tot_ave, q_vabs_ave, sphere_position_ave, boundary_sca_ave, &
                                             boundary_ext_ave, dif_boundary_sca)
@@ -857,9 +862,10 @@ contains
          if (rank .eq. 0) then
             if (random_configuration_number .eq. 1) then
                call print_run_variables(run_print_unit)
-               open (2, file=output_file, position='append')
-               call print_run_variables(2)
-               close (2)
+               call open_output_file(output_file, file_unit, append=.true.)
+               if (runtime_failed()) return
+               call print_run_variables(file_unit)
+               close (file_unit)
             end if
             write (run_print_unit, '('' configuration averaging, samples:'',i5,''-'',i5)') &
                (random_configuration_number - 1) * n_configuration_groups + 1, &
@@ -869,6 +875,7 @@ contains
          if (rank .eq. 0) time1 = mstm_mpi_wtime()
 
          call execute_simulation(print_output=.false., set_t_matrix_order=.false., mpi_comm=configcomm)
+         if (runtime_failed()) return
 
          if (singleorigin .and. configrank .eq. 0) then
             call common_origin_scattering_cross_section(t_matrix_order, amnp_0, csca)
@@ -1106,8 +1113,9 @@ contains
             if (rank .eq. 0 .and. target_shape .eq. 2 .and. (.not. random_configuration_host)) then
                allocate (pmnp0(2 * t_matrix_order * (t_matrix_order + 2), 2), anp0(2, t_matrix_order))
                call generate_plane_wave_coefficients(0.d0, (1.d0, 0.d0), t_matrix_order, pmnp0, lr_tran=.false.)
-               open (30, file='anpeff.dat')
-               write (30, '(i5)') t_matrix_order
+               call open_output_file('anpeff.dat', file_unit)
+               if (runtime_failed()) return
+               write (file_unit, '(i5)') t_matrix_order
                do n = 1, t_matrix_order
                   do p = 1, 2
                      aneff = 0.d0
@@ -1116,11 +1124,11 @@ contains
                         aneff = aneff + 0.5d0 * sum(amnp_0(mnp, :) / pmnp0(mnp, :))
                      end do
                      aneff = aneff / 2.d0
-                     write (30, '(2i4,2es13.5)') n, p, aneff
+                     write (file_unit, '(2i4,2es13.5)') n, p, aneff
                      anp0(p, n) = aneff
                   end do
                end do
-               close (30)
+               close (file_unit)
                deallocate (pmnp0)
 !                  effective_ref_index=(1.1d0,0.01d0)
 !                  fit_radius=target_dimensions(1)*length_scale_factor
@@ -1157,8 +1165,9 @@ contains
                e_field = e_field / dble(nconfigave)
                h_field = h_field / dble(nconfigave)
                s_field = s_field / dble(nconfigave)
-               open (2, file=near_field_output_file)
-               call write_near_field_output_header(griddim, 2, print_intersecting_spheres=.false.)
+               call open_output_file(near_field_output_file, file_unit)
+               if (runtime_failed()) return
+               call write_near_field_output_header(griddim, file_unit, print_intersecting_spheres=.false.)
                allocate (edat(griddim(3)))
                edat = 0.d0
                do iz = 1, griddim(3)
@@ -1167,7 +1176,8 @@ contains
                         edat(iz) = edat(iz) + e_field(1, 1, ix, iy, iz) + e_field(2, 2, ix, iy, iz)
                         ipos(:) = (/ix, iy, iz/)
                         rpos(:) = (dble(ipos(:)) - (/0.5d0, 0.5d0, 0.5d0/)) * grid_spacing(:) + grid_region(:, 1)
-                        write (2, '(33es12.4)') rpos(:), e_field(:, 1, ix, iy, iz), h_field(:, 1, ix, iy, iz), &
+                        write (file_unit, '(33es12.4)') rpos(:), &
+                           e_field(:, 1, ix, iy, iz), h_field(:, 1, ix, iy, iz), &
                            e_field(:, 2, ix, iy, iz), h_field(:, 2, ix, iy, iz), &
                            s_field(:, 1, ix, iy, iz), s_field(:, 2, ix, iy, iz)
                      end do
@@ -1176,6 +1186,7 @@ contains
                edat = edat / dble(griddim(1) * griddim(2) * 2.d0)
                call effective_refractive_index(griddim(3), edat, grid_spacing(3), rieff, e0)
                nf_eff_ref_index = rieff
+               close (file_unit)
 !                  write(*,'('' field fit ri:'',2es12.5)') rieff
                deallocate (edat)
             end if
@@ -1192,7 +1203,7 @@ contains
 
    subroutine run_random_orientation_configuration_average()
       implicit none
-      integer :: rank, numprocs, itemp(1), n, &
+      integer :: file_unit, rank, numprocs, itemp(1), n, &
                  numprocsperconfig, configcolor, configgroup, configcomm, configrank, config0comm, nconfigave, nsend
       real(8) :: time1, timet
       real(8), allocatable :: tpos(:, :)
@@ -1229,6 +1240,7 @@ contains
 !singleorigin=.true.
 
       call execute_simulation(print_output=.false., set_t_matrix_order=.true., dry_run=.true.)
+      if (runtime_failed()) return
       call compose_group_filename(tmatchar1, configgroup, tmatchar2, t_matrix_output_file)
 
       if (allocated(q_eff_ave)) deallocate (q_eff_ave, q_eff_tot_ave, q_vabs_ave, sphere_position_ave)
@@ -1257,9 +1269,10 @@ contains
          if (rank .eq. 0) then
             if (random_configuration_number .eq. 1) then
                call print_run_variables(run_print_unit)
-               open (2, file=output_file, position='append')
-               call print_run_variables(2)
-               close (2)
+               call open_output_file(output_file, file_unit, append=.true.)
+               if (runtime_failed()) return
+               call print_run_variables(file_unit)
+               close (file_unit)
             end if
             write (run_print_unit, '('' configuration averaging, samples:'',i5,''-'',i5)') &
                (random_configuration_number - 1) * n_configuration_groups + 1, &
@@ -1269,6 +1282,7 @@ contains
          if (rank .eq. 0) time1 = mstm_mpi_wtime()
 
          call execute_simulation(print_output=.false., set_t_matrix_order=.false., mpi_comm=configcomm)
+         if (runtime_failed()) return
 
          if (configrank .eq. 0) then
             if (rank .eq. 0) solution_time = mstm_mpi_wtime() - time1
@@ -1388,7 +1402,7 @@ contains
    subroutine run_incidence_average()
       implicit none
       logical :: singleorigin, prancon, aa, soe, iframe, cuds
-      integer :: rank, numprocs, &
+      integer :: file_unit, rank, numprocs, &
                  numprocsperconfig, configcolor, configgroup, configcomm, configrank, config0comm, nconfigave, nsend
       real(8) :: time1, timet
       real(8), allocatable :: texpcoef(:, :, :)
@@ -1434,6 +1448,7 @@ contains
       incident_beta_specified = .true.
 
       call execute_simulation(print_output=.false., set_t_matrix_order=.true., dry_run=.true.)
+      if (runtime_failed()) return
 
       if (trim(sphere_data_input_file) .eq. 'random_configuration') then
          sphere_data_input_file = 'random_configuration.pos'
@@ -1470,9 +1485,10 @@ contains
          if (rank .eq. 0) then
             if (incident_direction_number .eq. 1) then
                call print_run_variables(run_print_unit)
-               open (2, file=output_file, position='append')
-               call print_run_variables(2)
-               close (2)
+               call open_output_file(output_file, file_unit, append=.true.)
+               if (runtime_failed()) return
+               call print_run_variables(file_unit)
+               close (file_unit)
             end if
             write (run_print_unit, '('' incidence averaging, samples:'',i5,''-'',i5)') &
                (incident_direction_number - 1) * n_configuration_groups + 1, &
@@ -1484,6 +1500,7 @@ contains
          if (rank .eq. 0) time1 = mstm_mpi_wtime()
 
          call execute_simulation(print_output=.false., set_t_matrix_order=.false., mpi_comm=configcomm)
+         if (runtime_failed()) return
 
          if (singleorigin) then
             amnp_0_ave = amnp_0_ave + amnp_0

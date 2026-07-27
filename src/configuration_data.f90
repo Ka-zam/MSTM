@@ -1,5 +1,6 @@
 module configuration_data
    use input_state
+   use runtime_support, only: open_input_file, runtime_failed, set_runtime_error, synchronize_runtime_status
    implicit none
    private
    public :: check_sphere_positions, generate_random_configuration, read_sphere_data_input_file
@@ -7,7 +8,7 @@ contains
 
    subroutine read_sphere_data_input_file(mpi_comm)
       implicit none
-      integer :: mpicomm, rank, istat, n
+      integer :: input_unit, mpicomm, rank, istat, n
       integer, optional :: mpi_comm
       real(8) :: rtemp(4)
       complex(8) :: ctemp(2)
@@ -20,25 +21,30 @@ contains
       end if
       call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
 
-      open (1, file=sphere_data_input_file)
+      call open_input_file(sphere_data_input_file, input_unit)
+      if (runtime_failed()) return
       do n = 1, number_spheres
          sphere_radius(n) = 1.d0
          sphere_ref_index(1, n) = (1.d0, 0.d0)
          sphere_ref_index(2, n) = (0.d0, 0.d0)
-         read (1, '(a)', iostat=istat) parmval
+         read (input_unit, '(a)', iostat=istat) parmval
          if (istat .ne. 0) then
             if (rank .eq. 0) then
                write (run_print_unit, '('' insufficient data in input file: '', i4,'' lines, need '',i4)') &
                   n, number_spheres
             end if
-            stop
+            call set_runtime_error('Insufficient data in sphere input file: '//trim(sphere_data_input_file))
+            close (input_unit)
+            return
          end if
          read (parmval, *, iostat=istat) sphere_position(:, n)
          if (istat .ne. 0) then
             if (rank .eq. 0) then
                write (run_print_unit, '('' read error in sphere data input file'')')
             end if
-            stop
+            call set_runtime_error('Invalid data in sphere input file: '//trim(sphere_data_input_file))
+            close (input_unit)
+            return
          end if
          read (parmval, *, iostat=istat) rtemp(1:4)
          if (istat .eq. 0) sphere_radius(n) = rtemp(4)
@@ -52,7 +58,7 @@ contains
          end if
       end do
       number_spheres = min(n, number_spheres)
-      close (1)
+      close (input_unit)
       do n = 1, number_spheres
          sphere_radius(n) = sphere_radius(n) * length_scale_factor
          sphere_position(:, n) = sphere_position(:, n) * length_scale_factor
@@ -64,7 +70,7 @@ contains
       implicit none
       logical :: skipdif, firstrun, frozen
       logical, optional :: skip_diffusion
-      integer :: mpicomm, rank, nsend, nsphere, nspheresamp, i
+      integer :: mpicomm, rank, nsend, nsphere, nspheresamp, i, generation_status(1)
       integer, optional :: mpi_comm
       integer, allocatable, save :: sphereindex(:)
       real(8) :: targetdimensions(3), crad
@@ -107,14 +113,20 @@ contains
                                                 sphereindex, run_print_unit, ran_config_stat, ran_config_time_steps, &
                                                 skip_diffusion=skipdif, print_progress=.true.)
             firstrun = .false.
-            if (ran_config_stat .ge. 3) then
-               write (run_print_unit, '('' unable to generate random configuration'')')
-               stop
-            end if
             sphere_position(:, 1:nsphere) = sphereposition(:, 1:nsphere)
             sphere_radius(1:nsphere) = sphereradius(1:nsphere)
             sphere_index(1:nsphere) = sphereindex(1:nsphere)
          end if
+      end if
+      call synchronize_runtime_status(mpicomm)
+      if (runtime_failed()) return
+      generation_status(1) = ran_config_stat
+      call mstm_mpi(mpi_command='bcast', mpi_send_buf_i=generation_status, mpi_number=1, &
+                    mpi_rank=0, mpi_comm=mpicomm)
+      ran_config_stat = generation_status(1)
+      if (generation_status(1) .ge. 3) then
+         call set_runtime_error('Unable to generate random sphere configuration')
+         return
       end if
 !         call mstm_mpi(mpi_command='barrier')
       nsend = nsphere

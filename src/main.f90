@@ -4,17 +4,21 @@ program mstm
    use mstm_version_info, only: mstm_version
    use solver
    use parallel_runtime
+   use runtime_support, only: clear_runtime_status, open_input_file, open_output_file, &
+                              report_runtime_error, runtime_failed, set_runtime_error, &
+                              synchronize_runtime_status
    use special_functions
    use sphere_data
    implicit none
    logical :: input_exists
-   integer :: looplevel, rank, numprocs, &
+   integer :: input_unit, looplevel, output_unit_number, rank, numprocs, &
               readstat(1), i, istat, numberinputlines, n
    character(len=256) :: inputfile, inputline, oldoutputfile
    character(len=256), allocatable :: inputfiledata(:)
    data oldoutputfile/' '/
 
    call mstm_mpi(mpi_command='init')
+   call clear_runtime_status()
    call mstm_mpi(mpi_command='rank', mpi_rank=rank)
    call mstm_mpi(mpi_command='size', mpi_size=numprocs)
    call parse_command_line(rank, inputfile)
@@ -32,42 +36,54 @@ program mstm
    do i = 0, numprocs - 1
       if (rank .eq. i) then
          input_file = inputfile
-         open (2, file=trim(inputfile), status='old', action='read')
-         numberinputlines = 0
-         istat = 0
-         do while (istat .eq. 0)
-            read (2, '(a)', iostat=istat) inputline
-            numberinputlines = numberinputlines + 1
-            if (trim(inputline) .eq. 'end_of_options') exit
-         end do
-         if (istat .ne. 0) numberinputlines = numberinputlines + 1
-         allocate (inputfiledata(numberinputlines))
-         rewind (2)
-         istat = 0
-         n = 0
-         do while (istat .eq. 0)
-            read (2, '(a)', iostat=istat) inputline
-            n = n + 1
-            inputfiledata(n) = inputline
-            if (trim(inputline) .eq. 'end_of_options') exit
-         end do
-         if (istat .ne. 0) inputfiledata(numberinputlines) = 'end_of_options'
-         close (2)
+         call open_input_file(trim(inputfile), input_unit)
+         if (.not. runtime_failed()) then
+            numberinputlines = 0
+            istat = 0
+            do while (istat .eq. 0)
+               read (input_unit, '(a)', iostat=istat) inputline
+               numberinputlines = numberinputlines + 1
+               if (trim(inputline) .eq. 'end_of_options') exit
+            end do
+            if (istat .ne. 0) numberinputlines = numberinputlines + 1
+            allocate (inputfiledata(numberinputlines))
+            rewind (input_unit)
+            istat = 0
+            n = 0
+            do while (istat .eq. 0)
+               read (input_unit, '(a)', iostat=istat) inputline
+               n = n + 1
+               inputfiledata(n) = inputline
+               if (trim(inputline) .eq. 'end_of_options') exit
+            end do
+            if (istat .ne. 0) inputfiledata(numberinputlines) = 'end_of_options'
+            close (input_unit)
+         end if
       end if
       call mstm_mpi(mpi_command='barrier')
    end do
+   call synchronize_runtime_status()
+   if (runtime_failed()) then
+      if (rank .eq. 0) call report_runtime_error(error_unit)
+      call mstm_mpi(mpi_command='finalize')
+      stop 2, quiet = .true.
+   end if
 
    repeat_run = .true.
    first_run = .true.
 
-   do while (repeat_run)
+   simulation_loop: do while (repeat_run)
       readstat = 0
       do i = 0, numprocs - 1
          if (i .eq. rank) then
             call parse_input_data(inputfiledata, read_status=readstat(1))
+            if (readstat(1) /= 0 .and. .not. runtime_failed()) &
+               call set_runtime_error('Invalid simulation input')
          end if
          call mstm_mpi(mpi_command='barrier')
       end do
+      call synchronize_runtime_status()
+      if (runtime_failed()) exit simulation_loop
       if (oldoutputfile .ne. output_file) then
          first_run = .true.
          run_number = 0
@@ -75,17 +91,15 @@ program mstm
       end if
       if (rank .eq. 0) then
          if (first_run) then
-            if (append_output_file) then
-               open (2, file=output_file, position='append')
-            else
-               open (2, file=output_file)
-               close (2, status='delete')
-               open (2, file=output_file)
+            call open_output_file(output_file, output_unit_number, append=append_output_file)
+            if (.not. runtime_failed()) then
+               call output_header(output_unit_number, inputfile)
+               close (output_unit_number)
             end if
-            call output_header(2, inputfile)
-            close (2)
          end if
       end if
+      call synchronize_runtime_status()
+      if (runtime_failed()) exit simulation_loop
 
       if (n_nest_loops .eq. 0) then
          run_number = run_number + 1
@@ -104,14 +118,20 @@ program mstm
          looplevel = 1
          call execute_nested_loop(looplevel, rank)
       end if
+      call synchronize_runtime_status()
+      if (runtime_failed()) exit simulation_loop
       n_nest_loops = 0
-   end do
+   end do simulation_loop
 !      if(temporary_pos_file.and.rank.eq.0) then
 !         open(20,file='temp_pos.dat')
 !         close(20,status='delete')
 !      endif
    call mstm_mpi(mpi_command='barrier')
    call mstm_mpi(mpi_command='finalize')
+   if (runtime_failed()) then
+      if (rank .eq. 0) call report_runtime_error(error_unit)
+      stop 2, quiet = .true.
+   end if
 
 contains
 
@@ -240,8 +260,10 @@ contains
             else
                call execute_simulation()
             end if
+            if (runtime_failed()) return
          else
             call execute_nested_loop(looplevel + 1, rank)
+            if (runtime_failed()) return
          end if
          if (vartype .eq. 'i') then
             i_loop_var_pointer = i_loop_var_pointer + i_var_step(looplevel)

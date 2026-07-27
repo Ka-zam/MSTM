@@ -189,6 +189,23 @@ if(BUILD_TESTING)
   add_test(NAME cli_version COMMAND $<TARGET_FILE:mstm> --version)
   set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "MSTM ${PROJECT_VERSION}")
 
+  function(add_mstm_failure_test test_name input_name expected_error)
+    set(test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/${test_name}")
+    file(MAKE_DIRECTORY "${test_work_dir}")
+    add_test(
+      NAME "${test_name}"
+      COMMAND "${CMAKE_COMMAND}"
+        "-DMSTM_EXECUTABLE=$<TARGET_FILE:mstm>"
+        "-DMSTM_INPUT=${CMAKE_CURRENT_SOURCE_DIR}/tests/${input_name}"
+        "-DMSTM_WORK_DIR=${test_work_dir}"
+        "-DMSTM_EXPECTED_ERROR=${expected_error}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunExpectedFailure.cmake"
+    )
+  endfunction()
+
+  add_mstm_failure_test(invalid_input_error invalid-option.inp "Unknown input parameter")
+  add_mstm_failure_test(missing_sphere_file_error missing-sphere-file.inp "Cannot open input file 'does-not-exist.pos'")
+
   function(add_mstm_example_test test_name input_name expected_outputs regression_case)
     set(test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/${test_name}")
     file(MAKE_DIRECTORY "${test_work_dir}")

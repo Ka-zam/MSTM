@@ -5,7 +5,7 @@ module random_orientation_scattering
    use parallel_runtime
    use numerical_tables
    use periodic_lattice_operations
-   use runtime_support, only: write_elapsed_time
+   use runtime_support, only: open_input_file, runtime_failed, synchronize_runtime_status, write_elapsed_time
    use special_functions
    use sphere_data
    use surface
@@ -29,7 +29,7 @@ contains
       implicit none
       logical :: symmetrical, nkq
       logical, optional :: keep_quiet
-      integer :: nodr, nodrw, nodr2, m, n, p, k, l, q, t, v, u, w, nblk, kl, mn, nn1, tn, &
+      integer :: file_unit, nodr, nodrw, nodr2, m, n, p, k, l, q, t, v, u, w, nblk, kl, mn, nn1, tn, &
                  lmax, ll1, tvl, ku, k1, ns, ik, ik1, m1, nu, n1s, n1e, nu1, p1, n1max, &
                  in, n1, i, kt, nodrt, nodrrhs, mnm, klm, ikm, &
                  rank, numprocs, &
@@ -95,60 +95,61 @@ contains
 !
          do i = 0, numprocscalc - 1
             if (i .eq. new_rank) then
-               open (3, file=tmatrixfile)
-               read (3, *) nodr, nodrrhs
-               if (present(override_order)) then
-                  nodr = override_order
-                  nodrrhs = nodr
-               end if
-               symmetrical = nodr .eq. nodrrhs
-               nodrt = nodr
-               nodr2 = nodr + nodr
-               nodrw = nodr2
-               nblk = nodr * (nodr + 2)
-!                  nodrrhs=nodr
-               nblkrhs = nodrrhs * (nodrrhs + 2)
-               sizetm = 4 * nblk * nblkrhs
-               allocate (tc(2, nblk, 2, nblkrhs))
-               tc = (0., 0.)
-               do l = 1, nodrrhs
-                  if (present(mean_t_matrix)) then
-                     mean_t_matrix(2 * l - 1:2 * l) = 0.d0
+               call open_input_file(tmatrixfile, file_unit)
+               if (.not. runtime_failed()) then
+                  read (file_unit, *) nodr, nodrrhs
+                  if (present(override_order)) then
+                     nodr = override_order
+                     nodrrhs = nodr
                   end if
-                  do k = -l, l
-                     kl = l * (l + 1) + k
-                     klm = l * (l + 1) - k
-                     do q = 1, 2
-                        if (symmetrical) then
-                           nread = l
-                        else
-                           nread = nodr
-                        end if
-                        do n = 1, nread
-                           do m = -n, n
-                              mn = n * (n + 1) + m
-                              mnm = n * (n + 1) - m
-                              do p = 1, 2
-                                 read (3, *) tcp(p)
-                                 tc(p, mn, q, kl) = tcp(p)
-                              end do
-                              if (present(mean_t_matrix) .and. n .eq. l .and. m .eq. k) then
-                                 mean_t_matrix(2 * (l - 1) + q) = mean_t_matrix(2 * (l - 1) + q) + tcp(q)
-                              end if
-                              if (n .lt. l .and. symmetrical) then
-                                 ikm = (-1)**(m + k)
+                  symmetrical = nodr .eq. nodrrhs
+                  nodrt = nodr
+                  nodr2 = nodr + nodr
+                  nodrw = nodr2
+                  nblk = nodr * (nodr + 2)
+!                  nodrrhs=nodr
+                  nblkrhs = nodrrhs * (nodrrhs + 2)
+                  sizetm = 4 * nblk * nblkrhs
+                  allocate (tc(2, nblk, 2, nblkrhs))
+                  tc = (0., 0.)
+                  do l = 1, nodrrhs
+                     if (present(mean_t_matrix)) then
+                        mean_t_matrix(2 * l - 1:2 * l) = 0.d0
+                     end if
+                     do k = -l, l
+                        kl = l * (l + 1) + k
+                        klm = l * (l + 1) - k
+                        do q = 1, 2
+                           if (symmetrical) then
+                              nread = l
+                           else
+                              nread = nodr
+                           end if
+                           do n = 1, nread
+                              do m = -n, n
+                                 mn = n * (n + 1) + m
+                                 mnm = n * (n + 1) - m
                                  do p = 1, 2
-                                    tc(q, klm, p, mnm) = tc(p, mn, q, kl) * ikm
+                                    read (file_unit, *) tcp(p)
+                                    tc(p, mn, q, kl) = tcp(p)
                                  end do
-                              end if
+                                 if (present(mean_t_matrix) .and. n .eq. l .and. m .eq. k) then
+                                    mean_t_matrix(2 * (l - 1) + q) = mean_t_matrix(2 * (l - 1) + q) + tcp(q)
+                                 end if
+                                 if (n .lt. l .and. symmetrical) then
+                                    ikm = (-1)**(m + k)
+                                    do p = 1, 2
+                                       tc(q, klm, p, mnm) = tc(p, mn, q, kl) * ikm
+                                    end do
+                                 end if
+                              end do
                            end do
                         end do
                      end do
+                     if (present(mean_t_matrix)) then
+                        mean_t_matrix(2 * l - 1:2 * l) = mean_t_matrix(2 * l - 1:2 * l) / dble(2 * l + 1)
+                     end if
                   end do
-                  if (present(mean_t_matrix)) then
-                     mean_t_matrix(2 * l - 1:2 * l) = mean_t_matrix(2 * l - 1:2 * l) / dble(2 * l + 1)
-                  end if
-               end do
 !if(rank.eq.0) then
 !open(30,file='meantmatrix.dat')
 !do n=1,nodrt
@@ -164,29 +165,32 @@ contains
 !enddo
 !close(30)
 !endif
-               qextt = 0.d0
-               qscatt = 0.d0
-               do l = 1, nodrrhs
-                  do k = -l, l
-                     kl = l * (l + 1) + k
-                     do q = 1, 2
-                        do n = 1, nodr
-                           do m = -n, n
-                              mn = n * (n + 1) + m
-                              do p = 1, 2
-                                 qscatt = qscatt + cabs(tc(p, mn, q, kl))**2
+                  qextt = 0.d0
+                  qscatt = 0.d0
+                  do l = 1, nodrrhs
+                     do k = -l, l
+                        kl = l * (l + 1) + k
+                        do q = 1, 2
+                           do n = 1, nodr
+                              do m = -n, n
+                                 mn = n * (n + 1) + m
+                                 do p = 1, 2
+                                    qscatt = qscatt + cabs(tc(p, mn, q, kl))**2
+                                 end do
                               end do
                            end do
+                           if (l .le. nodr) qextt = qextt - real(tc(q, kl, q, kl))
                         end do
-                        if (l .le. nodr) qextt = qextt - real(tc(q, kl, q, kl))
                      end do
                   end do
-               end do
-               qextt = qextt * 2./cross_section_radius**2
-               qscatt = qscatt * 2./cross_section_radius**2
-               close (3)
+                  qextt = qextt * 2./cross_section_radius**2
+                  qscatt = qscatt * 2./cross_section_radius**2
+                  close (file_unit)
+               end if
             end if
             call mstm_mpi(mpi_command='barrier', mpi_comm=new_comm)
+            call synchronize_runtime_status(new_comm)
+            if (runtime_failed()) return
          end do
          if (rank0 .eq. 0 .and. nkq) then
             write (run_print_unit, '('' t matrix ext, sca:'',2e13.5)') qextt, qscatt

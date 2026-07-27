@@ -5,6 +5,7 @@ module random_sphere_configuration
    use random_configuration_geometry
    use random_configuration_sorting
    use random_configuration_state
+   use runtime_support, only: open_output_file, runtime_failed
    use special_functions
    implicit none
    private
@@ -30,7 +31,8 @@ contains
       logical :: fitok, allin, initial0, initial1, trystage1, skipdif, pprog, printsim, multicomp
       logical, optional :: skip_diffusion, use_saved_values, print_progress
       logical, save :: firstrun
-      integer :: i, j, maxsamp0, maxsamp1, numberspheres, ncolls, ncollstot, maxns, ntsteps, istatus, iunit, rank, opair(2), &
+      integer :: i, j, maxsamp0, maxsamp1, numberspheres, ncolls, ncollstot, maxns, ntsteps, istatus, iunit, &
+                 rank, opair(2), simulation_unit, &
                  nscompi(4), sphereindex(numberspheres), n
       real(8) :: samppos(3), sphereposition(3, numberspheres), sphereradius(numberspheres), &
                  spherevol, targetfv, u(3, numberspheres), wallboundaries(3, 2), targetvol, targetdimensions(3), &
@@ -192,12 +194,15 @@ contains
 !if(allin) write(iunit,'('' initial overlap:'',2i4,f8.3)') opair,rmin
       ntsteps = max_number_time_steps
       if (printsim) then
-         open (31, file=trim(simulation_file))
-         write (31, '(i8)') numberspheres
-         write (31, '(es13.5)') 0.d0
-         do i = 1, numberspheres
-            write (31, '(4es13.5)') sphereposition(:, i), sphereradius(i)
-         end do
+         call open_output_file(trim(simulation_file), simulation_unit)
+         printsim = .not. runtime_failed()
+         if (printsim) then
+            write (simulation_unit, '(i8)') numberspheres
+            write (simulation_unit, '(es13.5)') 0.d0
+            do i = 1, numberspheres
+               write (simulation_unit, '(4es13.5)') sphereposition(:, i), sphereradius(i)
+            end do
+         end if
       end if
       if ((.not. skipdif) .and. max_number_time_steps .gt. 0 .and. max_diffusion_simulation_time .gt. 0.) then
          call sample_random_velocities(numberspheres, u)
@@ -219,14 +224,13 @@ contains
             if (j * time_step .gt. max_diffusion_simulation_time) exit
             if (collspersphere .gt. max_collisions_per_sphere) exit
             if (printsim) then
-               write (31, '(es13.5)') j * time_step
+               write (simulation_unit, '(es13.5)') j * time_step
                do i = 1, numberspheres
-                  write (31, '(4es13.5)') sphereposition(:, i), sphereradius(i)
+                  write (simulation_unit, '(4es13.5)') sphereposition(:, i), sphereradius(i)
                end do
             end if
          end do
          ntsteps = min(ntsteps, j)
-         if (printsim) close (31)
          do i = 1, numberspheres
             call check_position_in_target(sphereradius(i), sphereposition(:, i), wallboundaries, allin)
             if (.not. allin) write (iunit, '('' outside:'',i5,3es12.4)') i, sphereposition(:, i)
@@ -234,6 +238,7 @@ contains
 !call direct_overlap_test(numberspheres,sphereradius,sphereposition,allin,distance=rmin,pair=opair)
 !if(allin) write(iunit,'('' overlap:'',2i4,f8.3)') opair,rmin
       end if
+      if (printsim) close (simulation_unit)
       if (target_shape .eq. 0 .or. target_shape .eq. 1) then
          call sort_sphere_positions(numberspheres, sphereradius, sphereposition, sphereindex, 3)
       else

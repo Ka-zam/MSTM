@@ -1,4 +1,5 @@
 module input_reporting
+   use runtime_support, only: open_update_file, runtime_failed, set_runtime_error
    use constants
    use effective_medium_analysis, only: diffuse_scattering_effective_refractive_index, &
                                         effective_extinction_coefficient_ratio
@@ -231,7 +232,7 @@ contains
 
    subroutine print_calculation_results(fout)
       implicit none
-      integer :: outunit, n, i, j, smvec(6), sx, sy, s, smvec0(16), nsmat, smvecp(16)
+      integer :: io_status, outunit, n, i, j, smvec(6), sx, sy, s, smvec0(16), nsmat, smvecp(16)
       real(8) :: smt(16), kx, ky, s11scale, r(2), t(2), a(2), scacoef, scarat, &
                  abscoef, absrat, rl(2), al(2), tl(2), tvol, imrieff, qeeff
       character(len=2) :: smlabel(16)
@@ -242,16 +243,26 @@ contains
       if (fout(1:7) .eq. 'console') then
          outunit = 6
       else
-         outunit = 2
-         open (2, file=trim(fout))
+         call open_update_file(trim(fout), outunit)
+         if (runtime_failed()) return
          do
-            read (2, '(a)') chartemp
+            read (outunit, '(a)', iostat=io_status) chartemp
+            if (io_status /= 0) then
+               call set_runtime_error('Cannot find current run in output file: '//trim(fout))
+               close (outunit)
+               return
+            end if
             if (trim(chartemp) .eq. run_date_and_time) exit
          end do
          do
-            read (2, '(a)') chartemp
+            read (outunit, '(a)', iostat=io_status) chartemp
+            if (io_status /= 0) then
+               call set_runtime_error('Cannot find calculation section in output file: '//trim(fout))
+               close (outunit)
+               return
+            end if
             if (chartemp(1:28) .eq. ' calculation results for run') then
-               read (2, *) i
+               read (outunit, *) i
                if (i .eq. run_number) exit
             end if
          end do

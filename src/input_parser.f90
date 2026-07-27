@@ -1,6 +1,7 @@
 module input_parser
    use input_state
    use input_value_parsing
+   use runtime_support, only: open_output_file, runtime_failed, set_runtime_error
    implicit none
 contains
 
@@ -598,7 +599,7 @@ contains
 
    subroutine parse_input_data(inputfiledata, read_status)
       implicit none
-      integer :: readok, n, spherenum, varstat, rank, stopit, istat, lines
+      integer :: readok, n, spherenum, varstat, rank, stopit, istat, lines, temporary_unit
       integer, save :: inputline
       integer, optional :: read_status
       real(8) :: rtemp(4)
@@ -609,6 +610,7 @@ contains
       call mstm_mpi(mpi_command='rank', mpi_rank=rank)
       readok = 0
       stopit = 0
+      varstat = 0
       do while (readok .eq. 0)
          parmid = inputfiledata(inputline)
          inputline = inputline + 1
@@ -616,9 +618,12 @@ contains
             parmval = inputfiledata(inputline)
             inputline = inputline + 1
             if (trim(parmval) .ne. ' ') then
-               run_print_unit = 3
                if (rank .eq. 0) then
-                  open (3, file=trim(parmval))
+                  call open_output_file(trim(parmval), run_print_unit)
+                  if (runtime_failed()) then
+                     stopit = 1
+                     exit
+                  end if
                end if
             end if
             cycle
@@ -660,7 +665,11 @@ contains
             istat = 0
             n = 1
             if (rank .eq. 0) then
-               open (20, file='temp_pos.dat')
+               call open_output_file('temp_pos.dat', temporary_unit)
+               if (runtime_failed()) then
+                  stopit = 1
+                  exit
+               end if
             end if
             sphere_data_input_file = 'temp_pos.dat'
             do
@@ -688,20 +697,21 @@ contains
                end if
                if (rank .eq. 0) then
                   if (lines .eq. 3) then
-                     write (20, '(2(e20.12,'',''),e20.12)') rtemp(1:3)
+                     write (temporary_unit, '(2(e20.12,'',''),e20.12)') rtemp(1:3)
                   elseif (lines .eq. 4) then
-                     write (20, '(3(e20.12,'',''),e20.12)') rtemp(1:4)
+                     write (temporary_unit, '(3(e20.12,'',''),e20.12)') rtemp(1:4)
                   elseif (lines .eq. 5) then
-                     write (20, '(4(e20.12,'',''),'' ('',e20.12,'','',e20.12,'') '')') rtemp(1:4), ctemp(1)
+                     write (temporary_unit, '(4(e20.12,'',''),'' ('',e20.12,'','',e20.12,'') '')') rtemp(1:4), ctemp(1)
                   else
-                     write (20, '(4(e20.12,'',''),'' ('',e20.12,'','',e20.12,''), ('',e20.12,'','',e20.12,'') '')') &
+                     write (temporary_unit, &
+                            '(4(e20.12,'',''),'' ('',e20.12,'','',e20.12,''), ('',e20.12,'','',e20.12,'') '')') &
                         rtemp(1:4), ctemp(1:2)
                   end if
                end if
                n = n + 1
             end do
             input_number_spheres = min(n, input_number_spheres)
-            if (rank .eq. 0) close (20)
+            if (rank .eq. 0) close (temporary_unit)
             data_scaled = .false.
             temporary_pos_file = .true.
             recalculate_surface_matrix = .true.
@@ -720,7 +730,9 @@ contains
             if (number_plane_boundaries .gt. max_number_plane_boundaries) then
                if (rank .eq. 0) write (run_print_unit, '('' max # plane boundaries exceeded:'',i3,''>'',i3)') &
                   number_plane_boundaries, max_number_plane_boundaries
-               stop
+               call set_runtime_error('Maximum number of plane boundaries exceeded')
+               stopit = 1
+               exit
             end if
             parmval = inputfiledata(inputline)
             inputline = inputline + 1
@@ -754,12 +766,13 @@ contains
             call process_input_variable(parmid, &
                                         var_status=varstat)
             if (varstat .ne. 0) then
+               stopit = 1
+               call set_runtime_error('Unknown input parameter: '//trim(parmid))
                if (rank .eq. 0) then
                   write (run_print_unit, '('' unknown input parameter:'',a)') trim(parmid)
                   flush (run_print_unit)
-                  stopit = 1
                end if
-               cycle
+               exit
             else
                parmval = inputfiledata(inputline)
                inputline = inputline + 1
@@ -772,7 +785,7 @@ contains
             end if
          end if
       end do
-      if (stopit .eq. 1) stop
+      if (stopit .eq. 1) varstat = 1
       if (present(read_status)) read_status = varstat
 
    contains

@@ -9,6 +9,7 @@
 module solver
    use parallel_runtime
    use numerical_tables
+   use runtime_support, only: open_output_file, runtime_failed, set_runtime_error, synchronize_runtime_status
    use special_functions
    use sphere_data
    use mie
@@ -24,7 +25,7 @@ contains
       implicit none
       logical :: firstrun, initialize, itersoln, continueloop, exlist(number_spheres)
       logical, optional :: sphere_excitation_list(number_spheres)
-      integer :: iter, niter, istat, rank, maxiter, rank0, &
+      integer :: file_unit, ierr, io_status, iter, niter, istat, rank, maxiter, rank0, &
                  numprocs, mpicomm, i, nblkt, l, k, q, ka, la, nsolns, &
                  n, m, p, nssoln, kq, ns
       integer, save :: pcomm, prank, pgroup, ppsoln, pcomm0
@@ -40,6 +41,7 @@ contains
       complex(8), allocatable :: pmnp0(:, :, :), amnp0(:)
       character(len=4) :: timeunit
       character(len=128) :: tmatrixfile
+      character(len=256) :: io_message
       character(len=1), optional :: solution_method
       character(len=128), optional :: t_matrix_file
       data firstrun/.true./
@@ -121,10 +123,17 @@ contains
       initialize = .true.
       istat = 0
       if (rank .eq. 0) then
-         open (20, file=tmatrixfile)
-         write (20, '(2i4)') t_matrix_order, t_matrix_order
-         time0 = mstm_mpi_wtime()
-         close (20)
+         call open_output_file(tmatrixfile, file_unit)
+         if (.not. runtime_failed()) then
+            write (file_unit, '(2i4)') t_matrix_order, t_matrix_order
+            time0 = mstm_mpi_wtime()
+            close (file_unit)
+         end if
+      end if
+      call synchronize_runtime_status(mpicomm)
+      if (runtime_failed()) then
+         if (present(solution_status)) solution_status = 2
+         return
       end if
 
       maxiter = 0
@@ -194,7 +203,13 @@ contains
                         if (iter .gt. niter .or. solnerr .gt. solneps) istat = 1
                      else
                         call solve_direct_system(pmnpan, amnpkq, &
-                                                 initialize_solver=initialize)
+                                                 initialize_solver=initialize, solution_status=ierr, mpi_comm=pcomm)
+                        if (ierr /= 0) then
+                           istat = 2
+                           deallocate (pmnp0, amnp0)
+                           if (present(solution_status)) solution_status = istat
+                           return
+                        end if
                         maxerr = 0.d0
                         maxiter = 0
                      end if
@@ -240,16 +255,18 @@ contains
 
                do i = 1, ns
                   if (i - 1 .eq. pgroup) then
-                     open (20, file=tmatrixfile, position='append')
-                     do n = 1, l
-                        do m = -n, n
-                           do p = 1, 2
-                              ka = polarized_mode_index(m, n, p, l, 2)
-                              write (20, '(''('',e18.10,'','',e18.10,'')'')') amnp0(ka)
+                     call open_output_file(tmatrixfile, file_unit, append=.true.)
+                     if (.not. runtime_failed()) then
+                        do n = 1, l
+                           do m = -n, n
+                              do p = 1, 2
+                                 ka = polarized_mode_index(m, n, p, l, 2)
+                                 write (file_unit, '(''('',e18.10,'','',e18.10,'')'')') amnp0(ka)
+                              end do
                            end do
                         end do
-                     end do
-                     close (20)
+                        close (file_unit)
+                     end if
                   end if
                   call mstm_mpi(mpi_command='barrier', mpi_comm=pcomm0)
                end do
@@ -318,11 +335,20 @@ contains
       if (l .lt. t_matrix_order) then
          t_matrix_order = l
          if (rank .eq. 0) then
-            open (20, file=tmatrixfile, form='formatted', access='direct', recl=8)
-            write (20, '(2i4)', rec=1) l, l
-            close (20)
+            open (newunit=file_unit, file=tmatrixfile, status='old', action='write', &
+                  form='formatted', access='direct', recl=8, iostat=io_status, iomsg=io_message)
+            if (io_status /= 0) then
+               call set_runtime_error("Cannot update T-matrix file '"//trim(tmatrixfile)//"': "//trim(io_message), &
+                                      io_status)
+            else
+               write (file_unit, '(2i4)', rec=1) l, l
+               close (file_unit)
+            end if
          end if
       end if
+
+      call synchronize_runtime_status(mpicomm)
+      if (runtime_failed()) istat = 2
 
       if (present(sphere_qeff)) sphere_qeff = qeffi
       if (present(solution_status)) solution_status = istat
@@ -352,7 +378,7 @@ contains
       logical :: firstrun, exsphere(number_spheres), dirsoln, initialize
       logical, save :: inp1, inp2
       logical, optional :: excited_spheres(number_spheres), initialize_solver
-      integer :: iter, niter, istat, rank, maxiter, iterwrite, nsend, &
+      integer :: ierr, iter, niter, istat, rank, maxiter, iterwrite, nsend, &
                  numprocs, mpicomm, prank, oddnumproc, &
                  groupsize, pgroup, mpigroup, syncgroup, i, p, dir, qeffdim
       integer, save :: pcomm, synccomm1, synccomm2, p1, p2
@@ -489,7 +515,12 @@ contains
             end if
             if (dirsoln) then
                call solve_direct_system(pmnpan, amnp(:, p), initialize_solver=initialize, &
-                                        number_iterations=0, solution_error=serr, mpi_comm=mpicomm)
+                                        number_iterations=0, solution_error=serr, solution_status=ierr, mpi_comm=mpicomm)
+               if (ierr /= 0) then
+                  istat = 2
+                  deallocate (pmnp0, pmnpan)
+                  return
+               end if
                if (numprocs .gt. 1) then
                   call mstm_mpi(mpi_command='bcast', &
                                 mpi_send_buf_dc=amnp(1:nsend, p), &
@@ -568,14 +599,14 @@ contains
    end subroutine solve_fixed_orientation
 
    subroutine solve_direct_system(pnp, anp, initialize_solver, solution_error, &
-                                  number_iterations, solution_eps, mpi_comm)
+                                  number_iterations, solution_eps, solution_status, mpi_comm)
       implicit none
       logical :: initialize
       logical, save :: firstrun
       logical, optional :: initialize_solver
-      integer :: ierr, rank, niter, iter, mpicomm
+      integer :: ierr, ierr_buffer(1), rank, niter, iter, mpicomm
       integer, allocatable, save :: indx(:)
-      integer, optional :: number_iterations, mpi_comm
+      integer, optional :: number_iterations, solution_status, mpi_comm
       real(8) :: dsign, serr, seps
       real(8), optional :: solution_error, solution_eps
       complex(8) :: pnp(number_eqns), anp(number_eqns), rnp(number_eqns)
@@ -602,6 +633,7 @@ contains
          seps = 1.d-12
       end if
       call mstm_mpi(mpi_command='rank', mpi_rank=rank, mpi_comm=mpicomm)
+      if (present(solution_status)) solution_status = 0
 
       if (initialize) then
          if (allocated(amat)) deallocate (amat, lumat, indx)
@@ -610,6 +642,7 @@ contains
          call general_interaction_matrix(amat, mie_mult=.true., mpi_comm=mpicomm)
          call mstm_mpi(mpi_command='reduce', mpi_rank=0, mpi_operation=mstm_mpi_sum, &
                        mpi_recv_buf_i=pl_error_codes, mpi_number=6, mpi_comm=mpicomm)
+         ierr = 0
          if (rank .eq. 0) then
             if (any(pl_error_codes .ne. 0)) then
                write (run_print_unit, '('' LU decomposion pl error codes:'',10i4)') pl_error_codes, pl_rs_imax
@@ -617,11 +650,17 @@ contains
             lumat = amat
             call lu_decomposition(lumat, number_eqns, indx, dsign, ierr)
             if (ierr .ne. 0) then
-               if (rank .eq. 0) then
-                  write (run_print_unit, '('' lu decomposition failed!!!'')')
-               end if
-               stop
+               write (run_print_unit, '('' LU decomposition failed'')')
             end if
+         end if
+         ierr_buffer(1) = ierr
+         call mstm_mpi(mpi_command='bcast', mpi_send_buf_i=ierr_buffer, mpi_number=1, &
+                       mpi_rank=0, mpi_comm=mpicomm)
+         ierr = ierr_buffer(1)
+         if (ierr /= 0) then
+            call set_runtime_error('Direct solver LU decomposition failed', ierr)
+            if (present(solution_status)) solution_status = ierr
+            return
          end if
          firstrun = .false.
       end if
