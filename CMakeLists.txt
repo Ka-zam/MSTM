@@ -43,6 +43,9 @@ set(mstm_sources
   src/periodic_lattice.f90
   src/sphere_data.f90
   src/mie.f90
+  src/translation_operator.f90
+  src/translation_surface_interactions.f90
+  src/translation_expansions.f90
   src/translation.f90
   src/fft_translation.f90
   src/scattering_interactions.f90
