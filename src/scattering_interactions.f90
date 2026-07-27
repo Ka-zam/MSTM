@@ -13,13 +13,14 @@ module scattering_interactions
                           periodic_lattice_sphere_interaction, sphere_surface_interaction, translation_operator_state
    implicit none
    private
-   public :: distribute_from_common_origin, layergaussbeamcoef, merge_to_common_origin, &
-             phase_shift, sphereinteraction, sphereplanewavecoef, tranorders
+   public :: distribute_from_common_origin, estimate_sphere_translation_orders, &
+             layered_gaussian_beam_coefficients, merge_to_common_origin, phase_shift, &
+             sphere_interaction, sphere_plane_wave_coefficients
 contains
 
-   subroutine sphereinteraction(neqns, nrhs, ain, aout, initial_run, &
-                                rhs_list, mpi_comm, con_tran, mie_mult, fft_option, &
-                                store_matrix_option, skip_external_translation)
+   subroutine sphere_interaction(neqns, nrhs, ain, aout, initial_run, &
+                                 rhs_list, mpi_comm, con_tran, mie_mult, fft_option, &
+                                 store_matrix_option, skip_external_translation)
       implicit none
       integer :: neqns, rank, numprocs, nrhs, nsend, &
                  mpicomm, rhs
@@ -84,7 +85,7 @@ contains
          if (contran(rhs)) then
             ain_t(:, rhs) = conjg(ain(:, rhs))
             if (miemult(rhs)) then
-               call multmiecoeffmult(neqns, 1, -1, ain_t(:, rhs), ain_t(:, rhs))
+               call apply_mie_coefficients(neqns, 1, -1, ain_t(:, rhs), ain_t(:, rhs))
             end if
          else
             ain_t(:, rhs) = ain(:, rhs)
@@ -153,7 +154,7 @@ contains
       do rhs = 1, nrhs
          if (.not. contran(rhs)) then
             if (miemult(rhs)) then
-               call multmiecoeffmult(neqns, 1, 1, aout_t(:, rhs), aout(:, rhs))
+               call apply_mie_coefficients(neqns, 1, 1, aout_t(:, rhs), aout(:, rhs))
             else
                aout(:, rhs) = aout_t(:, rhs)
             end if
@@ -172,7 +173,7 @@ contains
          flush (6)
       end if
 
-   end subroutine sphereinteraction
+   end subroutine sphere_interaction
 
 !
 !  determination of maximum orders for target--based expansions
@@ -180,7 +181,7 @@ contains
 !
 !  last revised: 15 January 2011
 !
-   subroutine tranorders(eps, ntran, nodrt)
+   subroutine estimate_sphere_translation_orders(eps, ntran, nodrt)
       implicit none
       integer :: nodrt, ntran(*), i, host, nodrmax
       real(8) :: r, eps, rpos0(3), xi0(3)
@@ -189,7 +190,7 @@ contains
       nodrmax = max_mie_order
       do i = 1, number_spheres
          host = host_sphere(i)
-         call exteriorrefindex(i, riext)
+         call exterior_refractive_index(i, riext)
          ri0 = 2.d0 / (1.d0 / riext(1) + 1.d0 / riext(2))
          if (host .eq. 0) then
             rpos0 = cluster_origin
@@ -201,7 +202,7 @@ contains
          call estimate_translation_order(r, ri0, sphere_order(i), eps, ntran(i))
          if (host .eq. 0) nodrt = max(nodrt, ntran(i), nodrmax)
       end do
-   end subroutine tranorders
+   end subroutine estimate_sphere_translation_orders
 !
 !  plane wave expansion coefficients at sphere origins.  uses a phase shift.
 !
@@ -209,7 +210,7 @@ contains
 !  last revised: 15 January 2011
 !
 ! may 2019: k is now rightmost column
-   subroutine sphereplanewavecoef(alpha, sinc, dir, pmnp, excited_spheres, mpi_comm)
+   subroutine sphere_plane_wave_coefficients(alpha, sinc, dir, pmnp, excited_spheres, mpi_comm)
       implicit none
       logical :: exsphere(number_spheres)
       logical, optional :: excited_spheres(number_spheres)
@@ -233,8 +234,9 @@ contains
          allocate (dnpeff(2, 2, t_matrix_order), pmnp0(t_matrix_order * (t_matrix_order + 2), 2, 2))
          ri0 = effective_ref_index
          ri1 = layer_ref_index(0)
-         call mieoa(effective_cluster_radius, ri1, t_matrix_order, 0.d0, qext, qsca, qabs, &
-                    ri_medium=ri0, dnp_eff_mie=dnpeff)
+         call optically_active_mie_coefficients(effective_cluster_radius, ri1, t_matrix_order, &
+                                                0.d0, qext, qsca, qabs, &
+                                                ri_medium=ri0, dnp_eff_mie=dnpeff)
 !if(rank.eq.0) then
 !write(*,'(3es16.9)') effective_cluster_radius,effective_ref_index
 !do n=1,2
@@ -267,8 +269,8 @@ contains
             call layerplanewavecoef(alpha, sinc, dir, sphere_position(:, i), sphere_order(i), &
                                     pmnptot)
          else
-            call layergaussbeamcoef(alpha, sinc, dir, sphere_position(:, i), sphere_order(i), &
-                                    pmnptot)
+            call layered_gaussian_beam_coefficients(alpha, sinc, dir, sphere_position(:, i), sphere_order(i), &
+                                                    pmnptot)
          end if
          do p = 1, 2
             pmnp(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), p) &
@@ -276,10 +278,10 @@ contains
          end do
          deallocate (pmnptot)
       end do
-   end subroutine sphereplanewavecoef
+   end subroutine sphere_plane_wave_coefficients
 
-   subroutine layergaussbeamcoef(alpha, sinc, sdir, rpos, nodr, pmnp, include_direct, &
-                                 include_indirect)
+   subroutine layered_gaussian_beam_coefficients(alpha, sinc, sdir, rpos, nodr, pmnp, include_direct, &
+                                                 include_indirect)
       implicit none
       logical :: incdir, incindir, shiftgb
       logical, optional :: include_direct, include_indirect
@@ -371,7 +373,7 @@ contains
          deallocate (ptvec)
       end if
       deallocate (pmnp0)
-   end subroutine layergaussbeamcoef
+   end subroutine layered_gaussian_beam_coefficients
 
    subroutine phase_shift(amnp, dir)
       implicit none
@@ -472,7 +474,7 @@ contains
             task = task + 1
             proc = mod(task, numprocs)
             if (proc .eq. rank) then
-               call exteriorrefindex(i, rimedium)
+               call exterior_refractive_index(i, rimedium)
                noi = sphere_order(i)
                ntrani = min(nodrt, translation_order(i))
 !                  ntrani=max(ntrani,noi)
@@ -577,7 +579,7 @@ contains
             task = task + 1
             proc = mod(task, numprocs)
             if (proc .eq. rank) then
-               call exteriorrefindex(i, rimedium)
+               call exterior_refractive_index(i, rimedium)
                noi = sphere_order(i)
                ntrani = nodrt
                call tranmat%configure(vtype, sphere_position(:, i) - r0, rimedium, &

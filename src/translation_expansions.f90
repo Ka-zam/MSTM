@@ -1,7 +1,7 @@
 module translation_expansions
    use angular_functions, only: generate_translation_matrix
    use iso_fortran_env, only: real64
-   use mie, only: exteriorrefindex, multmiecoeffmult
+   use mie, only: apply_mie_coefficients, exterior_refractive_index
    use mpidefs, only: mpi_comm_world, mstm_global_rank, mstm_mpi, mstm_mpi_sum
    use numerical_tables, only: light_up
    use periodic_lattice_subroutines, only: periodic_lattice, plane_boundary_lattice_interaction
@@ -181,7 +181,7 @@ contains
                   end if
                   if (ilay .eq. jlay) then
                      allocate (fsmat(nbi, nbj, 2))
-                     call exteriorrefindex(i, rimedium)
+                     call exterior_refractive_index(i, rimedium)
                      call generate_translation_matrix(sphere_order(j), sphere_order(i), translation_vector=rp, &
                                                       refractive_index=rimedium, ac_matrix=fsmat, vswf_type=3, &
                                                       mode_s=2, mode_t=2, index_model=2)
@@ -205,7 +205,7 @@ contains
             allocate (anp(number_eqns))
             do j = 1, number_eqns
                if (any(abs(matrix(1:number_eqns, j)) .ne. 0.0_real64)) then
-                  call multmiecoeffmult(number_eqns, 1, 1, matrix(1:number_eqns, j), anp)
+                  call apply_mie_coefficients(number_eqns, 1, 1, matrix(1:number_eqns, j), anp)
                   matrix(1:number_eqns, j) = -anp(1:number_eqns)
                end if
                matrix(j, j) = matrix(j, j) + 1.0_real64
@@ -308,7 +308,7 @@ contains
                proc = mod(task, numprocs)
                if (proc .eq. rank) then
                   idim = idim + 1
-                  call exteriorrefindex(i, rimedium)
+                  call exterior_refractive_index(i, rimedium)
                   noi = sphere_order(i)
                   npi1 = sphere_offset(i) + 1
                   npi2 = sphere_offset(i) + sphere_block(i)

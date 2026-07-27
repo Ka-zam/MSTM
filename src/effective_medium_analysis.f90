@@ -66,8 +66,8 @@ contains
       end if
    end subroutine effective_extinction_coefficient_ratio
 
-   subroutine effectiverefractiveindex(ndat, edat, d, rieff, &
-                                       e0)
+   subroutine effective_refractive_index(ndat, edat, d, rieff, &
+                                         e0)
       use mpidefs
       implicit none
       integer :: ndat, i, rank
@@ -97,15 +97,15 @@ contains
          phase(i) = newphase
          oldphase = newphase
       end do
-      call linearregression(ndat, phase, xdat, &
-                            phaseslope, phaseintercept)
-      call linearregression(ndat, amplitude, xdat, &
-                            ampslope, ampintercept)
+      call linear_regression(ndat, phase, xdat, &
+                             phaseslope, phaseintercept)
+      call linear_regression(ndat, amplitude, xdat, &
+                             ampslope, ampintercept)
       rieff = cmplx(phaseslope, -ampslope, kind=kind(0.0d0))
       e0 = dexp(ampintercept) * exp((0.d0, 1.d0) * phaseintercept)
-   end subroutine effectiverefractiveindex
+   end subroutine effective_refractive_index
 
-   pure subroutine linearregression(ndat, fdat, xdat, a, b)
+   pure subroutine linear_regression(ndat, fdat, xdat, a, b)
       implicit none
       integer, intent(in) :: ndat
       real(8), intent(in) :: fdat(ndat), xdat(ndat)
@@ -117,7 +117,7 @@ contains
       x2bar = sum(xdat(1:ndat) * xdat(1:ndat)) / dble(ndat)
       a = (xfbar - xbar * fbar) / (x2bar - xbar * xbar)
       b = (fbar * x2bar - xbar * xfbar) / (x2bar - xbar * xbar)
-   end subroutine linearregression
+   end subroutine linear_regression
 
    subroutine effective_ref_index_fit(anp, rifit, xfit, info)
       use levenberg_marquardt
@@ -174,13 +174,14 @@ contains
          xsp = effective_fit_radius
       end if
       if (random_orientation) then
-         call mieoa(xsp, ri, effective_fit_order, 0.d0, qext, qsca, qabs, &
-                    anp_mie=anpmie, ri_medium=ri0)
+         call optically_active_mie_coefficients(xsp, ri, effective_fit_order, 0.d0, qext, qsca, qabs, &
+                                                anp_mie=anpmie, ri_medium=ri0)
       elseif (effective_medium_simulation) then
-         call mieoa(xsp, ri0, effective_fit_order, 0.d0, qext, qsca, qabs, &
-                    ri_medium=ri, anp_eff_mie=anpmie)
+         call optically_active_mie_coefficients(xsp, ri0, effective_fit_order, 0.d0, qext, qsca, qabs, &
+                                                ri_medium=ri, anp_eff_mie=anpmie)
       else
-         call mieoa(xsp, ri, effective_fit_order, 0.d0, qext, qsca, qabs, anp_mie=anpmie)
+         call optically_active_mie_coefficients(xsp, ri, effective_fit_order, 0.d0, &
+                                                qext, qsca, qabs, anp_mie=anpmie)
       end if
       i = 1
       do n = 1, effective_fit_order

@@ -10,7 +10,7 @@ contains
 !  april 2012: all spheres are assumed OA: l/r formulation
 !  february 2013: tmatrix file option.
 !
-   subroutine miecoefcalc(qeps)
+   subroutine calculate_mie_coefficients(qeps)
       use mpidefs
       use spheredata
       implicit none
@@ -38,9 +38,10 @@ contains
 !             forces host to have at least same order as constituents.
 !
       do i = 1, number_spheres
-         call exteriorrefindex(i, rihost)
-         call mieoa(sphere_radius(i), sphere_ref_index(:, i), nodrn, qeps, qext, qsca, qabs, &
-                    ri_medium=rihost)
+         call exterior_refractive_index(i, rihost)
+         call optically_active_mie_coefficients(sphere_radius(i), sphere_ref_index(:, i), &
+                                                nodrn, qeps, qext, qsca, qabs, &
+                                                ri_medium=rihost)
          sphere_order(i) = nodrn
       end do
       do i = 1, number_spheres
@@ -56,7 +57,7 @@ contains
       n = 0
       any_optically_active = .false.
       do i = 1, number_spheres
-         call exteriorrefindex(i, rihost)
+         call exterior_refractive_index(i, rihost)
          if (sphere_ref_index(1, i) .eq. sphere_ref_index(2, i)) then
             optically_active(i) = .false.
          else
@@ -65,8 +66,9 @@ contains
          end if
          nodrn = sphere_order(i)
          sphere_block(i) = 2 * nodrn * (nodrn + 2)
-         call mieoa(sphere_radius(i), sphere_ref_index(:, i), nodrn, 0.d0, qext, qsca, qabs, &
-                    ri_medium=rihost)
+         call optically_active_mie_coefficients(sphere_radius(i), sphere_ref_index(:, i), &
+                                                nodrn, 0.d0, qext, qsca, qabs, &
+                                                ri_medium=rihost)
          nterms = 4 * nodrn
          mie_offset(i) = ntermstot
          ntermstot = ntermstot + nterms
@@ -98,13 +100,14 @@ contains
                 vn_mie(ntermstot), dn_mie(ntermstot), an_inv_mie(ntermstot))
       do i = 1, number_spheres
          nodrn = sphere_order(i)
-         call exteriorrefindex(i, rihost)
+         call exterior_refractive_index(i, rihost)
          allocate (anp(2, 2, nodrn), cnp(2, 2, nodrn), unp(2, 2, nodrn), &
                    vnp(2, 2, nodrn), dnp(2, 2, nodrn), anpinv(2, 2, nodrn))
-         call mieoa(sphere_radius(i), sphere_ref_index(:, i), nodrn, 0.d0, qext, qsca, qabs, &
-                    anp_mie=anp, cnp_mie=cnp, dnp_mie=dnp, &
-                    unp_mie=unp, vnp_mie=vnp, anp_inv_mie=anpinv, &
-                    ri_medium=rihost)
+         call optically_active_mie_coefficients(sphere_radius(i), sphere_ref_index(:, i), &
+                                                nodrn, 0.d0, qext, qsca, qabs, &
+                                                anp_mie=anp, cnp_mie=cnp, dnp_mie=dnp, &
+                                                unp_mie=unp, vnp_mie=vnp, anp_inv_mie=anpinv, &
+                                                ri_medium=rihost)
          nterms = 4 * nodrn
          n1 = mie_offset(i) + 1
          n2 = mie_offset(i) + nterms
@@ -116,9 +119,9 @@ contains
          an_inv_mie(n1:n2) = reshape(anpinv(1:2, 1:2, 1:nodrn), (/nterms/))
          deallocate (anp, cnp, unp, vnp, dnp, anpinv)
       end do
-   end subroutine miecoefcalc
+   end subroutine calculate_mie_coefficients
 
-   subroutine exteriorrefindex(i, rihost)
+   subroutine exterior_refractive_index(i, rihost)
       use spheredata
       use surface_subroutines
       implicit none
@@ -129,11 +132,11 @@ contains
       else
          rihost = sphere_ref_index(:, host_sphere(i))
       end if
-   end subroutine exteriorrefindex
+   end subroutine exterior_refractive_index
 !
 ! transformation between lr and te tm basis
 !
-   subroutine lrtomodetran(at, am)
+   subroutine left_right_to_mode_matrix(at, am)
       implicit none
       complex(8) :: a(2, 2), am(2, 2), at(2, 2)
       a = at
@@ -141,14 +144,14 @@ contains
       am(1, 2) = (a(1, 1) - a(1, 2) + a(2, 1) - a(2, 2)) / 2.
       am(2, 1) = (a(1, 1) + a(1, 2) - a(2, 1) - a(2, 2)) / 2.
       am(2, 2) = (a(1, 1) - a(1, 2) - a(2, 1) + a(2, 2)) / 2.
-   end subroutine lrtomodetran
+   end subroutine left_right_to_mode_matrix
 !
 ! optically active lorenz/mie coefficients
 ! original 30 March 2011
 ! April 2012: generalized LR formulation, generalized mie coefficients
 !
-   subroutine mieoa(x, ri, nodr0, qeps, qext, qsca, qabs, anp_mie, dnp_mie, &
-                    unp_mie, vnp_mie, cnp_mie, ri_medium, anp_inv_mie, dnp_eff_mie, anp_eff_mie)
+   subroutine optically_active_mie_coefficients(x, ri, nodr0, qeps, qext, qsca, qabs, anp_mie, dnp_mie, &
+                                                unp_mie, vnp_mie, cnp_mie, ri_medium, anp_inv_mie, dnp_eff_mie, anp_eff_mie)
       use specialfuncs
       implicit none
       integer :: nstop, n, i, p, q, nodr0, s, t, ss, st
@@ -287,14 +290,14 @@ contains
       qabs = qext - qsca
       nstop = min(n, nstop)
       return
-   end subroutine mieoa
+   end subroutine optically_active_mie_coefficients
 
 !
 !  multiplies coefficients for sphere i by appropriate lm coefficient.
 !  lr, oa model
 !  april 2012
 !
-   subroutine onemiecoeffmult(i, nodr, cx, cy, mie_coefficient)
+   subroutine apply_single_sphere_mie_coefficients(i, nodr, cx, cy, mie_coefficient)
       use spheredata
       implicit none
       integer :: i, n, p, nodr, n1, n2, nterms
@@ -334,7 +337,7 @@ contains
          end do
       end do
       deallocate (an1)
-   end subroutine onemiecoeffmult
+   end subroutine apply_single_sphere_mie_coefficients
 !
 ! generalized mie coefficient mult:
 !  (a,f) = (generalized mie matrix)*(g,b)
@@ -342,7 +345,7 @@ contains
 ! aout is written over in this one.
 ! february 2013: tmatrix file option
 !
-   subroutine multmiecoeffmult(neqns, nrhs, idir, ain, aout, rhs_list)
+   subroutine apply_mie_coefficients(neqns, nrhs, idir, ain, aout, rhs_list)
       use spheredata
       implicit none
       integer :: neqns, i, n, p, q, nodri, nblki, n1, n2, b11, b12, b21, b22, idir, &
@@ -460,6 +463,6 @@ contains
             deallocate (gin_t, aout_t, an1)
          end do
       end do
-   end subroutine multmiecoeffmult
+   end subroutine apply_mie_coefficients
 
 end module mie

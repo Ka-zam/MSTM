@@ -1,8 +1,9 @@
 module scattering_matrix_driver
    use input_state
-   use scatprops, only: fosmcalc, multiple_origin_scatteringmatrix, &
-                        numerical_sm_azimuthal_average_mo, numerical_sm_azimuthal_average_so, &
-                        periodic_lattice_scattering, scatteringmatrix
+   use scatprops, only: common_origin_scattering_matrix, evaluate_fixed_orientation_scattering_matrix, &
+                        multiple_origin_scattering_matrix, &
+                        numerical_scattering_matrix_azimuthal_average_multiple_origin, &
+                        numerical_scattering_matrix_azimuthal_average_single_origin, periodic_lattice_scattering
    implicit none
    private
    public :: scattering_matrix_calculation
@@ -46,34 +47,38 @@ contains
                if (singleorigin) then
                   if (azimuthal_average) then
                      if (.not. numerical_azimuthal_average) then
-!                        call fosmcalc(12,s00,s02,sp22,sm22,costheta,scatmat(:,i),normalize_s11=.false.)
-                        call fosmcalc(t_matrix_order, scat_mat_exp_coef(:, :, 1), scat_mat_exp_coef(:, :, 2), &
-                                      scat_mat_exp_coef(:, :, 3), scat_mat_exp_coef(:, :, 4), &
-                                      costheta, scatmat(:, i), normalize_s11=.false.)
+!                        call evaluate_fixed_orientation_scattering_matrix(12,s00,s02,sp22,sm22,costheta,scatmat(:,i),normalize_s11=.false.)
+                        call evaluate_fixed_orientation_scattering_matrix( &
+                           t_matrix_order, scat_mat_exp_coef(:, :, 1), scat_mat_exp_coef(:, :, 2), &
+                           scat_mat_exp_coef(:, :, 3), scat_mat_exp_coef(:, :, 4), &
+                           costheta, scatmat(:, i), normalize_s11=.false.)
                      else
-                        call numerical_sm_azimuthal_average_so(amnp, t_matrix_order, costheta, scatmat(:, i), &
-                                                               rotate_plane=.true., normalize_s11=.false.)
+                        call numerical_scattering_matrix_azimuthal_average_single_origin( &
+                           amnp, t_matrix_order, costheta, scatmat(:, i), &
+                           rotate_plane=.true., normalize_s11=.false.)
                      end if
                   else
-                     call scatteringmatrix(amnp, t_matrix_order, costheta, phi, ampmat, scatmat(:, i), &
-                                           rotate_plane=iframe, normalize_s11=.false.)
+                     call common_origin_scattering_matrix(amnp, t_matrix_order, costheta, phi, ampmat, scatmat(:, i), &
+                                                          rotate_plane=iframe, normalize_s11=.false.)
                   end if
                else
                   if (azimuthal_average) then
-                     call numerical_sm_azimuthal_average_mo(amnp, costheta, scatmat(:, i), rotate_plane=.true.)
+                     call numerical_scattering_matrix_azimuthal_average_multiple_origin( &
+                        amnp, costheta, scatmat(:, i), rotate_plane=.true.)
                   else
-                     call multiple_origin_scatteringmatrix(amnp, costheta, phi, csca, ampmat, scatmat(:, i), &
-                                                           rotate_plane=.true.)
+                     call multiple_origin_scattering_matrix(amnp, costheta, phi, csca, ampmat, scatmat(:, i), &
+                                                            rotate_plane=.true.)
                   end if
                end if
             else
                ctm = -costheta
                if (azimuthal_average) then
-                  call numerical_sm_azimuthal_average_mo(amnp, ctm, scatmat(1:16, i))
-                  call numerical_sm_azimuthal_average_mo(amnp, costheta, scatmat(17:32, i))
+                  call numerical_scattering_matrix_azimuthal_average_multiple_origin(amnp, ctm, scatmat(1:16, i))
+                  call numerical_scattering_matrix_azimuthal_average_multiple_origin( &
+                     amnp, costheta, scatmat(17:32, i))
                else
-                  call multiple_origin_scatteringmatrix(amnp, ctm, phi, csca, ampmat, scatmat(1:16, i))
-                  call multiple_origin_scatteringmatrix(amnp, costheta, phi, csca, ampmat, scatmat(17:32, i))
+                  call multiple_origin_scattering_matrix(amnp, ctm, phi, csca, ampmat, scatmat(1:16, i))
+                  call multiple_origin_scattering_matrix(amnp, costheta, phi, csca, ampmat, scatmat(17:32, i))
                end if
             end if
          end do
@@ -94,19 +99,21 @@ contains
                end if
                costheta = -sqrt(1.d0 - sintheta)
                if (singleorigin) then
-                  call scatteringmatrix(amnp, t_matrix_order, costheta, phi, ampmat, scatmat(1:16, i), &
-                                        rotate_plane=iframe, normalize_s11=.false.)
+                  call common_origin_scattering_matrix(amnp, t_matrix_order, costheta, phi, ampmat, &
+                                                       scatmat(1:16, i), &
+                                                       rotate_plane=iframe, normalize_s11=.false.)
                else
-                  call multiple_origin_scatteringmatrix(amnp, costheta, phi, csca, ampmat, scatmat(1:16, i), &
-                                                        rotate_plane=incident_frame)
+                  call multiple_origin_scattering_matrix(amnp, costheta, phi, csca, ampmat, scatmat(1:16, i), &
+                                                         rotate_plane=incident_frame)
                end if
                costheta = -costheta
                if (singleorigin) then
-                  call scatteringmatrix(amnp, t_matrix_order, costheta, phi, ampmat, scatmat(17:32, i), &
-                                        rotate_plane=iframe, normalize_s11=.false.)
+                  call common_origin_scattering_matrix(amnp, t_matrix_order, costheta, phi, ampmat, &
+                                                       scatmat(17:32, i), &
+                                                       rotate_plane=iframe, normalize_s11=.false.)
                else
-                  call multiple_origin_scatteringmatrix(amnp, costheta, phi, csca, ampmat, &
-                                                        scatmat(17:32, i), rotate_plane=incident_frame)
+                  call multiple_origin_scattering_matrix(amnp, costheta, phi, csca, ampmat, &
+                                                         scatmat(17:32, i), rotate_plane=incident_frame)
                end if
             end do
          end do

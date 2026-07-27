@@ -11,10 +11,13 @@ module scattering_amplitudes
    use surface_subroutines
    implicit none
    private
-   public :: amplitude_to_scattering_matrix, common_origin_amplitude_matrix, fosmcalc, fosmexpansion, &
-             multiple_origin_amplitude_matrix, multiple_origin_scatteringmatrix, &
-             numerical_sm_azimuthal_average_mo, numerical_sm_azimuthal_average_so, &
-             periodic_lattice_scattering, s11expansion, scatteringmatrix
+   public :: amplitude_to_scattering_matrix, common_origin_amplitude_matrix, &
+             common_origin_scattering_matrix, evaluate_fixed_orientation_scattering_matrix, &
+             fixed_orientation_scattering_matrix_expansion, multiple_origin_amplitude_matrix, &
+             multiple_origin_scattering_matrix, &
+             numerical_scattering_matrix_azimuthal_average_multiple_origin, &
+             numerical_scattering_matrix_azimuthal_average_single_origin, periodic_lattice_scattering, &
+             s11_expansion
 contains
 
    subroutine periodic_lattice_scattering(amnp, qsca, scat_mat, krho_vec, num_dirs, dry_run)
@@ -199,7 +202,7 @@ contains
       sm(4, 2) = -2.*aimag(sp(4, 2) - sp(1, 3))
    end subroutine amplitude_to_scattering_matrix
 
-   subroutine multiple_origin_scatteringmatrix(amnp, ct, phi, csca, sa, sm, rotate_plane, s11_only)
+   subroutine multiple_origin_scattering_matrix(amnp, ct, phi, csca, sa, sm, rotate_plane, s11_only)
       implicit none
       logical :: rotate, s11only
       logical, optional :: rotate_plane, s11_only
@@ -251,7 +254,7 @@ contains
       end if
 ! 10-22 patch
       sm(1:nelem) = sm(1:nelem) / dble(ri)
-   end subroutine multiple_origin_scatteringmatrix
+   end subroutine multiple_origin_scattering_matrix
 !
 !  scattering amplitude sa and matrix sm calculation
 !
@@ -259,8 +262,8 @@ contains
 !  revised: 21 February 2011: S11 normalization changed
 !  april 2013: moved things around to try to get it to work.
 !
-   subroutine scatteringmatrix(amn0, nodrt, ct, phi, sa, sm, rotate_plane, normalize_s11, &
-                               s11_only)
+   subroutine common_origin_scattering_matrix(amn0, nodrt, ct, phi, sa, sm, rotate_plane, normalize_s11, &
+                                              s11_only)
       implicit none
       logical, optional :: rotate_plane, normalize_s11, s11_only
       logical :: rotate, norms11, s11only
@@ -334,10 +337,11 @@ contains
       end if
 ! patch 10-22
       sm(1:nelem) = sm(1:nelem) / four_pi / dble(layer_ref_index(0))
-   end subroutine scatteringmatrix
+   end subroutine common_origin_scattering_matrix
 
-   subroutine numerical_sm_azimuthal_average_so(amn0, nodrt, ct, sm, rotate_plane, normalize_s11, &
-                                                number_angles, s11_only)
+   subroutine numerical_scattering_matrix_azimuthal_average_single_origin(amn0, nodrt, ct, sm, &
+                                                                          rotate_plane, normalize_s11, &
+                                                                          number_angles, s11_only)
       implicit none
       logical :: rotate, norms11, s11only
       logical, optional :: rotate_plane, normalize_s11, s11_only
@@ -373,14 +377,15 @@ contains
       sm(1:nelem) = 0.
       do i = 1, numang
          phi = two_pi * dble(i - 1) / dble(numang)
-         call scatteringmatrix(amn0, nodrt, ct, phi, sa, smt, &
-                               rotate_plane=rotate, normalize_s11=norms11, s11_only=s11only)
+         call common_origin_scattering_matrix(amn0, nodrt, ct, phi, sa, smt, &
+                                              rotate_plane=rotate, normalize_s11=norms11, s11_only=s11only)
          sm(1:nelem) = sm(1:nelem) + smt(1:nelem)
       end do
       sm(1:nelem) = sm(1:nelem) / dble(numang)
-   end subroutine numerical_sm_azimuthal_average_so
+   end subroutine numerical_scattering_matrix_azimuthal_average_single_origin
 
-   subroutine numerical_sm_azimuthal_average_mo(amnp, ct, sm, number_angles, rotate_plane, s11_only)
+   subroutine numerical_scattering_matrix_azimuthal_average_multiple_origin(amnp, ct, sm, &
+                                                                            number_angles, rotate_plane, s11_only)
       implicit none
       logical :: s11only, rotate
       logical, optional :: s11_only, rotate_plane
@@ -412,12 +417,12 @@ contains
       csca = two_pi
       do i = 1, numang
          phi = two_pi * dble(i - 1) / dble(numang)
-         call multiple_origin_scatteringmatrix(amnp, ct, phi, csca, sa, smt, &
-                                               rotate_plane=rotate, s11_only=s11only)
+         call multiple_origin_scattering_matrix(amnp, ct, phi, csca, sa, smt, &
+                                                rotate_plane=rotate, s11_only=s11only)
          sm(1:nelem) = sm(1:nelem) + smt(1:nelem)
       end do
       sm(1:nelem) = sm(1:nelem) / dble(numang)
-   end subroutine numerical_sm_azimuthal_average_mo
+   end subroutine numerical_scattering_matrix_azimuthal_average_multiple_origin
 
 !   c                                                                               c
 !   c  subroutine scatexp(amn0,nodrt,nodrg,gmn) computes the expansion coefficients c
@@ -432,7 +437,7 @@ contains
 !   c                                                                               c
 !   c  gmn(1)/3 is the asymmetry parameter.                                         c
 !   c                                                                               c
-   subroutine s11expansion(amn0, nodrt, mmax, nodrg, gmn)
+   subroutine s11_expansion(amn0, nodrt, mmax, nodrg, gmn)
       implicit none
       integer :: nodrt, m, n, p, ma, na, mmax, nodrg, w, w1, w2, u, uw, ww1, &
                  l1, l2, ka, la, k, l, q, ik
@@ -503,7 +508,7 @@ contains
             gmn(uw) = (-1)**u * 2.d0 * gmn(uw) / g0
          end do
       end do
-   end subroutine s11expansion
+   end subroutine s11_expansion
 !
 !  calculate azimuth--averaged scattering matrix from expansion, for cos(theta) = ct
 !
@@ -512,7 +517,7 @@ contains
 !  revised: 21 February 2011: changed normalization on S11
 !  this is currently not used in v. 3.0
 !
-   subroutine fosmcalc(ntot, s00, s02, sp22, sm22, ct, sm, normalize_s11)
+   subroutine evaluate_fixed_orientation_scattering_matrix(ntot, s00, s02, sp22, sm22, ct, sm, normalize_s11)
       logical :: norms11
       logical, optional :: normalize_s11
       integer :: ntot, w, ww1
@@ -572,7 +577,7 @@ contains
 !write(*,'('' foc3 '',i3)') mstm_global_rank
 !flush(6)
 !endif
-   end subroutine fosmcalc
+   end subroutine evaluate_fixed_orientation_scattering_matrix
 !
 !  determine the generalized spherical function expansion for the azimuth-averaged scattering matrix
 !  corresponding to the target-based scattering field expansion of amnp.
@@ -582,7 +587,7 @@ contains
 !  revised: 21 February 2011: fixed flush call.
 !
 
-   subroutine fosmexpansion(ntot, amnp, s00, s02, sp22, sm22, mpi_comm)
+   subroutine fixed_orientation_scattering_matrix_expansion(ntot, amnp, s00, s02, sp22, sm22, mpi_comm)
       integer :: ntot, n, p, m, l, wmin, wmax, m1m, q, m1mq, m1mnpl, w, m1w, i, wtot, j, &
                  rank, numprocs, nsend, runprintunit, mpicomm, task
       integer, optional :: mpi_comm
@@ -713,5 +718,5 @@ contains
       sp22 = 0.5d0 * sp22 / dble(layer_ref_index(0))
 !         deallocate(nlindex,nlnum)
 
-   end subroutine fosmexpansion
+   end subroutine fixed_orientation_scattering_matrix_expansion
 end module scattering_amplitudes

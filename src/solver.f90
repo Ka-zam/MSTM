@@ -183,7 +183,7 @@ contains
                                                      mpi_comm=pcomm)
 !                        sphere_translation_list=exlist)
 
-                  call multmiecoeffmult(number_eqns, 1, 1, pmnpkq, pmnpan)
+                  call apply_mie_coefficients(number_eqns, 1, 1, pmnpkq, pmnpan)
                   amnpkq = pmnpan
                   if (niter .ne. 0) then
                      if (itersoln) then
@@ -201,8 +201,8 @@ contains
                      end if
                   end if
                   initialize = .false.
-                  call qefficiencyfactors(number_spheres, 1, amnpkq, &
-                                          pmnpkq, dqeffi, mpi_comm=pcomm)
+                  call configuration_efficiency_factors(number_spheres, 1, amnpkq, &
+                                                        pmnpkq, dqeffi, mpi_comm=pcomm)
 !                     dqeffi(3,:)=dqeffi(1,:)-dqeffi(2,:)
 ! patch 10-22.  used new formula for qeff(3) in qefficiencyfactor SR.  Assumes ri_medium is real
 !                     dqeffi(3,:)=0.d0
@@ -293,7 +293,7 @@ contains
          deallocate (amnp0, pmnp0)
 
 !            allocate(sexp(16,0:2*l),scexp(16,0:2*l))
-!            call ranorientscatmatrix(tmatrixfile,sexp, &
+!            call random_orientation_scattering_matrix(tmatrixfile,sexp, &
 !               scexp,override_order=l, &
 !               keep_quiet=.true., &
 !               mpi_comm=mpicomm)
@@ -464,7 +464,8 @@ contains
 !call mstm_mpi(mpi_command='barrier')
 
       allocate (pmnpan(number_eqns), pmnp0(number_eqns, 2))
-      call sphereplanewavecoef(alpha, sinc, dir, pmnp0, excited_spheres=exsphere, mpi_comm=mpicomm)
+      call sphere_plane_wave_coefficients(alpha, sinc, dir, pmnp0, &
+                                          excited_spheres=exsphere, mpi_comm=mpicomm)
 !if(phase_shift_form) call phase_shift(pmnp0,1)
 
       do p = p1, p2
@@ -478,7 +479,7 @@ contains
             write (*, '('' s8.2.2 '',i3)') mstm_global_rank
             flush (6)
          end if
-         call multmiecoeffmult(number_eqns, 1, 1, pmnp0(:, p), pmnpan)
+         call apply_mie_coefficients(number_eqns, 1, 1, pmnp0(:, p), pmnpan)
          amnp(:, p) = pmnpan
          if (niter .ne. 0) then
 !write(*,*) 'step 2, p:',p
@@ -507,13 +508,13 @@ contains
             serr = 0.d0
             if (number_host_spheres .gt. 0) then
                pmnpan = 0.d0
-               call sphereinteraction(number_eqns, 1, amnp(:, p), pmnpan, &
-                                      initial_run=initialize, &
-                                      skip_external_translation=.true., &
-                                      mpi_comm=pcomm)
-               call sphereinteraction(number_eqns, 1, pmnpan, pmnpan, &
-                                      skip_external_translation=.true., &
-                                      mpi_comm=pcomm)
+               call sphere_interaction(number_eqns, 1, amnp(:, p), pmnpan, &
+                                       initial_run=initialize, &
+                                       skip_external_translation=.true., &
+                                       mpi_comm=pcomm)
+               call sphere_interaction(number_eqns, 1, pmnpan, pmnpan, &
+                                       skip_external_translation=.true., &
+                                       mpi_comm=pcomm)
                amnp(:, p) = amnp(:, p) + pmnpan
             end if
          end if
@@ -559,8 +560,8 @@ contains
       else
          i = 2
       end if
-      call qefficiencyfactors(number_spheres, i, amnp, pmnp0, qeff, &
-                              mpi_comm=mpicomm)
+      call configuration_efficiency_factors(number_spheres, i, amnp, pmnp0, qeff, &
+                                            mpi_comm=mpicomm)
 
 !if(phase_shift_form) call phase_shift(amnp,-1)
 
@@ -769,14 +770,14 @@ contains
       if (niter .eq. 0) then
          cp = anp
          cr = 0.
-         call sphereinteraction(neqns, 1, cp, cr, &
-                                initial_run=initialize, &
-                                skip_external_translation=.true., &
-                                mpi_comm=mpicomm)
+         call sphere_interaction(neqns, 1, cp, cr, &
+                                 initial_run=initialize, &
+                                 skip_external_translation=.true., &
+                                 mpi_comm=mpicomm)
          cp = anp
-         call sphereinteraction(neqns, 1, cp, anp, &
-                                skip_external_translation=.true., &
-                                mpi_comm=mpicomm)
+         call sphere_interaction(neqns, 1, cp, anp, &
+                                 skip_external_translation=.true., &
+                                 mpi_comm=mpicomm)
          deallocate (cr, cp, cw, cq, cap, caw, capt, cawt)
          return
       end if
@@ -790,12 +791,12 @@ contains
             if (rank0 .eq. 0) time0 = mstm_mpi_wtime()
             cr = 0.
             if (iter .eq. 1) then
-               call sphereinteraction(neqns, 1, cp, cr, &
-                                      initial_run=initialize, &
-                                      mpi_comm=mpicomm)
+               call sphere_interaction(neqns, 1, cp, cr, &
+                                       initial_run=initialize, &
+                                       mpi_comm=mpicomm)
             else
-               call sphereinteraction(neqns, 1, cp, cr, &
-                                      mpi_comm=mpicomm)
+               call sphere_interaction(neqns, 1, cp, cr, &
+                                       mpi_comm=mpicomm)
             end if
             anp = anp + cr
             cp = cr
@@ -824,8 +825,8 @@ contains
 ! iteration scheme
 !
       cr = 0.d0
-      call sphereinteraction(neqns, 1, anp, cr, initial_run=initialize, &
-                             mpi_comm=pcomm)
+      call sphere_interaction(neqns, 1, anp, cr, initial_run=initialize, &
+                              mpi_comm=pcomm)
       cr = pnp - anp + cr
       cq = conjg(cr)
       cw = cq
@@ -862,18 +863,18 @@ contains
             ctin(:, 2) = cw(:)
             contran2 = (/.false., .true./)
             ctout = 0.d0
-            call sphereinteraction(neqns, 2, ctin, ctout, &
-                                   con_tran=contran2, mpi_comm=mpicomm)
+            call sphere_interaction(neqns, 2, ctin, ctout, &
+                                    con_tran=contran2, mpi_comm=mpicomm)
             cap(:) = ctout(:, 1)
             caw(:) = ctout(:, 2)
             deallocate (ctin, ctout)
          else
             if (pgroup .eq. 1) then
-               call sphereinteraction(neqns, 1, cp, cap, &
-                                      mpi_comm=pcomm)
+               call sphere_interaction(neqns, 1, cp, cap, &
+                                       mpi_comm=pcomm)
             else
-               call sphereinteraction(neqns, 1, cw, caw, &
-                                      con_tran=(/.true./), mpi_comm=pcomm)
+               call sphere_interaction(neqns, 1, cw, caw, &
+                                       con_tran=(/.true./), mpi_comm=pcomm)
             end if
             call mstm_mpi(mpi_command='barrier', mpi_comm=mpicomm)
             if (inp2) then

@@ -222,7 +222,7 @@ contains
          flush (6)
       end if
       call sphere_layer_initialization()
-      call miecoefcalc(mie_epsilon)
+      call calculate_mie_coefficients(mie_epsilon)
       call init(max_mie_order)
       if (light_up) then
          write (*, '('' s4 '',i3)') mstm_global_rank
@@ -261,7 +261,7 @@ contains
          do i = 1, number_spheres
             if (host_sphere(i) .eq. 0) then
                r0 = cluster_origin
-               call exteriorrefindex(i, rimedium)
+               call exterior_refractive_index(i, rimedium)
                rtran = sqrt(sum((sphere_position(:, i) - r0(:))**2))
 !                  if(rtran.gt.scattered_field_sample_length) cycle
                call estimate_translation_order(rtran, rimedium(1), sphere_order(i), &
@@ -507,19 +507,19 @@ contains
             if (allocated(coh_scat_mat_exp_coef)) deallocate (coh_scat_mat_exp_coef)
             allocate (scat_mat_exp_coef(4, 4, 0:2 * t_matrix_order), coh_scat_mat_exp_coef(4, 4, 0:2 * t_matrix_order))
             nodrw = 2 * t_matrix_order
-            call ranorientscatmatrix(t_matrix_output_file, scat_mat_exp_coef, &
-                                     coh_scat_mat_exp_coef, &
-                                     beam_width=gaussian_beam_constant, &
-                                     number_processors=t_matrix_procs_per_solution, &
-                                     mean_t_matrix=mean_t, mpi_comm=mpicomm)
+            call random_orientation_scattering_matrix(t_matrix_output_file, scat_mat_exp_coef, &
+                                                      coh_scat_mat_exp_coef, &
+                                                      beam_width=gaussian_beam_constant, &
+                                                      number_processors=t_matrix_procs_per_solution, &
+                                                      mean_t_matrix=mean_t, mpi_comm=mpicomm)
             coherent_scattering_ratio = coh_scat_mat_exp_coef(1, 1, 0)
             do i = scat_mat_ldim, scat_mat_udim
                costheta = cos(dble(i - scat_mat_ldim) * pi / dble(scat_mat_udim - scat_mat_ldim))
-               call ranorienscatmatrixcalc(costheta, scat_mat_exp_coef, nodrw, scat_mat(:, i))
+               call evaluate_random_orientation_scattering_matrix(costheta, scat_mat_exp_coef, nodrw, scat_mat(:, i))
             end do
          end if
-         call qtotcalc(number_spheres, qeff_dim, cross_section_radius, &
-                       q_eff, q_vabs, q_eff_tot)
+         call total_efficiency_factors(number_spheres, qeff_dim, cross_section_radius, &
+                                       q_eff, q_vabs, q_eff_tot)
       else
          if (light_up) then
             write (*, '('' s8.1 '',i3)') mstm_global_rank
@@ -570,8 +570,8 @@ contains
             timet = mstm_mpi_wtime()
          end if
 
-         call qtotcalc(number_spheres, qeff_dim, cross_section_radius, &
-                       q_eff, q_vabs, q_eff_tot)
+         call total_efficiency_factors(number_spheres, qeff_dim, cross_section_radius, &
+                                       q_eff, q_vabs, q_eff_tot)
 !            q_eff_tot(3,:)=q_eff_tot(1,:)-q_eff_tot(2,:)
          csca = q_eff_tot(3, 1) * pi * cross_section_radius**2
          if (singleorigin) then
@@ -600,8 +600,9 @@ contains
             if (singleorigin .and. azimuthal_average .and. (.not. numerical_azimuthal_average)) then
                if (allocated(scat_mat_exp_coef)) deallocate (scat_mat_exp_coef)
                allocate (scat_mat_exp_coef(16, 0:2 * t_matrix_order, 4))
-               call fosmexpansion(t_matrix_order, amnp_0, scat_mat_exp_coef(:, :, 1), scat_mat_exp_coef(:, :, 2), &
-                                  scat_mat_exp_coef(:, :, 3), scat_mat_exp_coef(:, :, 4), mpi_comm=mpicomm)
+               call fixed_orientation_scattering_matrix_expansion( &
+                  t_matrix_order, amnp_0, scat_mat_exp_coef(:, :, 1), scat_mat_exp_coef(:, :, 2), &
+                  scat_mat_exp_coef(:, :, 3), scat_mat_exp_coef(:, :, 4), mpi_comm=mpicomm)
             end if
             if (light_up) then
                write (*, '('' s8.3.4 '',i3)') mstm_global_rank
@@ -1084,8 +1085,9 @@ contains
                allocate (texpcoef(16, 0:2 * t_matrix_order, 4))
                texpcoef = scat_mat_exp_coef / dble(nconfigave)
 !                  scat_mat_exp_coef=scat_mat_exp_coef/dble(nconfigave)
-               call fosmexpansion(t_matrix_order, amnp_0, coh_scat_mat_exp_coef(:, :, 1), coh_scat_mat_exp_coef(:, :, 2), &
-                                  coh_scat_mat_exp_coef(:, :, 3), coh_scat_mat_exp_coef(:, :, 4), mpi_comm=configcomm)
+               call fixed_orientation_scattering_matrix_expansion( &
+                  t_matrix_order, amnp_0, coh_scat_mat_exp_coef(:, :, 1), coh_scat_mat_exp_coef(:, :, 2), &
+                  coh_scat_mat_exp_coef(:, :, 3), coh_scat_mat_exp_coef(:, :, 4), mpi_comm=configcomm)
                scat_mat_exp_coef = coh_scat_mat_exp_coef
             end if
             if (calculate_scattering_matrix) then
@@ -1171,7 +1173,7 @@ contains
                   end do
                end do
                edat = edat / dble(griddim(1) * griddim(2) * 2.d0)
-               call effectiverefractiveindex(griddim(3), edat, grid_spacing(3), rieff, e0)
+               call effective_refractive_index(griddim(3), edat, grid_spacing(3), rieff, e0)
                nf_eff_ref_index = rieff
 !                  write(*,'('' field fit ri:'',2es12.5)') rieff
                deallocate (edat)
@@ -1593,8 +1595,9 @@ contains
             if (azimuthal_average .and. (.not. numerical_azimuthal_average)) then
                allocate (texpcoef(16, 0:2 * t_matrix_order, 4))
                texpcoef = scat_mat_exp_coef / dble(nconfigave)
-               call fosmexpansion(t_matrix_order, amnp_0, scat_mat_exp_coef(:, :, 1), scat_mat_exp_coef(:, :, 2), &
-                                  scat_mat_exp_coef(:, :, 3), scat_mat_exp_coef(:, :, 4), mpi_comm=configcomm)
+               call fixed_orientation_scattering_matrix_expansion( &
+                  t_matrix_order, amnp_0, scat_mat_exp_coef(:, :, 1), scat_mat_exp_coef(:, :, 2), &
+                  scat_mat_exp_coef(:, :, 3), scat_mat_exp_coef(:, :, 4), mpi_comm=configcomm)
             end if
             if (calculate_scattering_matrix) then
                call scattering_matrix_calculation(amnp_0, dif_scat_mat, mpi_comm=configcomm)

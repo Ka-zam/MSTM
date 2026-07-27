@@ -428,7 +428,7 @@ contains
          task = task + 1
          proc = mod(task, numprocs)
          if (proc .eq. rank) then
-            call exteriorrefindex(i, rimedium)
+            call exterior_refractive_index(i, rimedium)
             npairs = sphere_local_interaction_list(i)%number_elements
             llist => sphere_local_interaction_list(i)%members
             do n = 1, npairs
@@ -573,7 +573,7 @@ contains
             proc = mod(task, numprocs)
             if (proc .eq. rank) then
                idim = idim + 1
-               call exteriorrefindex(i, rimedium)
+               call exterior_refractive_index(i, rimedium)
                nodei(:) = sphere_node(:, i)
                noi = sphere_order(i)
                npi1 = sphere_offset(i) + 1

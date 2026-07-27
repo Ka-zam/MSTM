@@ -123,8 +123,9 @@ contains
          allocate (internal_field_vector(i)%vector(nblk, 2, 2))
          do p = 1, 2
             if (number_field_expansions(i) .eq. 1) then
-               call onemiecoeffmult(i, sphere_order(i), amnp(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), p), &
-                                    vector(1:nblk, 1:2, p), 'c')
+               call apply_single_sphere_mie_coefficients(i, sphere_order(i), &
+                                                         amnp(sphere_offset(i) + 1:sphere_offset(i) + sphere_block(i), p), &
+                                                         vector(1:nblk, 1:2, p), 'c')
             else
                vector(1:nblk, 1:2, p) &
                   = reshape(amnp(sphere_offset(i) + sphere_block(i) + 1:sphere_offset(i) + 2 * sphere_block(i), p), &
@@ -478,8 +479,9 @@ contains
             if (.not. associated(cellinfo%gb_vector)) then
 !write(*,'('' allocating gb vec'' )')
                allocate (cellinfo%gb_vector(nblk, 2, 2))
-               call layergaussbeamcoef(alpha, sinc, dir, rcell, nodr, cellinfo%gb_vector, include_direct=.true., &
-                                       include_indirect=.true.)
+               call layered_gaussian_beam_coefficients(alpha, sinc, dir, rcell, nodr, &
+                                                       cellinfo%gb_vector, include_direct=.true., &
+                                                       include_indirect=.true.)
             end if
             rtran(:) = rpos(:) - rcell(:)
             call vector_spherical_wave_functions(rtran, (/riinc, riinc/), nodr, 1, vwf, index_model=2)
@@ -491,8 +493,8 @@ contains
             end do
             deallocate (vwf)
          else
-            call layergaussbeamcoef(alpha, sinc, dir, rcell, 1, pmnp, include_direct=.true., &
-                                    include_indirect=.true.)
+            call layered_gaussian_beam_coefficients(alpha, sinc, dir, rcell, 1, pmnp, include_direct=.true., &
+                                                    include_indirect=.true.)
             do p = 1, 2
                evec(:, p) = matmul(vwf_0(:, :, 1), pmnp(:, 1, p)) + matmul(vwf_0(:, :, 2), pmnp(:, 2, p))
                hvec(:, p) = (matmul(vwf_0(:, :, 1), pmnp(:, 1, p)) - matmul(vwf_0(:, :, 2), pmnp(:, 2, p))) * riinc / (0.d0, 1.d0)

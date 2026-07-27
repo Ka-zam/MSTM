@@ -11,7 +11,7 @@ module random_orientation_scattering
    use surface_subroutines
    implicit none
    private
-   public :: ranorienscatmatrixcalc, ranorientscatmatrix
+   public :: evaluate_random_orientation_scattering_matrix, random_orientation_scattering_matrix
 contains
 
 !
@@ -24,8 +24,8 @@ contains
 !  January 2012: added computation of coherent field average
 !  February 2013:  added number processors option.
 !
-   subroutine ranorientscatmatrix(tmatrixfile, sm, smcf, beam_width, number_processors, mpi_comm, &
-                                  mean_t_matrix, override_order, keep_quiet)
+   subroutine random_orientation_scattering_matrix(tmatrixfile, sm, smcf, beam_width, number_processors, mpi_comm, &
+                                                   mean_t_matrix, override_order, keep_quiet)
       implicit none
       logical :: symmetrical, nkq
       logical, optional :: keep_quiet
@@ -591,7 +591,7 @@ contains
                      bwcf, cwcf, dwcf)
       end if
       call mstm_mpi(mpi_command='barrier', mpi_comm=mpicomm)
-   end subroutine ranorientscatmatrix
+   end subroutine random_orientation_scattering_matrix
 !
 !  calculation of the RO scattering matrix from the GSF expansion
 !
@@ -599,7 +599,7 @@ contains
 !  original: 15 January 2011
 !  revised: 21 February 2011: changed normalization on S11
 !
-   subroutine ranorienscatmatrixcalc(ct, smc, nodrexp, sm)
+   subroutine evaluate_random_orientation_scattering_matrix(ct, smc, nodrexp, sm)
       implicit none
       integer :: nodrexp, n, nn0, nnp2, nnm2
       real(8) :: smc(4, 4, 0:nodrexp), sm(4, 4), dc(-2:2, 0:nodrexp * (nodrexp + 2)), &
@@ -653,5 +653,5 @@ contains
 !            ghh=.25*(sm(1,1)+sm(2,2)+2.*sm(1,2))
 !
       return
-   end subroutine ranorienscatmatrixcalc
+   end subroutine evaluate_random_orientation_scattering_matrix
 end module random_orientation_scattering

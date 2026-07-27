@@ -10,13 +10,15 @@ module scattering_efficiencies
    use spheredata
    use surface_subroutines
    use scattering_amplitudes, only: common_origin_amplitude_matrix, multiple_origin_amplitude_matrix, &
-                                    numerical_sm_azimuthal_average_mo, numerical_sm_azimuthal_average_so
-   use scattering_interactions, only: sphereinteraction
+                                    numerical_scattering_matrix_azimuthal_average_multiple_origin, &
+                                    numerical_scattering_matrix_azimuthal_average_single_origin
+   use scattering_interactions, only: sphere_interaction
    implicit none
    private
    public :: boundary_extinction, boundary_scattering, common_origin_hemispherical_scattering, &
-             extinction_theorem, hemispherical_integrand, hemispherical_scattering, lrsphereqeff, &
-             qefficiencyfactors, qtotcalc, waveguide_mode_scattering
+             configuration_efficiency_factors, extinction_theorem, hemispherical_integrand, &
+             hemispherical_scattering, sphere_efficiency_factors, total_efficiency_factors, &
+             waveguide_mode_scattering
    logical :: hemispherical_single_origin
    complex(8), allocatable :: hemispherical_amnp(:)
 contains
@@ -27,7 +29,7 @@ contains
 !  April 2012
 !  march 2013: something is always changing in this one
 !
-   subroutine lrsphereqeff(ri0, nodr, npol, xsp, anp, gnpinc, gnp, qe, qs, qa)
+   subroutine sphere_efficiency_factors(ri0, nodr, npol, xsp, anp, gnpinc, gnp, qe, qs, qa)
       implicit none
       integer :: nodr, npol, m, n, p, p1, p2, k, ma, na, s, t, ss, st
       real(8) :: qe(2 * npol - 1), qa(2 * npol - 1), qs(2 * npol - 1), const, xsp, qi(2 * npol - 1)
@@ -127,14 +129,14 @@ contains
 !write(*,'(i5,4e13.5)') k,qe(k)+qi(k),qa(k)+qs(k)
       end do
 
-   end subroutine lrsphereqeff
+   end subroutine sphere_efficiency_factors
 !
 ! calling routine for efficiency calculation
 ! april 2012: lr formulation
 ! february 2013:  number of rhs, mpi comm options added.
 !
-   subroutine qefficiencyfactors(nsphere, npol, amnp, gmnp0, qeff, &
-                                 mpi_comm)
+   subroutine configuration_efficiency_factors(nsphere, npol, amnp, gmnp0, qeff, &
+                                               mpi_comm)
       implicit none
       integer :: nsphere, i, nblk, noff, neqns, nodr, &
                  npol, mpicomm, p, &
@@ -167,13 +169,13 @@ contains
                nblk = 2 * nodr * (nodr + 2)
                b11 = noff + 1
                b12 = b11 + nblk - 1
-               call onemiecoeffmult(i, nodr, amnp(b11:b12, p), gmnp(b11:b12, p), 'i')
+               call apply_single_sphere_mie_coefficients(i, nodr, amnp(b11:b12, p), gmnp(b11:b12, p), 'i')
                noff = noff + nblk * number_field_expansions(i)
             end do
          else
-            call sphereinteraction(neqns, 1, amnp(:, p), gmnp(:, p), &
-                                   mpi_comm=mpicomm, mie_mult=(/.false./), &
-                                   store_matrix_option=.false.)
+            call sphere_interaction(neqns, 1, amnp(:, p), gmnp(:, p), &
+                                    mpi_comm=mpicomm, mie_mult=(/.false./), &
+                                    store_matrix_option=.false.)
             gmnp(:, p) = gmnp(:, p) + gmnp0(:, p)
          end if
       end do
@@ -189,7 +191,7 @@ contains
          allocate (amnpi(0:nodr + 1, nodr, 2, npol), &
                    gmnpi(0:nodr + 1, nodr, 2, npol), &
                    fmnpi(0:nodr + 1, nodr, 2, npol))
-         call exteriorrefindex(i, ri0)
+         call exterior_refractive_index(i, ri0)
 !            ri0=sphere_ref_index(:,host_sphere(i))
          b11 = noff + 1
          b12 = b11 + nblk - 1
@@ -201,8 +203,8 @@ contains
             gmnpi(0:nodr + 1, 1:nodr, 1:2, p) = reshape(gmnp(b11:b12, p), &
                                                         (/nodr + 2, nodr, 2/))
          end do
-         call lrsphereqeff(ri0, nodr, npol, sphere_radius(i), amnpi, fmnpi, gmnpi, &
-                           qe, qs, qa)
+         call sphere_efficiency_factors(ri0, nodr, npol, sphere_radius(i), amnpi, fmnpi, gmnpi, &
+                                        qe, qs, qa)
          qeffi(1, :) = qe(:)
          qeffi(3, :) = qs(:)
          qeffi(2, :) = qa(:)
@@ -221,9 +223,9 @@ contains
          write (*, '('' qe3 '',i3)') mstm_global_rank
          flush (6)
       end if
-   end subroutine qefficiencyfactors
+   end subroutine configuration_efficiency_factors
 
-   subroutine qtotcalc(nsphere, nrow, xgeff, qeffp, qabsvol, qefftot)
+   subroutine total_efficiency_factors(nsphere, nrow, xgeff, qeffp, qabsvol, qefftot)
       implicit none
       integer :: nsphere, nrow, i, j
       real(8) :: qeffp(3, nrow, nsphere), qefftot(3, nrow), qabsvol(nrow, nsphere), xgeff
@@ -263,7 +265,7 @@ contains
 ! 10--22 : qsca=qext + qinc-qabs
       qefftot(3, :) = qefftot(1, :) + qefftot(3, :) - qefftot(2, :)
 
-   end subroutine qtotcalc
+   end subroutine total_efficiency_factors
 
    subroutine waveguide_mode_scattering(amnp, qsevan, mpi_comm)
       implicit none
@@ -286,9 +288,9 @@ contains
          do p = 1, 2
             amn(:) = amnp(:, p)
             gmn = 0.d0
-            call sphereinteraction(number_eqns, 1, amn, gmn, &
-                                   mie_mult=(/.false./), initial_run=.true., skip_external_translation=.true., &
-                                   mpi_comm=mpicomm)
+            call sphere_interaction(number_eqns, 1, amn, gmn, &
+                                    mie_mult=(/.false./), initial_run=.true., skip_external_translation=.true., &
+                                    mpi_comm=mpicomm)
             do i = 1, number_spheres
                if (host_sphere(i) .ne. 0) cycle
                call left_right_mode_transformation(sphere_order(i), &
@@ -502,12 +504,13 @@ contains
       complex(8) :: q(ntot)
       q = 0.d0
       if (hemispherical_single_origin) then
-         call numerical_sm_azimuthal_average_so(hemispherical_amnp, t_matrix_order, ct, sm, &
-                                                rotate_plane=.false., normalize_s11=.false., s11_only=.true.)
+         call numerical_scattering_matrix_azimuthal_average_single_origin( &
+            hemispherical_amnp, t_matrix_order, ct, sm, &
+            rotate_plane=.false., normalize_s11=.false., s11_only=.true.)
          q(1:2) = sm(1:2)
       else
-         call numerical_sm_azimuthal_average_mo(hemispherical_amnp, ct, sm, &
-                                                rotate_plane=.false., s11_only=.true.)
+         call numerical_scattering_matrix_azimuthal_average_multiple_origin(hemispherical_amnp, ct, sm, &
+                                                                            rotate_plane=.false., s11_only=.true.)
          q(1:2) = sm(1:2)
       end if
    end subroutine hemispherical_integrand
