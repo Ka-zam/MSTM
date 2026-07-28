@@ -12,4 +12,6 @@ cd build/example
 
 `pec-sphere.inp` demonstrates the exact solid-PEC formulation. `pec-dielectric-cluster.inp` demonstrates a mixed PEC/lossless-dielectric cluster at oblique incidence. Validate either input without creating output files with `mstm --check INPUT_FILE`.
 
+`electric-dipole-sphere.inp` demonstrates the normalized exterior electric-point-dipole excitation and its single-source near-field output.
+
 `effective-medium-smoke.inp` is a deliberately small regression case for the effective-medium fitting workflow added in December 2023. CTest runs it alongside the Figure 1 smoke test.

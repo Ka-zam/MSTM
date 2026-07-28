@@ -1,6 +1,7 @@
 module scattering_interactions
    use, intrinsic :: iso_fortran_env, only: real64
    use constants
+   use excitation, only: electric_dipole_mode_coefficients
    use interaction_operators, only: create_interaction_operator, interaction_operator_t
    use mie
    use parallel_runtime, only: mpi_comm_world, mstm_global_rank, parallel_allreduce_sum, &
@@ -16,10 +17,24 @@ module scattering_interactions
    use translation_surface_interactions, only: periodic_lattice_sphere_interaction, sphere_surface_interaction
    implicit none
    private
-   public :: distribute_from_common_origin, estimate_sphere_translation_orders, &
+   public :: distribute_electric_dipole, distribute_from_common_origin, estimate_sphere_translation_orders, &
              layered_gaussian_beam_coefficients, merge_to_common_origin, phase_shift, &
              sphere_interaction, sphere_plane_wave_coefficients
 contains
+
+   subroutine distribute_electric_dipole(position, moment, incident_coefficients, mpi_comm)
+      real(real64), intent(in) :: position(3)
+      complex(real64), intent(in) :: moment(3)
+      complex(real64), intent(out) :: incident_coefficients(sphere_cluster%number_eqns, 1)
+      integer, intent(in), optional :: mpi_comm
+      complex(real64) :: source_coefficients(0:2, 1, 2, 1)
+
+      call electric_dipole_mode_coefficients(moment, source_coefficients(:, :, :, 1))
+      source_coefficients(:, :, 2, 1) = 0.5_real64 * source_coefficients(:, :, 1, 1)
+      source_coefficients(:, :, 1, 1) = source_coefficients(:, :, 2, 1)
+      call distribute_from_common_origin(1, source_coefficients, incident_coefficients, number_rhs=1, &
+                                         origin_position=position, origin_host=0, vswf_type=3, mpi_comm=mpi_comm)
+   end subroutine distribute_electric_dipole
 
    subroutine sphere_interaction(neqns, nrhs, ain, aout, initial_run, &
                                  rhs_list, mpi_comm, con_tran, mie_mult, fft_option, &

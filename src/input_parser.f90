@@ -20,7 +20,7 @@ contains
       integer, optional, pointer :: i_var_pointer
       real(real64), pointer :: rvarvalue, ravarvalue(:)
       real(real64), optional, pointer :: r_var_pointer
-      complex(real64), pointer :: cvarvalue
+      complex(real64), pointer :: cvarvalue, cavarvalue(:)
       complex(real64), optional, pointer :: c_var_pointer
       character(len=1) :: vartype
       character(len=1), optional :: var_type
@@ -164,6 +164,20 @@ contains
       elseif (varlabel .eq. 'incident_alpha_deg') then
          vartype = 'r'
          rvarvalue => simulation_config%incident_alpha_degrees
+
+      elseif (varlabel .eq. 'excitation_type') then
+         vartype = 'a'
+         avarvalue => simulation_config%excitation_type
+
+      elseif (varlabel .eq. 'electric_dipole_position') then
+         vartype = 'r'
+         varlen = 3
+         ravarvalue => simulation_config%electric_dipole_position
+
+      elseif (varlabel .eq. 'electric_dipole_moment') then
+         vartype = 'c'
+         varlen = 3
+         cavarvalue => simulation_config%electric_dipole_moment
 
       elseif (varlabel .eq. 'gaussian_beam_constant') then
          vartype = 'r'
@@ -590,8 +604,13 @@ contains
                                                  ravarvalue, var_operation=varop, var_len=varlen)
             end if
          elseif (vartype .eq. 'c') then
-            call apply_complex_input_value(sentvarvalue, &
-                                           cvarvalue, var_operation=varop)
+            if (varlen .eq. 1) then
+               call apply_complex_input_value(sentvarvalue, &
+                                              cvarvalue, var_operation=varop)
+            else
+               call apply_complex_array_input_value(sentvarvalue, &
+                                                    cavarvalue, var_operation=varop, var_len=varlen)
+            end if
          elseif (vartype .eq. 'l') then
             if (varlen .eq. 1) then
                call apply_logical_input_value(sentvarvalue, &

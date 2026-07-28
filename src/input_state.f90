@@ -1,5 +1,6 @@
 module input_state
    use, intrinsic :: iso_fortran_env, only: real64
+   use excitation, only: plane_wave_excitation
    use solver
    use sphere_data
    use translation_expansions, only: interaction_radius
@@ -132,6 +133,7 @@ module input_state
       real(real64) :: y_shift = 0.0_real64
       real(real64) :: z_shift = 0.0_real64
       real(real64) :: target_radius_padding = 5.0_real64
+      real(real64) :: electric_dipole_position(3) = 0.0_real64
       complex(real64) :: complex_loop_start(5) = (0.0_real64, 0.0_real64)
       complex(real64) :: complex_loop_stop(5) = (0.0_real64, 0.0_real64)
       complex(real64) :: complex_loop_step(5) = (0.0_real64, 0.0_real64)
@@ -139,10 +141,13 @@ module input_state
       complex(real64) :: host_sphere_ref_index = (1.0_real64, 0.0_real64)
       complex(real64) :: medium_ref_index = (1.0_real64, 0.0_real64)
       complex(real64) :: component_ref_index(4) = (1.0_real64, 0.0_real64)
+      complex(real64) :: electric_dipole_moment(3) = &
+                         [(1.0_real64, 0.0_real64), (0.0_real64, 0.0_real64), (0.0_real64, 0.0_real64)]
       character(len=1) :: loop_variable_type(5) = ''
       character(len=256) :: loop_variable_label(5) = ''
       character(len=256) :: input_file = ''
       character(len=256) :: sphere_data_source = ''
+      character(len=256) :: excitation_type = plane_wave_excitation
       logical, allocatable :: sphere_excitation_switch(:)
       integer, allocatable :: sphere_data_record_lines(:)
       character(len=256), allocatable :: sphere_data_records(:)
@@ -187,6 +192,10 @@ module input_state
       real(real64) :: total_cross_section = 0.0_real64
       real(real64) :: diffuse_cross_section = 0.0_real64
       real(real64) :: effective_fit_radius = 0.0_real64
+      real(real64) :: dipole_absorbed_power = 0.0_real64
+      real(real64) :: dipole_scattered_power = 0.0_real64
+      real(real64) :: dipole_extracted_power = 0.0_real64
+      real(real64) :: dipole_scattered_power_residual = 0.0_real64
       real(real64), allocatable :: efficiency(:, :, :), volume_absorption(:, :), total_efficiency(:, :)
       real(real64), allocatable :: scattering_matrix(:, :), diffuse_scattering_matrix(:, :)
       real(real64), allocatable :: scattering_coefficients(:, :, :), configuration_scattering_coefficients(:, :, :)

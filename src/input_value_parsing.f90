@@ -2,7 +2,7 @@ module input_value_parsing
    use, intrinsic :: iso_fortran_env, only: real64
    implicit none
    private
-   public :: apply_complex_input_value, apply_integer_input_value, &
+   public :: apply_complex_array_input_value, apply_complex_input_value, apply_integer_input_value, &
              apply_logical_array_input_value, apply_logical_input_value, &
              apply_real_array_input_value, apply_real_input_value
 contains
@@ -104,6 +104,35 @@ contains
          cvarvalue = cvarvalue + ctemp
       end if
    end subroutine apply_complex_input_value
+
+   subroutine apply_complex_array_input_value(sentvarvalue, cvarvalue, var_operation, var_len)
+      implicit none
+      integer :: varlen
+      integer, optional :: var_len
+      complex(real64), allocatable :: ctemp(:)
+      complex(real64), pointer :: cvarvalue(:)
+      character(len=256) :: sentvarvalue, varop, intfile
+      character(len=256), optional :: var_operation
+
+      if (present(var_operation)) then
+         varop = var_operation(:index(var_operation, ' '))
+      else
+         varop = 'assign'
+      end if
+      if (present(var_len)) then
+         varlen = var_len
+      else
+         varlen = size(cvarvalue)
+      end if
+      allocate (ctemp(varlen))
+      write (intfile, '(a)') sentvarvalue
+      read (intfile, *) ctemp
+      if (varop(1:6) .eq. 'assign') then
+         cvarvalue(1:varlen) = ctemp
+      elseif (varop(1:3) .eq. 'add') then
+         cvarvalue(1:varlen) = cvarvalue(1:varlen) + ctemp
+      end if
+   end subroutine apply_complex_array_input_value
 
    subroutine apply_logical_input_value(sentvarvalue, &
                                         lvarvalue, var_operation)

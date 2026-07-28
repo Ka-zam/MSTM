@@ -1,5 +1,6 @@
 module near_field
    use, intrinsic :: iso_fortran_env, only: real32, real64
+   use excitation, only: electric_dipole_field
    use parallel_runtime, only: mpi_comm_world, mstm_global_rank, parallel_rank, parallel_reduce_sum, &
                                parallel_size, parallel_wall_time
    use wave_functions, only: vector_spherical_wave_functions
@@ -10,6 +11,7 @@ module near_field
    use periodic_lattice_operations
    use scattering_interactions, only: layered_gaussian_beam_coefficients
    use translation_operator, only: translation_operator_state
+   use runtime_support, only: set_runtime_error
    implicit none
    type grid_info
       logical :: initialized
@@ -54,14 +56,18 @@ module near_field
 contains
 
    subroutine compute_near_field(amnp, alpha, sinc, dir, gridregion, griddim, incident_model, output_unit, &
-                                 e_field_array, h_field_array, e_field_ave_array, output_header, mpi_comm)
+                                 e_field_array, h_field_array, e_field_ave_array, output_header, mpi_comm, &
+                                 dipole_position, dipole_moment)
       implicit none
       logical, optional :: output_header
+      logical :: dipole_incident
       integer :: incmodel, i, p, outputunit, nblk, l, griddim(3), ix, iy, iz, &
                  layer, host, ipos(3), cellnum, nsend, mpicomm, totpoints, point, dir
       integer, optional :: incident_model, output_unit, mpi_comm
       real(real64) :: gridregion(3, 2), rpos(3), alpha, time1, time0, rtemp, sinc
+      real(real64), intent(in), optional :: dipole_position(3)
       complex(real64) :: amnp(sphere_cluster%number_eqns, 2), evec(3, 2), hvec(3, 2), evec1(3, 2), hvec1(3, 2)
+      complex(real64), intent(in), optional :: dipole_moment(3)
       complex(real64), allocatable :: vector(:, :, :)
       complex(real64), optional :: e_field_ave_array(3, 2, griddim(3))
       complex(real64), target, optional :: e_field_array(3, 2, griddim(1), griddim(2), griddim(3)), &
@@ -89,6 +95,7 @@ contains
          mpicomm = mpi_comm_world
       end if
       incident_gb = sphere_cluster%gaussian_beam_constant .ne. 0.d0
+      dipole_incident = present(dipole_position) .and. present(dipole_moment)
 
       call parallel_size(mpi_size=local_numprocs, mpi_comm=mpicomm)
       call parallel_rank(mpi_rank=local_rank, mpi_comm=mpicomm)
@@ -103,6 +110,21 @@ contains
          end if
       end do
       totpoints = product(griddim)
+
+      if (dipole_incident) then
+         do iz = 1, griddim(3)
+            do iy = 1, griddim(2)
+               do ix = 1, griddim(1)
+                  ipos = [ix, iy, iz]
+                  rpos = (dble(ipos) - 0.5_real64) * grid_spacing + grid_region(:, 1)
+                  if (sum((rpos - dipole_position)**2) <= 1.0e-24_real64) then
+                     call set_runtime_error('Near-field grid contains the singular electric-dipole source point')
+                     return
+                  end if
+               end do
+            end do
+         end do
+      end if
 
       call vector_spherical_wave_functions((/0.d0, 0.d0, 0.d0/), &
                                            (/(1.d0, 0.d0), (1.d0, 0.d0)/), 1, 1, vwf_0, index_model=2)
@@ -213,11 +235,13 @@ contains
 !write(*,*) 'nf 3'
 !flush(6)
                   if (incmodel .ne. 2 .and. host .eq. 0) then
-                     call calculate_incident_field(rpos, layer, alpha, sinc, dir, cellinfo, evec1, hvec1)
+                     call calculate_incident_field(rpos, layer, alpha, sinc, dir, cellinfo, evec1, hvec1, &
+                                                   dipole_position, dipole_moment)
                      evec(:, :) = evec(:, :) + evec1(:, :)
                      hvec(:, :) = hvec(:, :) + hvec1(:, :)
                   elseif (incmodel .eq. 2 .and. host .ne. 0) then
-                     call calculate_incident_field(rpos, layer, alpha, sinc, dir, cellinfo, evec1, hvec1)
+                     call calculate_incident_field(rpos, layer, alpha, sinc, dir, cellinfo, evec1, hvec1, &
+                                                   dipole_position, dipole_moment)
                      evec(:, :) = evec(:, :) - evec1(:, :)
                      hvec(:, :) = hvec(:, :) - hvec1(:, :)
                   end if
@@ -249,8 +273,12 @@ contains
                do ix = 1, griddim(1)
                   ipos(:) = (/ix, iy, iz/)
                   rpos(:) = (dble(ipos(:)) - (/0.5d0, 0.5d0, 0.5d0/)) * grid_spacing(:) + grid_region(:, 1)
-                  write (outputunit, '(27es12.4)') rpos(:), earray(:, 1, ix, iy), harray(:, 1, ix, iy), &
-                     earray(:, 2, ix, iy), harray(:, 2, ix, iy)
+                  if (dipole_incident) then
+                     write (outputunit, '(15es12.4)') rpos(:), earray(:, 1, ix, iy), harray(:, 1, ix, iy)
+                  else
+                     write (outputunit, '(27es12.4)') rpos(:), earray(:, 1, ix, iy), harray(:, 1, ix, iy), &
+                        earray(:, 2, ix, iy), harray(:, 2, ix, iy)
+                  end if
                end do
             end do
          end if
@@ -463,15 +491,22 @@ svec = reshape(sourcevec(sphere_cluster%sphere_offset(j) + 1:sphere_cluster%sphe
       end if
    end subroutine calculate_surface_field
 
-   subroutine calculate_incident_field(rpos, layer, alpha, sinc, dir, cellinfo, evec, hvec)
+   subroutine calculate_incident_field(rpos, layer, alpha, sinc, dir, cellinfo, evec, hvec, &
+                                       dipole_position, dipole_moment)
       implicit none
       integer :: p, layer, dir, nodr, nblk
       real(real64) :: alpha, sinc, rpos(3), rcell(3), rtran(3)
+      real(real64), intent(in), optional :: dipole_position(3)
       complex(real64) :: riinc, pmnp(3, 2, 2), evec(3, 2), hvec(3, 2)
+      complex(real64), intent(in), optional :: dipole_moment(3)
       complex(real64), allocatable :: vwf(:, :, :)
       type(cell_info), pointer :: cellinfo
       riinc = layer_ref_index(layer)
-      if (incident_gb) then
+      if (present(dipole_position) .and. present(dipole_moment)) then
+         evec = (0.0_real64, 0.0_real64)
+         hvec = (0.0_real64, 0.0_real64)
+         call electric_dipole_field(rpos - dipole_position, riinc, dipole_moment, evec(:, 1), hvec(:, 1))
+      elseif (incident_gb) then
          if (store_surface_vector) then
             nodr = cellinfo%order
             rcell = cellinfo%rcell

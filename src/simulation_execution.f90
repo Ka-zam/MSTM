@@ -1,10 +1,12 @@
 module simulation_execution
    use, intrinsic :: iso_fortran_env, only: real64
+   use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
    use angular_functions, only: cartesian_vectors_to_spherical, estimate_translation_order, &
                                 rotate_expansion_coefficients
    use configuration_data
    use constants
    use effective_medium_analysis
+   use excitation, only: electric_dipole_excitation, electric_dipole_source_power, plane_wave_excitation
    use fft_translation, only: fft_plan
    use input_parser
    use input_reporting
@@ -16,6 +18,7 @@ module simulation_execution
    use scattering_efficiencies, only: boundary_extinction, common_origin_hemispherical_scattering, &
                                       hemispherical_scattering, total_efficiency_factors
    use scattering_matrix_driver
+   use scattering_interactions, only: distribute_electric_dipole, merge_to_common_origin
    use solver, only: solver_converged, solver_status_message
    use wave_functions, only: compose_group_filename
    implicit none
@@ -25,14 +28,15 @@ contains
 
    subroutine execute_simulation(print_output, set_t_matrix_order, dry_run, mpi_comm)
       implicit none
-      logical :: stopit, singleorigin, iframe, sett, printout, dryrun, averagerun
+      logical :: stopit, singleorigin, iframe, sett, printout, dryrun, averagerun, dipole_incident
       logical, optional :: print_output, set_t_matrix_order, dry_run
       integer :: file_unit, n, istat, niter, rank, numprocs, i, nodrw, celldim(3), itemp(6), sx, sy, maxt, &
                  mpicomm, lochost
       integer, optional :: mpi_comm
       real(real64) :: alpha, time1, r0(3), rtran, costheta, &
-                      csca, zext, targetvol, timet, tmin(3), tmax(3), rannum
+                      csca, zext, targetvol, timet, tmin(3), tmax(3), rannum, dipole_position(3), source_power
       complex(real64) :: rimedium(2)
+      complex(real64), allocatable :: dipole_coefficients(:, :)
       character(len=256) :: timatrixfile
       if (present(dry_run)) then
          dryrun = dry_run
@@ -55,6 +59,17 @@ contains
          mpicomm = mpi_comm_world
       end if
       averagerun = simulation_config%configuration_average .or. simulation_config%incidence_average
+      select case (trim(simulation_config%excitation_type))
+      case (plane_wave_excitation)
+         dipole_incident = .false.
+      case (electric_dipole_excitation)
+         dipole_incident = .true.
+      case default
+         call set_runtime_error("Unknown excitation_type '"//trim(simulation_config%excitation_type)// &
+                                "'; use plane_wave or electric_dipole")
+         return
+      end select
+      dipole_position = simulation_config%electric_dipole_position * simulation_config%length_scale_factor
       simulation_config%calculate_up_down_scattering = simulation_config%input_calculate_up_down_scattering
       if (simulation_config%reflection_model) then
          simulation_config%calculate_up_down_scattering = .true.
@@ -248,6 +263,10 @@ contains
          flush (6)
       end if
       call sphere_cluster%initialize_layers()
+      if (dipole_incident) then
+         call validate_electric_dipole(dipole_position)
+         if (runtime_failed()) return
+      end if
       call validate_material_configuration()
       if (runtime_failed()) return
       call calculate_mie_coefficients(simulation_config%solver%mie_epsilon)
@@ -406,27 +425,34 @@ contains
             simulation_config%scattering_matrix_angle_maximum = 180.d0
          end if
       else
-         if (simulation_config%incident_beta_specified) then
-            simulation_result%incident_beta = simulation_config%incident_beta_degrees * degrees_to_radians
-            if (simulation_config%incident_beta_degrees .le. 90.d0) then
-               simulation_config%incident_direction = 1
-               simulation_result%incident_sin_beta = sind(simulation_config%incident_beta_degrees) / dble(layer_ref_index(0))
-            else
-               simulation_config%incident_direction = 2
-               simulation_result%incident_sin_beta = sind(simulation_config%incident_beta_degrees) &
-                                                     / dble(layer_ref_index(number_plane_boundaries))
-            end if
-         else
-            simulation_result%incident_beta = 0.d0
-         end if
-         if (simulation_config%incidence_average) then
+         if (dipole_incident) then
             simulation_result%efficiency_dimension = 1
+            simulation_result%incident_beta = 0.0_real64
+            simulation_result%incident_sin_beta = 0.0_real64
+            alpha = 0.0_real64
          else
-            simulation_result%efficiency_dimension = 3
+            if (simulation_config%incident_beta_specified) then
+               simulation_result%incident_beta = simulation_config%incident_beta_degrees * degrees_to_radians
+               if (simulation_config%incident_beta_degrees .le. 90.d0) then
+                  simulation_config%incident_direction = 1
+                  simulation_result%incident_sin_beta = sind(simulation_config%incident_beta_degrees) / dble(layer_ref_index(0))
+               else
+                  simulation_config%incident_direction = 2
+                  simulation_result%incident_sin_beta = sind(simulation_config%incident_beta_degrees) &
+                                                        / dble(layer_ref_index(number_plane_boundaries))
+               end if
+            else
+               simulation_result%incident_beta = 0.d0
+            end if
+            if (simulation_config%incidence_average) then
+               simulation_result%efficiency_dimension = 1
+            else
+               simulation_result%efficiency_dimension = 3
+            end if
+            alpha = simulation_config%incident_alpha_degrees * degrees_to_radians
+            call initialize_incident_field(alpha, simulation_result%incident_sin_beta, simulation_config%incident_direction)
          end if
-         alpha = simulation_config%incident_alpha_degrees * degrees_to_radians
-         call initialize_incident_field(alpha, simulation_result%incident_sin_beta, simulation_config%incident_direction)
-         if (simulation_config%calculate_scattering_matrix) then
+         if (simulation_config%calculate_scattering_matrix .and. .not. dipole_incident) then
             if (allocated(simulation_result%scattering_matrix)) deallocate (simulation_result%scattering_matrix)
             if (periodic_lattice) then
                call periodic_lattice_scattering(simulation_result%solution_coefficients, simulation_result%plane_scattering, dry_run=.true., num_dirs=simulation_result%reflection_transmission_direction_counts)
@@ -488,7 +514,7 @@ contains
 
       if (allocated(simulation_result%efficiency)) deallocate (simulation_result%efficiency, simulation_result%total_efficiency, simulation_result%volume_absorption)
       allocate (simulation_result%efficiency(3, simulation_result%efficiency_dimension, sphere_cluster%number_spheres), simulation_result%total_efficiency(3, simulation_result%efficiency_dimension), simulation_result%volume_absorption(simulation_result%efficiency_dimension, sphere_cluster%number_spheres))
-      if (simulation_config%calculate_scattering_matrix) then
+      if (simulation_config%calculate_scattering_matrix .and. .not. dipole_incident) then
          if (allocated(simulation_result%scattering_matrix)) deallocate (simulation_result%scattering_matrix)
          allocate (simulation_result%scattering_matrix(simulation_result%scattering_matrix_dimension, simulation_result%scattering_matrix_lower_bound:simulation_result%scattering_matrix_upper_bound))
       end if
@@ -573,14 +599,33 @@ contains
             write (sphere_cluster%run_print_unit, '('' generating solution:'')', advance='no')
             timet = parallel_wall_time()
          end if
-         call solve_fixed_orientation(alpha, simulation_result%incident_sin_beta, simulation_config%incident_direction, simulation_config%solver%solution_epsilon, niter, &
-                                      simulation_result%solution_coefficients, simulation_result%efficiency, &
-        simulation_result%efficiency_dimension, simulation_result%solution_error, simulation_result%solution_iterations, 1, istat, &
-                                      mpi_comm=mpicomm, &
-                                      excited_spheres=simulation_config%sphere_excitation_switch, &
-                                      solution_method=simulation_config%solver%solution_method(1:1), &
-                                      initialize_solver=.true., &
-                                      reciprocal_condition=simulation_result%reciprocal_condition)
+         if (dipole_incident) then
+            allocate (dipole_coefficients(sphere_cluster%number_eqns, 2))
+            dipole_coefficients = (0.0_real64, 0.0_real64)
+            call distribute_electric_dipole(dipole_position, simulation_config%electric_dipole_moment, &
+                                            dipole_coefficients(:, 1:1), mpi_comm=mpicomm)
+            call solve_fixed_orientation(alpha, simulation_result%incident_sin_beta, simulation_config%incident_direction, &
+                                         simulation_config%solver%solution_epsilon, niter, &
+                                         simulation_result%solution_coefficients, simulation_result%efficiency, &
+                                         simulation_result%efficiency_dimension, simulation_result%solution_error, &
+                                         simulation_result%solution_iterations, 1, istat, mpi_comm=mpicomm, &
+                                         excited_spheres=simulation_config%sphere_excitation_switch, &
+                                         solution_method=simulation_config%solver%solution_method(1:1), &
+                                         initialize_solver=.true., &
+                                         reciprocal_condition=simulation_result%reciprocal_condition, &
+                                         incident_coefficients=dipole_coefficients, number_rhs=1)
+            deallocate (dipole_coefficients)
+         else
+            call solve_fixed_orientation(alpha, simulation_result%incident_sin_beta, simulation_config%incident_direction, &
+                                         simulation_config%solver%solution_epsilon, niter, &
+                                         simulation_result%solution_coefficients, simulation_result%efficiency, &
+                                         simulation_result%efficiency_dimension, simulation_result%solution_error, &
+                                         simulation_result%solution_iterations, 1, istat, mpi_comm=mpicomm, &
+                                         excited_spheres=simulation_config%sphere_excitation_switch, &
+                                         solution_method=simulation_config%solver%solution_method(1:1), &
+                                         initialize_solver=.true., &
+                                         reciprocal_condition=simulation_result%reciprocal_condition)
+         end if
          if (runtime_failed()) return
          if (istat /= solver_converged) then
             call set_runtime_error('Fixed-orientation solver failed: '//trim(solver_status_message(istat)), istat)
@@ -609,115 +654,138 @@ contains
 
          call total_efficiency_factors(sphere_cluster%number_spheres, simulation_result%efficiency_dimension, sphere_cluster%cross_section_radius, &
                               simulation_result%efficiency, simulation_result%volume_absorption, simulation_result%total_efficiency)
-!            simulation_result%total_efficiency(3,:)=simulation_result%total_efficiency(1,:)-simulation_result%total_efficiency(2,:)
-         csca = simulation_result%total_efficiency(3, 1) * pi * sphere_cluster%cross_section_radius**2
-         if (singleorigin) then
+         if (dipole_incident) then
             if (allocated(simulation_result%incident_coefficients)) deallocate (simulation_result%incident_coefficients)
+            allocate (simulation_result%incident_coefficients( &
+                      2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_order + 2), 2))
+            simulation_result%incident_coefficients = (0.0_real64, 0.0_real64)
+            call merge_to_common_origin(sphere_cluster%t_matrix_order, &
+                                        simulation_result%solution_coefficients(:, 1:1), &
+                                        simulation_result%incident_coefficients(:, 1:1), number_rhs=1, &
+                                        origin_position=sphere_cluster%cluster_origin, merge_procs=.true., mpi_comm=mpicomm)
+            source_power = two_pi * electric_dipole_source_power(simulation_config%electric_dipole_moment)
+            simulation_result%dipole_scattered_power = &
+               two_pi * sum(abs(simulation_result%incident_coefficients(:, 1))**2) / source_power
+            csca = pi * sphere_cluster%cross_section_radius**2 &
+                   * simulation_result%total_efficiency(3, 1) / source_power
+            simulation_result%dipole_scattered_power_residual = &
+               abs(csca - simulation_result%dipole_scattered_power) &
+               / max(tiny(1.0_real64), abs(csca), abs(simulation_result%dipole_scattered_power))
+            simulation_result%dipole_absorbed_power = pi * sphere_cluster%cross_section_radius**2 &
+                                                      * simulation_result%total_efficiency(2, 1) / source_power
+            simulation_result%dipole_extracted_power = simulation_result%dipole_scattered_power &
+                                                       + simulation_result%dipole_absorbed_power
+         else
+!            simulation_result%total_efficiency(3,:)=simulation_result%total_efficiency(1,:)-simulation_result%total_efficiency(2,:)
+            csca = simulation_result%total_efficiency(3, 1) * pi * sphere_cluster%cross_section_radius**2
+            if (singleorigin) then
+               if (allocated(simulation_result%incident_coefficients)) deallocate (simulation_result%incident_coefficients)
       allocate (simulation_result%incident_coefficients(2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_order + 2), 2))
-            simulation_result%incident_coefficients = 0.d0
-            if (light_up) then
-               write (*, '('' s8.3.1 '',i3)') mstm_global_rank
-               flush (6)
-            end if
-!call parallel_barrier()
-            do i = 1, 2
-               call merge_to_common_origin(sphere_cluster%t_matrix_order, simulation_result%solution_coefficients(:, i), simulation_result%incident_coefficients(:, i), &
-                                           origin_position=sphere_cluster%cluster_origin, merge_procs=.true., &
-                                           mpi_comm=mpicomm)
-               if (iframe) then
-                  call rotate_expansion_coefficients(alpha, simulation_result%incident_beta, 0.d0, sphere_cluster%t_matrix_order, &
-                                                    sphere_cluster%t_matrix_order, simulation_result%incident_coefficients(:, i), 1)
+               simulation_result%incident_coefficients = 0.d0
+               if (light_up) then
+                  write (*, '('' s8.3.1 '',i3)') mstm_global_rank
+                  flush (6)
                end if
-            end do
-            if (light_up) then
-               write (*, '('' s8.3.2 '',i3)') mstm_global_rank
-               flush (6)
-            end if
+!call parallel_barrier()
+               do i = 1, 2
+               call merge_to_common_origin(sphere_cluster%t_matrix_order, simulation_result%solution_coefficients(:, i), simulation_result%incident_coefficients(:, i), &
+                                              origin_position=sphere_cluster%cluster_origin, merge_procs=.true., &
+                                              mpi_comm=mpicomm)
+                  if (iframe) then
+                   call rotate_expansion_coefficients(alpha, simulation_result%incident_beta, 0.d0, sphere_cluster%t_matrix_order, &
+                                                    sphere_cluster%t_matrix_order, simulation_result%incident_coefficients(:, i), 1)
+                  end if
+               end do
+               if (light_up) then
+                  write (*, '('' s8.3.2 '',i3)') mstm_global_rank
+                  flush (6)
+               end if
 !call parallel_barrier()
         if (singleorigin .and. simulation_config%azimuthal_average .and. (.not. simulation_config%numerical_azimuthal_average)) then
             if (allocated(simulation_result%scattering_matrix_expansion)) deallocate (simulation_result%scattering_matrix_expansion)
-               allocate (simulation_result%scattering_matrix_expansion(16, 0:2 * sphere_cluster%t_matrix_order, 4))
-               call fixed_orientation_scattering_matrix_expansion( &
+                  allocate (simulation_result%scattering_matrix_expansion(16, 0:2 * sphere_cluster%t_matrix_order, 4))
+                  call fixed_orientation_scattering_matrix_expansion( &
                   sphere_cluster%t_matrix_order, simulation_result%incident_coefficients, simulation_result%scattering_matrix_expansion(:, :, 1), simulation_result%scattering_matrix_expansion(:, :, 2), &
    simulation_result%scattering_matrix_expansion(:, :, 3), simulation_result%scattering_matrix_expansion(:, :, 4), mpi_comm=mpicomm)
-            end if
-            if (light_up) then
-               write (*, '('' s8.3.4 '',i3)') mstm_global_rank
-               flush (6)
-            end if
+               end if
+               if (light_up) then
+                  write (*, '('' s8.3.4 '',i3)') mstm_global_rank
+                  flush (6)
+               end if
 !call parallel_barrier()
-            if (simulation_config%calculate_scattering_matrix) then
+               if (simulation_config%calculate_scattering_matrix) then
       call compute_scattering_matrix(simulation_result%incident_coefficients, simulation_result%scattering_matrix, mpi_comm=mpicomm)
-            end if
-            if (light_up) then
-               write (*, '('' s8.3.5 '',i3)') mstm_global_rank
-               flush (6)
-            end if
+               end if
+               if (light_up) then
+                  write (*, '('' s8.3.5 '',i3)') mstm_global_rank
+                  flush (6)
+               end if
 !call parallel_barrier()
-            if (sphere_cluster%gaussian_beam_constant .eq. 0.d0) then
-               simulation_result%boundary_extinction = 0.d0
-               ! A finite cluster without interfaces does not use plane-boundary
-               ! extinction.  Avoid the spectral Green-function normalization at
-               ! exact grazing incidence, where its longitudinal wave number is zero.
-               if (number_plane_boundaries .gt. 0 .or. periodic_lattice .or. simulation_config%reflection_model) then
+               if (sphere_cluster%gaussian_beam_constant .eq. 0.d0) then
+                  simulation_result%boundary_extinction = 0.d0
+                  ! A finite cluster without interfaces does not use plane-boundary
+                  ! extinction.  Avoid the spectral Green-function normalization at
+                  ! exact grazing incidence, where its longitudinal wave number is zero.
+                  if (number_plane_boundaries .gt. 0 .or. periodic_lattice .or. simulation_config%reflection_model) then
                   call boundary_extinction(simulation_result%incident_coefficients, alpha, simulation_result%incident_sin_beta, simulation_config%incident_direction, simulation_result%boundary_extinction, &
-                                           common_origin=singleorigin)
+                                              common_origin=singleorigin)
+                  end if
                end if
-            end if
-         else
-            if (light_up) then
-               write (*, '('' s8.3.5 '',i3)') mstm_global_rank
-               flush (6)
-            end if
-!call parallel_barrier()
-            if (light_up) then
-               write (*, '('' s8.3.5 '',i3)') mstm_global_rank
-               flush (6)
-            end if
-!call parallel_barrier()
-            if (simulation_config%calculate_scattering_matrix) then
-      call compute_scattering_matrix(simulation_result%solution_coefficients, simulation_result%scattering_matrix, mpi_comm=mpicomm)
-            end if
-            if (sphere_cluster%gaussian_beam_constant .eq. 0.d0) then
-               simulation_result%boundary_extinction = 0.d0
-               if (number_plane_boundaries .gt. 0 .or. periodic_lattice .or. simulation_config%reflection_model) then
-                  call boundary_extinction(simulation_result%solution_coefficients, alpha, simulation_result%incident_sin_beta, simulation_config%incident_direction, simulation_result%boundary_extinction)
-               end if
-            end if
-         end if
-
-         if (simulation_config%calculate_up_down_scattering) then
-            if (singleorigin) then
-               call hemispherical_scattering(simulation_result%incident_coefficients, .true., simulation_config%numerical_hemispherical_integration, &
-                                             simulation_result%boundary_scattering, mpi_comm=mpicomm)
             else
-               call hemispherical_scattering(simulation_result%solution_coefficients, .false., simulation_config%numerical_hemispherical_integration, &
-                                             simulation_result%boundary_scattering, mpi_comm=mpicomm)
+               if (light_up) then
+                  write (*, '('' s8.3.5 '',i3)') mstm_global_rank
+                  flush (6)
+               end if
+!call parallel_barrier()
+               if (light_up) then
+                  write (*, '('' s8.3.5 '',i3)') mstm_global_rank
+                  flush (6)
+               end if
+!call parallel_barrier()
+               if (simulation_config%calculate_scattering_matrix) then
+      call compute_scattering_matrix(simulation_result%solution_coefficients, simulation_result%scattering_matrix, mpi_comm=mpicomm)
+               end if
+               if (sphere_cluster%gaussian_beam_constant .eq. 0.d0) then
+                  simulation_result%boundary_extinction = 0.d0
+                  if (number_plane_boundaries .gt. 0 .or. periodic_lattice .or. simulation_config%reflection_model) then
+                  call boundary_extinction(simulation_result%solution_coefficients, alpha, simulation_result%incident_sin_beta, simulation_config%incident_direction, simulation_result%boundary_extinction)
+                  end if
+               end if
             end if
-         end if
 
-         if (sphere_cluster%gaussian_beam_constant .ne. 0.d0) then
-            simulation_result%boundary_extinction = 0
-            simulation_result%boundary_extinction(1:2, 1) = -simulation_result%total_efficiency(1, 2:3)
-         end if
+            if (simulation_config%calculate_up_down_scattering) then
+               if (singleorigin) then
+               call hemispherical_scattering(simulation_result%incident_coefficients, .true., simulation_config%numerical_hemispherical_integration, &
+                                                simulation_result%boundary_scattering, mpi_comm=mpicomm)
+               else
+               call hemispherical_scattering(simulation_result%solution_coefficients, .false., simulation_config%numerical_hemispherical_integration, &
+                                                simulation_result%boundary_scattering, mpi_comm=mpicomm)
+               end if
+            end if
 
-         if (periodic_lattice) then
-            call periodic_lattice_scattering(simulation_result%solution_coefficients, simulation_result%plane_scattering)
-         elseif (simulation_config%reflection_model) then
+            if (sphere_cluster%gaussian_beam_constant .ne. 0.d0) then
+               simulation_result%boundary_extinction = 0
+               simulation_result%boundary_extinction(1:2, 1) = -simulation_result%total_efficiency(1, 2:3)
+            end if
+
+            if (periodic_lattice) then
+               call periodic_lattice_scattering(simulation_result%solution_coefficients, simulation_result%plane_scattering)
+            elseif (simulation_config%reflection_model) then
 !               simulation_result%plane_scattering(:,1)=simulation_result%boundary_scattering(:,number_plane_boundaries+1)
-            simulation_result%plane_scattering(:, 1) = simulation_result%boundary_scattering(:, 1)
-            simulation_result%plane_scattering(:, 2) = -simulation_result%boundary_scattering(:, 0)
-         end if
+               simulation_result%plane_scattering(:, 1) = simulation_result%boundary_scattering(:, 1)
+               simulation_result%plane_scattering(:, 2) = -simulation_result%boundary_scattering(:, 0)
+            end if
 
-         if (periodic_lattice .or. simulation_config%reflection_model) then
-            call calculate_surface_absorptance()
-         end if
+            if (periodic_lattice .or. simulation_config%reflection_model) then
+               call calculate_surface_absorptance()
+            end if
 
-         if (number_plane_boundaries .gt. 0 .and. .not. periodic_lattice) then
+            if (number_plane_boundaries .gt. 0 .and. .not. periodic_lattice) then
 !               simulation_result%evanescent_scattering(1:2)=simulation_result%total_efficiency(1,2:3)-simulation_result%total_efficiency(2,2:3)+simulation_result%boundary_scattering(1:2,0) &
 !                  - simulation_result%boundary_scattering(:,number_plane_boundaries+1)
             simulation_result%evanescent_scattering(1:2) = simulation_result%total_efficiency(1, 2:3) - simulation_result%total_efficiency(2, 2:3) + simulation_result%boundary_scattering(1:2, 0) &
-                                                           - simulation_result%boundary_scattering(:, 1)
+                                                              - simulation_result%boundary_scattering(:, 1)
+            end if
          end if
 
          if (simulation_config%output%print_timings .and. mstm_global_rank .eq. 0) then
@@ -766,9 +834,20 @@ contains
             end if
             if (runtime_failed()) return
             simulation_config%output%append_near_field = .true.
-            call compute_near_field(simulation_result%solution_coefficients, alpha, simulation_result%incident_sin_beta, simulation_config%incident_direction, &
-                                    simulation_config%near_field_plane_vertices, celldim, &
-                         incident_model=simulation_config%near_field_calculation_model, output_unit=file_unit, output_header=.true.)
+            if (dipole_incident) then
+               call compute_near_field(simulation_result%solution_coefficients, alpha, &
+                                       simulation_result%incident_sin_beta, simulation_config%incident_direction, &
+                                       simulation_config%near_field_plane_vertices, celldim, &
+                                       incident_model=simulation_config%near_field_calculation_model, output_unit=file_unit, &
+                                       output_header=.true., mpi_comm=mpicomm, dipole_position=dipole_position, &
+                                       dipole_moment=simulation_config%electric_dipole_moment)
+            else
+               call compute_near_field(simulation_result%solution_coefficients, alpha, &
+                                       simulation_result%incident_sin_beta, simulation_config%incident_direction, &
+                                       simulation_config%near_field_plane_vertices, celldim, &
+                                       incident_model=simulation_config%near_field_calculation_model, output_unit=file_unit, &
+                                       output_header=.true., mpi_comm=mpicomm)
+            end if
             close (file_unit)
          end if
          call gather_error_codes(mpicomm)
@@ -776,6 +855,53 @@ contains
       end if
 
    end subroutine execute_simulation
+
+   subroutine validate_electric_dipole(position)
+      real(real64), intent(in) :: position(3)
+      integer :: sphere
+      real(real64) :: distance
+      character(len=160) :: message
+
+      if (number_plane_boundaries > 0 .or. simulation_config%reflection_model) then
+         call set_runtime_error('electric_dipole excitation currently requires a homogeneous exterior without plane boundaries')
+         return
+      end if
+      if (periodic_lattice) then
+         call set_runtime_error('electric_dipole excitation currently requires a finite, non-periodic cluster')
+         return
+      end if
+      if (simulation_config%random_orientation .or. simulation_config%configuration_average .or. &
+          simulation_config%incidence_average .or. simulation_config%effective_medium_simulation) then
+         call set_runtime_error('electric_dipole excitation does not yet support orientation, incidence, configuration, or effective-medium averaging')
+         return
+      end if
+      if (sphere_cluster%gaussian_beam_constant /= 0.0_real64) then
+         call set_runtime_error('electric_dipole excitation cannot be combined with gaussian_beam_constant')
+         return
+      end if
+      if (aimag(layer_ref_index(0)) /= 0.0_real64 .or. real(layer_ref_index(0)) <= 0.0_real64) then
+         call set_runtime_error('electric_dipole power normalization currently requires a lossless exterior medium with positive refractive index')
+         return
+      end if
+      if (.not. all(ieee_is_finite(position)) .or. &
+          .not. all(ieee_is_finite(real(simulation_config%electric_dipole_moment))) .or. &
+          .not. all(ieee_is_finite(aimag(simulation_config%electric_dipole_moment)))) then
+         call set_runtime_error('electric_dipole_position and electric_dipole_moment must be finite')
+         return
+      end if
+      if (electric_dipole_source_power(simulation_config%electric_dipole_moment) <= tiny(1.0_real64)) then
+         call set_runtime_error('electric_dipole_moment must be nonzero')
+         return
+      end if
+      do sphere = 1, sphere_cluster%number_spheres
+         distance = sqrt(sum((position - sphere_cluster%sphere_position(:, sphere))**2))
+         if (distance <= sphere_cluster%sphere_radius(sphere) * (1.0_real64 + 1.0e-12_real64)) then
+            write (message, '(a,i0)') 'electric_dipole_position must lie outside every sphere; it intersects sphere ', sphere
+            call set_runtime_error(trim(message))
+            return
+         end if
+      end do
+   end subroutine validate_electric_dipole
 
    subroutine gather_error_codes(mpicomm)
       implicit none

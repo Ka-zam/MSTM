@@ -2,6 +2,7 @@ module input_reporting
    use, intrinsic :: iso_fortran_env, only: real64
    use runtime_support, only: open_update_file, runtime_failed, set_runtime_error
    use constants
+   use excitation, only: electric_dipole_excitation
    use effective_medium_analysis, only: diffuse_scattering_effective_refractive_index, &
                                         effective_extinction_coefficient_ratio
    use fft_translation, only: fft_plan, fft_translation_metrics_t
@@ -142,21 +143,30 @@ contains
          write (iunit, '('' random orientation, estimated t matrix order:'')')
          write (iunit, '(i6)') sphere_cluster%t_matrix_order
       else
-         if (sphere_cluster%gaussian_beam_constant .ne. 0.d0) then
-            write (iunit, '('' incident Gaussian beam: 1/beam width, focal point'')')
-            write (iunit, '(4es12.4)') sphere_cluster%gaussian_beam_constant, sphere_cluster%gaussian_beam_focal_point
+         if (trim(simulation_config%excitation_type) == electric_dipole_excitation) then
+            write (iunit, '('' incident electric dipole: scaled position'')')
+            write (iunit, '(3es12.4)') simulation_config%electric_dipole_position * simulation_config%length_scale_factor
+            write (iunit, '('' normalized complex electric dipole moment (x,y,z)'')')
+            write (iunit, '(6es12.4)') simulation_config%electric_dipole_moment
+            if (simulation_config%calculate_scattering_matrix) &
+               write (iunit, '('' plane-wave scattering matrix output is not applicable and will be skipped'')')
          else
-            write (iunit, '('' incident plane wave'')')
-         end if
-         if (simulation_config%incidence_average) then
-            write (iunit, '('' Monte Carlo average over incident directions'')')
-         else
-            if (simulation_config%incident_beta_specified) then
-               write (iunit, '('' incident alpha, beta(deg)'')')
-               write (iunit, '(2es12.4)') simulation_config%incident_alpha_degrees, simulation_config%incident_beta_degrees
+            if (sphere_cluster%gaussian_beam_constant .ne. 0.d0) then
+               write (iunit, '('' incident Gaussian beam: 1/beam width, focal point'')')
+               write (iunit, '(4es12.4)') sphere_cluster%gaussian_beam_constant, sphere_cluster%gaussian_beam_focal_point
             else
-               write (iunit, '('' incident alpha(deg), incident sin(beta), incident direction'')')
-               write (iunit, '(2es12.4,i3)') simulation_config%incident_alpha_degrees, simulation_result%incident_sin_beta, 3 - 2 * simulation_config%incident_direction
+               write (iunit, '('' incident plane wave'')')
+            end if
+            if (simulation_config%incidence_average) then
+               write (iunit, '('' Monte Carlo average over incident directions'')')
+            else
+               if (simulation_config%incident_beta_specified) then
+                  write (iunit, '('' incident alpha, beta(deg)'')')
+                  write (iunit, '(2es12.4)') simulation_config%incident_alpha_degrees, simulation_config%incident_beta_degrees
+               else
+                  write (iunit, '('' incident alpha(deg), incident sin(beta), incident direction'')')
+                  write (iunit, '(2es12.4,i3)') simulation_config%incident_alpha_degrees, simulation_result%incident_sin_beta, 3 - 2 * simulation_config%incident_direction
+               end if
             end if
          end if
          if (simulation_config%single_origin_expansion) then
@@ -372,6 +382,26 @@ contains
       if (simulation_config%random_orientation) then
          write (outunit, '('' calculated t matrix order:'')')
          write (outunit, '(i6)') sphere_cluster%t_matrix_order
+      end if
+
+      if (trim(simulation_config%excitation_type) == electric_dipole_excitation) then
+         write (outunit, '('' electric-dipole cluster response relative to isolated-source radiation'')')
+         write (outunit, '('' extracted, absorbed, scattered power ratios'')')
+         write (outunit, '(3es12.4)') simulation_result%dipole_extracted_power, &
+            simulation_result%dipole_absorbed_power, simulation_result%dipole_scattered_power
+         write (outunit, '('' multipole/efficiency scattered-power relative residual'')')
+         write (outunit, '(es12.4)') simulation_result%dipole_scattered_power_residual
+         if (simulation_config%output%print_sphere_data) then
+            write (outunit, '('' per-sphere absorbed power ratio'')')
+            write (outunit, '(''   sphere    absorbed'')')
+            do n = 1, sphere_cluster%number_spheres
+               write (outunit, '(i8,es12.4)') n, pi * sphere_cluster%sphere_radius(n)**2 &
+                  * simulation_result%efficiency(2, 1, n) &
+                  / (two_pi * 3.0_real64 * sum(abs(simulation_config%electric_dipole_moment)**2))
+            end do
+         end if
+         if (outunit .ne. 6) close (outunit)
+         return
       end if
 
       if (simulation_config%output%print_sphere_data) then

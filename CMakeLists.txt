@@ -108,6 +108,7 @@ set(mstm_core_sources
   src/coefficient_indexing.f90
   src/angular_functions.f90
   src/wave_functions.f90
+  src/excitation.f90
   src/quadrature.f90
   src/surface.f90
   src/periodic_lattice.f90
@@ -214,6 +215,7 @@ if(FPRETTIFY_EXECUTABLE)
       tests/bessel_test.f90
       tests/concurrent_kernels_test.f90
       tests/direct_lu_solver_test.f90
+      tests/excitation_test.f90
       tests/gpfa_test.f90
       tests/mie_test.f90
       tests/output_regression_test.f90
@@ -246,6 +248,11 @@ if(BUILD_TESTING)
   mstm_apply_fortran_options(direct_lu_solver_test)
   target_link_libraries(direct_lu_solver_test PRIVATE mstm_core)
   add_test(NAME direct_lu_solver_unit COMMAND direct_lu_solver_test)
+
+  add_executable(excitation_test tests/excitation_test.f90)
+  mstm_apply_fortran_options(excitation_test)
+  target_link_libraries(excitation_test PRIVATE mstm_core)
+  add_test(NAME excitation_unit COMMAND excitation_test)
 
   add_executable(sphere_cluster_test tests/sphere_cluster_test.f90)
   mstm_apply_fortran_options(sphere_cluster_test)
@@ -351,6 +358,11 @@ if(BUILD_TESTING)
   endfunction()
 
   add_mstm_failure_test(invalid_input_error invalid-option.inp "Unknown input parameter")
+  add_mstm_failure_test(
+    electric_dipole_inside_sphere_error
+    electric-dipole-inside-sphere.inp
+    "electric_dipole_position must lie outside every sphere"
+  )
   add_mstm_failure_test(missing_sphere_file_error missing-sphere-file.inp "Cannot open input file 'does-not-exist.pos'")
   add_mstm_failure_test(
     solver_nonconvergence_error
@@ -469,6 +481,12 @@ if(BUILD_TESTING)
     near_field_modes
   )
   add_mstm_regression_test(
+    electric_dipole
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/electric-dipole.inp"
+    "electric-dipole.dat,electric-dipole-near-field.dat"
+    electric_dipole
+  )
+  add_mstm_regression_test(
     state_lifecycle
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/state-lifecycle.inp"
     state-lifecycle.dat
@@ -539,6 +557,23 @@ if(BUILD_TESTING)
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunSmokeTest.cmake"
     )
 
+    set(mpi_dipole_test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/mpi_two_rank_electric_dipole")
+    file(MAKE_DIRECTORY "${mpi_dipole_test_work_dir}")
+    add_test(
+      NAME mpi_two_rank_electric_dipole
+      COMMAND "${CMAKE_COMMAND}"
+        "-DMSTM_EXECUTABLE=$<TARGET_FILE:mstm>"
+        "-DMSTM_INPUT=${CMAKE_CURRENT_SOURCE_DIR}/tests/electric-dipole.inp"
+        "-DMSTM_WORK_DIR=${mpi_dipole_test_work_dir}"
+        "-DMSTM_EXPECTED_OUTPUTS=electric-dipole.dat,electric-dipole-near-field.dat"
+        "-DMSTM_REGRESSION_EXECUTABLE=$<TARGET_FILE:output_regression_test>"
+        "-DMSTM_REGRESSION_CASE=electric_dipole"
+        "-DMSTM_MPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMSTM_MPI_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMSTM_MPI_RANKS=2"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunSmokeTest.cmake"
+    )
+
     if(MSTM_SERIAL_REFERENCE_EXECUTABLE)
       if(NOT EXISTS "${MSTM_SERIAL_REFERENCE_EXECUTABLE}")
         message(FATAL_ERROR
@@ -578,6 +613,12 @@ if(BUILD_TESTING)
         fft-translation-validation.dat
         parallel_fft_equivalence
       )
+      add_mstm_parallel_equivalence_test(
+        serial_two_four_rank_dipole_equivalence
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/electric-dipole.inp"
+        electric-dipole.dat
+        parallel_dipole_equivalence
+      )
     endif()
   endif()
 endif()
@@ -598,6 +639,7 @@ if(MSTM_ENABLE_COVERAGE)
       bessel_test
       concurrent_kernels_test
       direct_lu_solver_test
+      excitation_test
       gpfa_test
       mie_test
       output_regression_test

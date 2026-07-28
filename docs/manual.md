@@ -193,6 +193,23 @@ end_of_options
 
 With `incident_frame=t`, zero scattering angle is the incident direction. With it false, angles use the target frame and $\theta=0$ is the positive $z$ axis.
 
+#### Electric-dipole excitation
+
+A fixed finite cluster can instead be driven by one exterior electric point dipole:
+
+```text
+excitation_type
+electric_dipole
+electric_dipole_position
+0.d0,0.d0,2.d0
+electric_dipole_moment
+(1.d0,0.d0),(0.d0,0.d0),(0.d0,0.d0)
+```
+
+The position is multiplied by `length_scale_factor` and must lie outside every sphere. The complex Cartesian moment is dimensionless: its electric/TM $n=1$ regular field equals the specified vector at the source origin. Reported absorbed, scattered, and extracted power ratios are normalized by the corresponding isolated-source radiation, $6\pi\sum_i|p_i|^2$ in MSTM's VSWF convention; they are not SI watts.
+
+This first implementation requires a lossless homogeneous exterior with positive refractive index, `number_plane_boundaries=0`, `periodic_lattice=f`, fixed orientation, and no incidence, configuration, or effective-medium averaging. Plane-wave scattering matrices are not produced. Near-field grids must exclude the singular source point. See `examples/electric-dipole-sphere.inp`.
+
 ### 5.3 Plane boundaries
 
 The first boundary is always $z=0$. This example places a unit-radius air bubble in a glass layer of thickness 2:
@@ -292,6 +309,9 @@ Defaults are shown in parentheses where established by the current source.
 | `periodic_lattice` | Enable infinite repetition in $x,y$ (`f`). |
 | `cell_width` | One value for a square cell or two values for $W_x,W_y$. |
 | `finite_lattice` | Use finite-lattice behavior instead of infinite periodic repetition. |
+| `excitation_type` | `plane_wave` (also used for the existing Gaussian-beam path) or `electric_dipole` (`plane_wave`). |
+| `electric_dipole_position` | Unscaled Cartesian source position for electric-dipole excitation (`0,0,0`). |
+| `electric_dipole_moment` | Three complex Cartesian components of the normalized dipole moment (`(1,0),(0,0),(0,0)`). |
 | `gaussian_beam_constant` | Inverse focal width; zero selects a plane wave (`0`). The localized approximation is intended for values up to about `0.2`. |
 | `gaussian_beam_focal_point` | Unscaled focal-point coordinates (`0,0,0`). |
 
@@ -374,7 +394,7 @@ FFT translation batches repeated 3-D transforms and reports phase timings when `
 | `near_field_expansion_order` | Re-expansion truncation order (`10`). |
 | `near_field_output_file` | Field-map output (`nftest.dat`). |
 
-The near-field file starts with run and geometry metadata, then grid dimensions. Each point has coordinates followed by complex electric and magnetic vector components for parallel and perpendicular incident polarizations (27 real columns total).
+The near-field file starts with run and geometry metadata, then grid dimensions. Plane-wave points contain coordinates followed by complex electric and magnetic vectors for parallel and perpendicular polarization (27 real columns). Electric-dipole points contain one complex electric vector and one complex magnetic vector (15 real columns).
 
 ### 6.7 Random configuration generation
 

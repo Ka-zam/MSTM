@@ -422,20 +422,21 @@ contains
    subroutine solve_fixed_orientation(alpha, sinc, dir, eps, niter, amnp, qeff, &
                                       qeffdim, maxerr, maxiter, iterwrite, istat, &
                                       mpi_comm, excited_spheres, solution_method, initialize_solver, &
-                                      reciprocal_condition)
+                                      reciprocal_condition, incident_coefficients, number_rhs)
       implicit none
       logical :: firstrun, exsphere(sphere_cluster%number_spheres), dirsoln, initialize
       logical, save :: inp1, inp2
       logical, optional :: excited_spheres(sphere_cluster%number_spheres), initialize_solver
       integer :: ierr, iter, niter, istat, rank, maxiter, iterwrite, nsend, &
                  numprocs, mpicomm, prank, oddnumproc, &
-                 groupsize, pgroup, mpigroup, syncgroup, i, p, dir, qeffdim
+                 groupsize, pgroup, mpigroup, syncgroup, i, p, dir, qeffdim, nrhs
       integer, save :: pcomm, synccomm1, synccomm2, p1, p2
       integer, allocatable :: grouplist(:)
-      integer, optional :: mpi_comm
+      integer, optional :: mpi_comm, number_rhs
       real(real64) :: alpha, sinc, eps, serr, qeff(3, qeffdim, sphere_cluster%number_spheres), maxerr, direct_condition
       real(real64), optional, intent(out) :: reciprocal_condition
       complex(real64) :: amnp(sphere_cluster%number_eqns, 2)
+      complex(real64), optional, intent(in) :: incident_coefficients(sphere_cluster%number_eqns, 2)
       complex(real64), allocatable :: pmnpan(:), pmnp0(:, :)
       class(interaction_operator_t), allocatable :: external_operator
       type(direct_lu_solver_t) :: direct_solver
@@ -445,6 +446,11 @@ contains
          mpicomm = mpi_comm
       else
          mpicomm = mpi_comm_world
+      end if
+      if (present(number_rhs)) then
+         nrhs = number_rhs
+      else
+         nrhs = 2
       end if
       call create_interaction_operator(sphere_cluster%fft_translation_option, external_operator)
       if (present(excited_spheres)) then
@@ -468,7 +474,7 @@ contains
       call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
 
       if (initialize) then
-         if (numprocs .gt. 1 .and. (.not. dirsoln)) then
+         if (numprocs .gt. 1 .and. (.not. dirsoln) .and. nrhs .eq. 2) then
             oddnumproc = mod(numprocs, 2)
             pgroup = floor(dble(2 * rank) / dble(numprocs)) + 1
             p1 = pgroup
@@ -527,7 +533,7 @@ contains
             deallocate (grouplist)
          else
             p1 = 1
-            p2 = 2
+            p2 = nrhs
             pcomm = mpicomm
          end if
       end if
@@ -542,9 +548,14 @@ contains
 !call parallel_barrier()
 
       allocate (pmnpan(sphere_cluster%number_eqns), pmnp0(sphere_cluster%number_eqns, 2))
+      pmnp0 = (0.0_real64, 0.0_real64)
       if (present(reciprocal_condition)) reciprocal_condition = 1.0_real64
-      call sphere_plane_wave_coefficients(alpha, sinc, dir, pmnp0, &
-                                          excited_spheres=exsphere, mpi_comm=mpicomm)
+      if (present(incident_coefficients)) then
+         pmnp0(:, 1:nrhs) = incident_coefficients(:, 1:nrhs)
+      else
+         call sphere_plane_wave_coefficients(alpha, sinc, dir, pmnp0, &
+                                             excited_spheres=exsphere, mpi_comm=mpicomm)
+      end if
 !if(phase_shift_form) call phase_shift(pmnp0,1)
 
       do p = p1, p2
@@ -611,7 +622,7 @@ contains
 
 !         call parallel_barrier()
 
-      if (numprocs .gt. 1 .and. (.not. dirsoln)) then
+      if (numprocs .gt. 1 .and. (.not. dirsoln) .and. nrhs .eq. 2) then
          nsend = sphere_cluster%number_eqns
          if (inp1) then
             call parallel_broadcast( &
@@ -643,10 +654,10 @@ contains
       if (qeffdim .eq. 1) then
          i = 1
       else
-         i = 2
+         i = nrhs
       end if
-      call configuration_efficiency_factors(sphere_cluster%number_spheres, i, amnp, pmnp0, qeff, &
-                                            mpi_comm=mpicomm)
+      call configuration_efficiency_factors(sphere_cluster%number_spheres, i, amnp(:, 1:i), pmnp0(:, 1:i), &
+                                            qeff(:, 1:2 * i - 1, :), mpi_comm=mpicomm)
 
 !if(phase_shift_form) call phase_shift(amnp,-1)
 

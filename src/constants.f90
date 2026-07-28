@@ -11,4 +11,5 @@ module constants
    real(real64), parameter, public :: four_pi_over_three = four_pi / 3.0_real64
    real(real64), parameter, public :: degrees_to_radians = pi / 180.0_real64
    real(real64), parameter, public :: sqrt_two_pi = sqrt(two_pi)
+   complex(real64), parameter, public :: imaginary_unit = (0.0_real64, 1.0_real64)
 end module constants
