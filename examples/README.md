@@ -14,4 +14,6 @@ cd build/example
 
 `electric-dipole-sphere.inp` demonstrates the normalized exterior electric-point-dipole excitation and its single-source near-field output.
 
+`magnetic-current-pair-sphere.inp` demonstrates two coherent, directed finite magnetic-current segments as a patch-edge source approximation. Reverse an endpoint pair or negate its complex amplitude to reverse that segment's current.
+
 `effective-medium-smoke.inp` is a deliberately small regression case for the effective-medium fitting workflow added in December 2023. CTest runs it alongside the Figure 1 smoke test.

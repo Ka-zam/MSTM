@@ -2,7 +2,7 @@ module input_reporting
    use, intrinsic :: iso_fortran_env, only: real64
    use runtime_support, only: open_update_file, runtime_failed, set_runtime_error
    use constants
-   use excitation, only: electric_dipole_excitation
+   use excitation, only: electric_dipole_excitation, magnetic_current_excitation
    use effective_medium_analysis, only: diffuse_scattering_effective_refractive_index, &
                                         effective_extinction_coefficient_ratio
    use fft_translation, only: fft_plan, fft_translation_metrics_t
@@ -148,6 +148,19 @@ contains
             write (iunit, '(3es12.4)') simulation_config%electric_dipole_position * simulation_config%length_scale_factor
             write (iunit, '('' normalized complex electric dipole moment (x,y,z)'')')
             write (iunit, '(6es12.4)') simulation_config%electric_dipole_moment
+            if (simulation_config%calculate_scattering_matrix) &
+               write (iunit, '('' plane-wave scattering matrix output is not applicable and will be skipped'')')
+         elseif (trim(simulation_config%excitation_type) == magnetic_current_excitation) then
+            write (iunit, '('' incident finite magnetic-current segments: count, quadrature order'')')
+            write (iunit, '(2i8)') size(simulation_config%magnetic_current_segments), &
+               simulation_config%magnetic_current_quadrature_order
+            write (iunit, '('' scaled start(x,y,z), end(x,y,z), complex current density'')')
+            do n = 1, size(simulation_config%magnetic_current_segments)
+               write (iunit, '(8es12.4)') &
+                  simulation_config%magnetic_current_segments(n)%start_point * simulation_config%length_scale_factor, &
+                  simulation_config%magnetic_current_segments(n)%end_point * simulation_config%length_scale_factor, &
+                  simulation_config%magnetic_current_segments(n)%amplitude
+            end do
             if (simulation_config%calculate_scattering_matrix) &
                write (iunit, '('' plane-wave scattering matrix output is not applicable and will be skipped'')')
          else
@@ -384,20 +397,25 @@ contains
          write (outunit, '(i6)') sphere_cluster%t_matrix_order
       end if
 
-      if (trim(simulation_config%excitation_type) == electric_dipole_excitation) then
-         write (outunit, '('' electric-dipole cluster response relative to isolated-source radiation'')')
+      if (trim(simulation_config%excitation_type) == electric_dipole_excitation .or. &
+          trim(simulation_config%excitation_type) == magnetic_current_excitation) then
+         if (trim(simulation_config%excitation_type) == electric_dipole_excitation) then
+            write (outunit, '('' electric-dipole cluster response relative to isolated-source radiation'')')
+         else
+            write (outunit, '('' magnetic-current cluster response relative to isolated-source radiation'')')
+         end if
          write (outunit, '('' extracted, absorbed, scattered power ratios'')')
-         write (outunit, '(3es12.4)') simulation_result%dipole_extracted_power, &
-            simulation_result%dipole_absorbed_power, simulation_result%dipole_scattered_power
+         write (outunit, '(3es12.4)') simulation_result%source_extracted_power, &
+            simulation_result%source_absorbed_power, simulation_result%source_scattered_power
          write (outunit, '('' multipole/efficiency scattered-power relative residual'')')
-         write (outunit, '(es12.4)') simulation_result%dipole_scattered_power_residual
+         write (outunit, '(es12.4)') simulation_result%source_scattered_power_residual
          if (simulation_config%output%print_sphere_data) then
             write (outunit, '('' per-sphere absorbed power ratio'')')
             write (outunit, '(''   sphere    absorbed'')')
             do n = 1, sphere_cluster%number_spheres
                write (outunit, '(i8,es12.4)') n, pi * sphere_cluster%sphere_radius(n)**2 &
                   * simulation_result%efficiency(2, 1, n) &
-                  / (two_pi * 3.0_real64 * sum(abs(simulation_config%electric_dipole_moment)**2))
+                  / simulation_result%source_radiated_power
             end do
          end if
          if (outunit .ne. 6) close (outunit)

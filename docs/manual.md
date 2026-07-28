@@ -210,6 +210,29 @@ The position is multiplied by `length_scale_factor` and must lie outside every s
 
 This first implementation requires a lossless homogeneous exterior with positive refractive index, `number_plane_boundaries=0`, `periodic_lattice=f`, fixed orientation, and no incidence, configuration, or effective-medium averaging. Plane-wave scattering matrices are not produced. Near-field grids must exclude the singular source point. See `examples/electric-dipole-sphere.inp`.
 
+#### Finite magnetic-current excitation
+
+A fixed cluster can also be driven by one or more coherent straight magnetic-current segments. This is useful for approximating the radiating edges of a patch antenna:
+
+```text
+excitation_type
+magnetic_current_segments
+magnetic_current_quadrature_order
+12
+magnetic_current_segments
+! x1 y1 z1 x2 y2 z2 complex-current-density
+-0.5d0,-0.3d0,2.d0, 0.5d0,-0.3d0,2.d0, (1.d0,0.d0)
+ 0.5d0, 0.3d0,2.d0,-0.5d0, 0.3d0,2.d0, (1.d0,0.d0)
+end_of_magnetic_current_segments
+```
+
+Each record defines directed endpoints and a constant complex magnetic-current density. The differential normalized magnetic moment is
+$d\mathbf m=M\,\hat{\mathbf t}\,ds$; therefore reversing the endpoints reverses the current. Coordinates are multiplied by `length_scale_factor`. Amplitudes retain their relative complex phase, so a patch-edge pair belongs in one block and is solved as one coherent right-hand side.
+
+The segment integral uses Gauss–Legendre quadrature. Increase `magnetic_current_quadrature_order` until fields of an electrically long segment converge; 12 is the default. Segments must have nonzero length, remain outside every sphere, and not cross near-field sample points. The restrictions listed for electric-dipole excitation also apply.
+
+Power ratios use the isolated finite-source radiation, including interference among all segments; the amplitude is dimensionless and results are not SI watts. MSTM uses $\exp(-i\omega t)$ and outgoing $\exp(+ikr)$. A BOR code using $\exp(+i\omega t)$ and $\exp(-ikr)$ must conjugate complex amplitudes and reference fields before phase comparisons. See `examples/magnetic-current-pair-sphere.inp`.
+
 ### 5.3 Plane boundaries
 
 The first boundary is always $z=0$. This example places a unit-radius air bubble in a glass layer of thickness 2:
@@ -309,9 +332,11 @@ Defaults are shown in parentheses where established by the current source.
 | `periodic_lattice` | Enable infinite repetition in $x,y$ (`f`). |
 | `cell_width` | One value for a square cell or two values for $W_x,W_y$. |
 | `finite_lattice` | Use finite-lattice behavior instead of infinite periodic repetition. |
-| `excitation_type` | `plane_wave` (also used for the existing Gaussian-beam path) or `electric_dipole` (`plane_wave`). |
+| `excitation_type` | `plane_wave` (also used for Gaussian beams), `electric_dipole`, or `magnetic_current_segments` (`plane_wave`). |
 | `electric_dipole_position` | Unscaled Cartesian source position for electric-dipole excitation (`0,0,0`). |
 | `electric_dipole_moment` | Three complex Cartesian components of the normalized dipole moment (`(1,0),(0,0),(0,0)`). |
+| `magnetic_current_segments` | Start a source block; each record is `x1 y1 z1 x2 y2 z2 (Re,Im)`, terminated by `end_of_magnetic_current_segments`. |
+| `magnetic_current_quadrature_order` | Gauss–Legendre points per finite magnetic-current segment (`12`, allowed `1`–`128`). |
 | `gaussian_beam_constant` | Inverse focal width; zero selects a plane wave (`0`). The localized approximation is intended for values up to about `0.2`. |
 | `gaussian_beam_focal_point` | Unscaled focal-point coordinates (`0,0,0`). |
 

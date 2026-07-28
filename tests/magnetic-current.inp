@@ -1,0 +1,38 @@
+! Lossy sphere excited coherently by two finite magnetic-current segments.
+output_file
+magnetic-current.dat
+number_spheres
+1
+sphere_data
+0.d0,0.d0,0.d0,0.5d0,(1.7d0,0.08d0)
+end_of_sphere_data
+excitation_type
+magnetic_current_segments
+magnetic_current_quadrature_order
+12
+magnetic_current_segments
+! x1 y1 z1 x2 y2 z2 complex-current-density
+-0.4d0,-0.3d0,2.d0, 0.4d0,-0.3d0,2.d0, (1.d0,0.d0)
+ 0.4d0, 0.3d0,2.d0,-0.4d0, 0.3d0,2.d0, (0.8d0,0.3d0)
+end_of_magnetic_current_segments
+solution_method
+iteration
+solution_epsilon
+1.d-11
+calculate_scattering_matrix
+t
+calculate_near_field
+t
+near_field_minimum_border
+0.d0,0.d0,1.2d0
+near_field_maximum_border
+0.d0,0.d0,1.2d0
+near_field_step_size
+0.2d0
+near_field_output_file
+magnetic-current-near-field.dat
+print_sphere_data
+t
+print_timings
+f
+end_of_options

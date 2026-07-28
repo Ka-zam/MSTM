@@ -1,12 +1,14 @@
 module scattering_interactions
    use, intrinsic :: iso_fortran_env, only: real64
    use constants
-   use excitation, only: electric_dipole_mode_coefficients
+   use excitation, only: electric_dipole_mode_coefficients, magnetic_current_mode_coefficients, &
+                         magnetic_current_segment_t
    use interaction_operators, only: create_interaction_operator, interaction_operator_t
    use mie
    use parallel_runtime, only: mpi_comm_world, mstm_global_rank, parallel_allreduce_sum, &
                                parallel_allreduce_sum_complex64_sequence, parallel_barrier, parallel_rank, parallel_size
    use numerical_tables
+   use quadrature, only: gauss_legendre_rule
    use periodic_lattice_operations
    use angular_functions, only: estimate_translation_order, generate_gaussian_beam_coefficients
    use coefficient_indexing, only: mode_index
@@ -17,7 +19,8 @@ module scattering_interactions
    use translation_surface_interactions, only: periodic_lattice_sphere_interaction, sphere_surface_interaction
    implicit none
    private
-   public :: distribute_electric_dipole, distribute_from_common_origin, estimate_sphere_translation_orders, &
+   public :: distribute_electric_dipole, distribute_from_common_origin, distribute_magnetic_current_segments, &
+             estimate_sphere_translation_orders, &
              layered_gaussian_beam_coefficients, merge_to_common_origin, phase_shift, &
              sphere_interaction, sphere_plane_wave_coefficients
 contains
@@ -35,6 +38,34 @@ contains
       call distribute_from_common_origin(1, source_coefficients, incident_coefficients, number_rhs=1, &
                                          origin_position=position, origin_host=0, vswf_type=3, mpi_comm=mpi_comm)
    end subroutine distribute_electric_dipole
+
+   subroutine distribute_magnetic_current_segments(segments, quadrature_order, incident_coefficients, mpi_comm)
+      type(magnetic_current_segment_t), intent(in) :: segments(:)
+      integer, intent(in) :: quadrature_order
+      complex(real64), intent(out) :: incident_coefficients(sphere_cluster%number_eqns, 1)
+      integer, intent(in), optional :: mpi_comm
+      integer :: node_index, segment_index
+      real(real64) :: delta(3), nodes(quadrature_order), position(3), weights(quadrature_order)
+      complex(real64) :: moment(3), source_coefficients(0:2, 1, 2, 1)
+      complex(real64), allocatable :: contribution(:, :)
+
+      call gauss_legendre_rule(0.0_real64, 1.0_real64, nodes, weights, quadrature_order)
+      allocate (contribution(sphere_cluster%number_eqns, 1))
+      incident_coefficients = (0.0_real64, 0.0_real64)
+      do segment_index = 1, size(segments)
+         delta = segments(segment_index)%end_point - segments(segment_index)%start_point
+         do node_index = 1, quadrature_order
+            position = segments(segment_index)%start_point + nodes(node_index) * delta
+            moment = segments(segment_index)%amplitude * delta * weights(node_index)
+            call magnetic_current_mode_coefficients(moment, source_coefficients(:, :, :, 1))
+            source_coefficients(:, :, 1, 1) = 0.5_real64 * source_coefficients(:, :, 2, 1)
+            source_coefficients(:, :, 2, 1) = -source_coefficients(:, :, 1, 1)
+            call distribute_from_common_origin(1, source_coefficients, contribution, number_rhs=1, &
+                                               origin_position=position, origin_host=0, vswf_type=3, mpi_comm=mpi_comm)
+            incident_coefficients = incident_coefficients + contribution
+         end do
+      end do
+   end subroutine distribute_magnetic_current_segments
 
    subroutine sphere_interaction(neqns, nrhs, ain, aout, initial_run, &
                                  rhs_list, mpi_comm, con_tran, mie_mult, fft_option, &

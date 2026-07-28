@@ -179,6 +179,10 @@ contains
          varlen = 3
          cavarvalue => simulation_config%electric_dipole_moment
 
+      elseif (varlabel .eq. 'magnetic_current_quadrature_order') then
+         vartype = 'i'
+         ivarvalue => simulation_config%magnetic_current_quadrature_order
+
       elseif (varlabel .eq. 'gaussian_beam_constant') then
          vartype = 'r'
          rvarvalue => sphere_cluster%gaussian_beam_constant
@@ -627,10 +631,10 @@ contains
 
    subroutine parse_input_data(inputfiledata, read_status)
       implicit none
-      integer :: readok, n, record_line, spherenum, varstat, rank, stopit, istat
+      integer :: block_start, readok, n, record_line, segment_index, spherenum, varstat, rank, stopit, istat
       integer, save :: inputline
       integer, optional :: read_status
-      character(len=256) :: parmid, parmval, varop, inputfiledata(*)
+      character(len=256) :: message, parmid, parmval, varop, inputfiledata(*)
       data inputline/1/
 
       call parallel_rank(mpi_rank=rank)
@@ -686,6 +690,50 @@ contains
             end if
             inputline = inputline + 1
             cycle
+
+         elseif (trim(parmid) .eq. 'magnetic_current_segments') then
+            block_start = inputline
+            n = 0
+            do
+               parmval = adjustl(inputfiledata(inputline))
+               inputline = inputline + 1
+               if (trim(parmval) == 'end_of_magnetic_current_segments') exit
+               if (trim(parmval) == 'end_of_options') then
+                  call set_runtime_error('magnetic_current_segments block is missing end_of_magnetic_current_segments')
+                  stopit = 1
+                  exit
+               end if
+               if (len_trim(parmval) == 0) cycle
+               if (parmval(1:1) == '!' .or. parmval(1:1) == '%') cycle
+               n = n + 1
+            end do
+            if (stopit == 1) exit
+            if (allocated(simulation_config%magnetic_current_segments)) &
+               deallocate (simulation_config%magnetic_current_segments)
+            allocate (simulation_config%magnetic_current_segments(n))
+            inputline = block_start
+            segment_index = 0
+            do
+               parmval = adjustl(inputfiledata(inputline))
+               record_line = inputline
+               inputline = inputline + 1
+               if (trim(parmval) == 'end_of_magnetic_current_segments') exit
+               if (len_trim(parmval) == 0) cycle
+               if (parmval(1:1) == '!' .or. parmval(1:1) == '%') cycle
+               segment_index = segment_index + 1
+               read (parmval, *, iostat=istat) &
+                  simulation_config%magnetic_current_segments(segment_index)%start_point, &
+                  simulation_config%magnetic_current_segments(segment_index)%end_point, &
+                  simulation_config%magnetic_current_segments(segment_index)%amplitude
+               if (istat /= 0) then
+                  write (message, '(a,i0,a)') 'Invalid magnetic-current segment at input line ', record_line, &
+                     '; expected x1 y1 z1 x2 y2 z2 (real,imag)'
+                  call set_runtime_error(trim(message))
+                  stopit = 1
+                  exit
+               end if
+            end do
+            if (stopit == 1) exit
 
          elseif (trim(parmid) .eq. 'sphere_data') then
             if (allocated(simulation_config%sphere_data_records)) &

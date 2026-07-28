@@ -38,6 +38,8 @@ program output_regression_test
       call check_near_field_modes(trim(work_directory), failures)
    case ('electric_dipole')
       call check_electric_dipole(trim(work_directory), failures)
+   case ('magnetic_current')
+      call check_magnetic_current(trim(work_directory), failures)
    case ('state_lifecycle')
       call check_state_lifecycle(trim(work_directory), failures)
    case ('pec_sphere')
@@ -59,6 +61,11 @@ program output_regression_test
       call get_command_argument(4, comparison_directory_2)
       call check_parallel_dipole_equivalence(trim(work_directory), trim(comparison_directory_1), &
                                              trim(comparison_directory_2), failures)
+   case ('parallel_magnetic_current_equivalence')
+      call get_command_argument(3, comparison_directory_1)
+      call get_command_argument(4, comparison_directory_2)
+      call check_parallel_magnetic_current_equivalence(trim(work_directory), trim(comparison_directory_1), &
+                                                       trim(comparison_directory_2), failures)
    case default
       write (error_unit, '(a)') 'Unknown regression case: '//trim(case_name)
       error stop 2
@@ -412,6 +419,41 @@ contains
       end if
    end subroutine check_electric_dipole
 
+   subroutine check_magnetic_current(directory, failure_count)
+      character(len=*), intent(in) :: directory
+      integer, intent(inout) :: failure_count
+      integer :: unit
+      real(real64) :: power(3), power_residual, near_field_row(15)
+
+      call open_regression_file(directory//'/magnetic-current.dat', unit)
+      call find_line(unit, 'magnetic-current cluster response relative to isolated-source radiation', .true.)
+      call find_line(unit, 'extracted, absorbed, scattered power ratios', .true.)
+      read (unit, *) power
+      call find_line(unit, 'multipole/efficiency scattered-power relative residual', .true.)
+      read (unit, *) power_residual
+      close (unit)
+      call require_finite('Magnetic-current power ratios', power, failure_count)
+      if (any(power <= 0.0_real64)) then
+         write (error_unit, '(a,3es12.4)') 'Magnetic-current power ratios must be positive: ', power
+         failure_count = failure_count + 1
+      end if
+      call assert_close('Magnetic-current power balance', power(1), power(2) + power(3), failure_count)
+      if (.not. ieee_is_finite(power_residual) .or. power_residual > 1.0e-8_real64) then
+         write (error_unit, '(a,es12.4)') 'Magnetic-current scattered-power residual is too large: ', power_residual
+         failure_count = failure_count + 1
+      end if
+
+      call open_regression_file(directory//'/magnetic-current-near-field.dat', unit)
+      call skip_lines(unit, 7)
+      read (unit, *) near_field_row
+      close (unit)
+      call require_finite('Magnetic-current near field', near_field_row, failure_count)
+      if (maxval(abs(near_field_row(4:15))) <= 1.0e-8_real64) then
+         write (error_unit, '(a)') 'Magnetic-current near field is unexpectedly zero'
+         failure_count = failure_count + 1
+      end if
+   end subroutine check_magnetic_current
+
    subroutine check_state_lifecycle(directory, failure_count)
       character(len=*), intent(in) :: directory
       integer, intent(inout) :: failure_count
@@ -546,6 +588,24 @@ contains
       end do
    end subroutine check_parallel_dipole_equivalence
 
+   subroutine check_parallel_magnetic_current_equivalence(serial_directory, two_rank_directory, four_rank_directory, &
+                                                          failure_count)
+      character(len=*), intent(in) :: serial_directory, two_rank_directory, four_rank_directory
+      integer, intent(inout) :: failure_count
+      integer :: component
+      real(real64) :: serial_values(18), two_rank_values(18), four_rank_values(18)
+
+      call read_magnetic_current_values(serial_directory, serial_values)
+      call read_magnetic_current_values(two_rank_directory, two_rank_values)
+      call read_magnetic_current_values(four_rank_directory, four_rank_values)
+      do component = 1, size(serial_values)
+         call assert_parallel_close('Serial/two-rank magnetic-current result', two_rank_values(component), &
+                                    serial_values(component), failure_count)
+         call assert_parallel_close('Serial/four-rank magnetic-current result', four_rank_values(component), &
+                                    serial_values(component), failure_count)
+      end do
+   end subroutine check_parallel_magnetic_current_equivalence
+
    subroutine read_dipole_values(directory, values)
       character(len=*), intent(in) :: directory
       real(real64), intent(out) :: values(18)
@@ -560,6 +620,21 @@ contains
       read (unit, *) values(4:18)
       close (unit)
    end subroutine read_dipole_values
+
+   subroutine read_magnetic_current_values(directory, values)
+      character(len=*), intent(in) :: directory
+      real(real64), intent(out) :: values(18)
+      integer :: unit
+
+      call open_regression_file(directory//'/magnetic-current.dat', unit)
+      call find_line(unit, 'extracted, absorbed, scattered power ratios', .true.)
+      read (unit, *) values(1:3)
+      close (unit)
+      call open_regression_file(directory//'/magnetic-current-near-field.dat', unit)
+      call skip_lines(unit, 7)
+      read (unit, *) values(4:18)
+      close (unit)
+   end subroutine read_magnetic_current_values
 
    subroutine read_efficiency_runs(path, efficiency)
       character(len=*), intent(in) :: path

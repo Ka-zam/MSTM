@@ -1,6 +1,6 @@
 # MSTM
 
-MSTM is a Fortran multiple-sphere T-matrix solver for monochromatic electromagnetic scattering. It supports plane-wave, Gaussian-beam, and exterior electric-dipole excitation; fixed and random orientations; nested spheres; plane boundaries; periodic lattices; near-field maps; effective-medium calculations; and serial or MPI execution. Some combinations are intentionally restricted; the manual documents each excitation model's scope.
+MSTM is a Fortran multiple-sphere T-matrix solver for monochromatic electromagnetic scattering. It supports plane-wave, Gaussian-beam, exterior electric-dipole, and finite magnetic-current-segment excitation; fixed and random orientations; nested spheres; plane boundaries; periodic lattices; near-field maps; effective-medium calculations; and serial or MPI execution. Some combinations are intentionally restricted; the manual documents each excitation model's scope.
 
 The canonical implementation is in `src/`. It incorporates the features from the December 2023 split release and targets the Fortran 2023 dialect supported by GNU Fortran 15.2. A BLAS/LAPACK implementation is required for the dense direct solver.
 

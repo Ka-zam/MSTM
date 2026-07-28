@@ -363,6 +363,11 @@ if(BUILD_TESTING)
     electric-dipole-inside-sphere.inp
     "electric_dipole_position must lie outside every sphere"
   )
+  add_mstm_failure_test(
+    magnetic_current_intersects_sphere_error
+    magnetic-current-intersects-sphere.inp
+    "Magnetic-current segment 1 intersects sphere 1"
+  )
   add_mstm_failure_test(missing_sphere_file_error missing-sphere-file.inp "Cannot open input file 'does-not-exist.pos'")
   add_mstm_failure_test(
     solver_nonconvergence_error
@@ -487,6 +492,12 @@ if(BUILD_TESTING)
     electric_dipole
   )
   add_mstm_regression_test(
+    magnetic_current
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/magnetic-current.inp"
+    "magnetic-current.dat,magnetic-current-near-field.dat"
+    magnetic_current
+  )
+  add_mstm_regression_test(
     state_lifecycle
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/state-lifecycle.inp"
     state-lifecycle.dat
@@ -574,6 +585,23 @@ if(BUILD_TESTING)
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunSmokeTest.cmake"
     )
 
+    set(mpi_magnetic_current_test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/mpi_two_rank_magnetic_current")
+    file(MAKE_DIRECTORY "${mpi_magnetic_current_test_work_dir}")
+    add_test(
+      NAME mpi_two_rank_magnetic_current
+      COMMAND "${CMAKE_COMMAND}"
+        "-DMSTM_EXECUTABLE=$<TARGET_FILE:mstm>"
+        "-DMSTM_INPUT=${CMAKE_CURRENT_SOURCE_DIR}/tests/magnetic-current.inp"
+        "-DMSTM_WORK_DIR=${mpi_magnetic_current_test_work_dir}"
+        "-DMSTM_EXPECTED_OUTPUTS=magnetic-current.dat,magnetic-current-near-field.dat"
+        "-DMSTM_REGRESSION_EXECUTABLE=$<TARGET_FILE:output_regression_test>"
+        "-DMSTM_REGRESSION_CASE=magnetic_current"
+        "-DMSTM_MPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMSTM_MPI_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMSTM_MPI_RANKS=2"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunSmokeTest.cmake"
+    )
+
     if(MSTM_SERIAL_REFERENCE_EXECUTABLE)
       if(NOT EXISTS "${MSTM_SERIAL_REFERENCE_EXECUTABLE}")
         message(FATAL_ERROR
@@ -618,6 +646,12 @@ if(BUILD_TESTING)
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/electric-dipole.inp"
         electric-dipole.dat
         parallel_dipole_equivalence
+      )
+      add_mstm_parallel_equivalence_test(
+        serial_two_four_rank_magnetic_current_equivalence
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/magnetic-current.inp"
+        magnetic-current.dat
+        parallel_magnetic_current_equivalence
       )
     endif()
   endif()

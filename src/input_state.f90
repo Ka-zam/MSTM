@@ -1,6 +1,6 @@
 module input_state
    use, intrinsic :: iso_fortran_env, only: real64
-   use excitation, only: plane_wave_excitation
+   use excitation, only: magnetic_current_segment_t, plane_wave_excitation
    use solver
    use sphere_data
    use translation_expansions, only: interaction_radius
@@ -103,6 +103,7 @@ module input_state
       integer :: shifted_sphere = 0
       integer :: number_excited_spheres = 1000000
       integer :: input_number_spheres = 0
+      integer :: magnetic_current_quadrature_order = 12
       integer :: number_sphere_data_records = 0
       integer :: random_configuration_host_model = 1
       integer :: random_configuration_time_steps = 0
@@ -151,6 +152,7 @@ module input_state
       logical, allocatable :: sphere_excitation_switch(:)
       integer, allocatable :: sphere_data_record_lines(:)
       character(len=256), allocatable :: sphere_data_records(:)
+      type(magnetic_current_segment_t), allocatable :: magnetic_current_segments(:)
    end type simulation_config_t
 
    type, public :: simulation_result_t
@@ -192,10 +194,11 @@ module input_state
       real(real64) :: total_cross_section = 0.0_real64
       real(real64) :: diffuse_cross_section = 0.0_real64
       real(real64) :: effective_fit_radius = 0.0_real64
-      real(real64) :: dipole_absorbed_power = 0.0_real64
-      real(real64) :: dipole_scattered_power = 0.0_real64
-      real(real64) :: dipole_extracted_power = 0.0_real64
-      real(real64) :: dipole_scattered_power_residual = 0.0_real64
+      real(real64) :: source_absorbed_power = 0.0_real64
+      real(real64) :: source_scattered_power = 0.0_real64
+      real(real64) :: source_extracted_power = 0.0_real64
+      real(real64) :: source_scattered_power_residual = 0.0_real64
+      real(real64) :: source_radiated_power = 0.0_real64
       real(real64), allocatable :: efficiency(:, :, :), volume_absorption(:, :), total_efficiency(:, :)
       real(real64), allocatable :: scattering_matrix(:, :), diffuse_scattering_matrix(:, :)
       real(real64), allocatable :: scattering_coefficients(:, :, :), configuration_scattering_coefficients(:, :, :)

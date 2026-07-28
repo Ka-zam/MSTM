@@ -6,7 +6,8 @@ module simulation_execution
    use configuration_data
    use constants
    use effective_medium_analysis
-   use excitation, only: electric_dipole_excitation, electric_dipole_source_power, plane_wave_excitation
+   use excitation, only: electric_dipole_excitation, electric_dipole_source_power, magnetic_current_excitation, &
+                         magnetic_current_segment_t, magnetic_current_source_power, plane_wave_excitation
    use fft_translation, only: fft_plan
    use input_parser
    use input_reporting
@@ -18,7 +19,8 @@ module simulation_execution
    use scattering_efficiencies, only: boundary_extinction, common_origin_hemispherical_scattering, &
                                       hemispherical_scattering, total_efficiency_factors
    use scattering_matrix_driver
-   use scattering_interactions, only: distribute_electric_dipole, merge_to_common_origin
+   use scattering_interactions, only: distribute_electric_dipole, distribute_magnetic_current_segments, &
+                                      merge_to_common_origin
    use solver, only: solver_converged, solver_status_message
    use wave_functions, only: compose_group_filename
    implicit none
@@ -28,7 +30,8 @@ contains
 
    subroutine execute_simulation(print_output, set_t_matrix_order, dry_run, mpi_comm)
       implicit none
-      logical :: stopit, singleorigin, iframe, sett, printout, dryrun, averagerun, dipole_incident
+      logical :: stopit, singleorigin, iframe, sett, printout, dryrun, averagerun, dipole_incident, &
+                 localized_source_incident, magnetic_current_incident
       logical, optional :: print_output, set_t_matrix_order, dry_run
       integer :: file_unit, n, istat, niter, rank, numprocs, i, nodrw, celldim(3), itemp(6), sx, sy, maxt, &
                  mpicomm, lochost
@@ -36,7 +39,8 @@ contains
       real(real64) :: alpha, time1, r0(3), rtran, costheta, &
                       csca, zext, targetvol, timet, tmin(3), tmax(3), rannum, dipole_position(3), source_power
       complex(real64) :: rimedium(2)
-      complex(real64), allocatable :: dipole_coefficients(:, :)
+      complex(real64), allocatable :: source_coefficients(:, :)
+      type(magnetic_current_segment_t), allocatable :: magnetic_segments(:)
       character(len=256) :: timatrixfile
       if (present(dry_run)) then
          dryrun = dry_run
@@ -62,14 +66,30 @@ contains
       select case (trim(simulation_config%excitation_type))
       case (plane_wave_excitation)
          dipole_incident = .false.
+         magnetic_current_incident = .false.
       case (electric_dipole_excitation)
          dipole_incident = .true.
+         magnetic_current_incident = .false.
+      case (magnetic_current_excitation)
+         dipole_incident = .false.
+         magnetic_current_incident = .true.
       case default
          call set_runtime_error("Unknown excitation_type '"//trim(simulation_config%excitation_type)// &
-                                "'; use plane_wave or electric_dipole")
+                                "'; use plane_wave, electric_dipole, or magnetic_current_segments")
          return
       end select
+      localized_source_incident = dipole_incident .or. magnetic_current_incident
       dipole_position = simulation_config%electric_dipole_position * simulation_config%length_scale_factor
+      if (magnetic_current_incident .and. allocated(simulation_config%magnetic_current_segments)) then
+         allocate (magnetic_segments(size(simulation_config%magnetic_current_segments)))
+         magnetic_segments = simulation_config%magnetic_current_segments
+         do n = 1, size(magnetic_segments)
+            magnetic_segments(n)%start_point = magnetic_segments(n)%start_point * simulation_config%length_scale_factor
+            magnetic_segments(n)%end_point = magnetic_segments(n)%end_point * simulation_config%length_scale_factor
+         end do
+      elseif (magnetic_current_incident) then
+         allocate (magnetic_segments(0))
+      end if
       simulation_config%calculate_up_down_scattering = simulation_config%input_calculate_up_down_scattering
       if (simulation_config%reflection_model) then
          simulation_config%calculate_up_down_scattering = .true.
@@ -266,6 +286,9 @@ contains
       if (dipole_incident) then
          call validate_electric_dipole(dipole_position)
          if (runtime_failed()) return
+      elseif (magnetic_current_incident) then
+         call validate_magnetic_current_segments(magnetic_segments)
+         if (runtime_failed()) return
       end if
       call validate_material_configuration()
       if (runtime_failed()) return
@@ -425,7 +448,7 @@ contains
             simulation_config%scattering_matrix_angle_maximum = 180.d0
          end if
       else
-         if (dipole_incident) then
+         if (localized_source_incident) then
             simulation_result%efficiency_dimension = 1
             simulation_result%incident_beta = 0.0_real64
             simulation_result%incident_sin_beta = 0.0_real64
@@ -452,7 +475,7 @@ contains
             alpha = simulation_config%incident_alpha_degrees * degrees_to_radians
             call initialize_incident_field(alpha, simulation_result%incident_sin_beta, simulation_config%incident_direction)
          end if
-         if (simulation_config%calculate_scattering_matrix .and. .not. dipole_incident) then
+         if (simulation_config%calculate_scattering_matrix .and. .not. localized_source_incident) then
             if (allocated(simulation_result%scattering_matrix)) deallocate (simulation_result%scattering_matrix)
             if (periodic_lattice) then
                call periodic_lattice_scattering(simulation_result%solution_coefficients, simulation_result%plane_scattering, dry_run=.true., num_dirs=simulation_result%reflection_transmission_direction_counts)
@@ -514,7 +537,7 @@ contains
 
       if (allocated(simulation_result%efficiency)) deallocate (simulation_result%efficiency, simulation_result%total_efficiency, simulation_result%volume_absorption)
       allocate (simulation_result%efficiency(3, simulation_result%efficiency_dimension, sphere_cluster%number_spheres), simulation_result%total_efficiency(3, simulation_result%efficiency_dimension), simulation_result%volume_absorption(simulation_result%efficiency_dimension, sphere_cluster%number_spheres))
-      if (simulation_config%calculate_scattering_matrix .and. .not. dipole_incident) then
+      if (simulation_config%calculate_scattering_matrix .and. .not. localized_source_incident) then
          if (allocated(simulation_result%scattering_matrix)) deallocate (simulation_result%scattering_matrix)
          allocate (simulation_result%scattering_matrix(simulation_result%scattering_matrix_dimension, simulation_result%scattering_matrix_lower_bound:simulation_result%scattering_matrix_upper_bound))
       end if
@@ -599,11 +622,17 @@ contains
             write (sphere_cluster%run_print_unit, '('' generating solution:'')', advance='no')
             timet = parallel_wall_time()
          end if
-         if (dipole_incident) then
-            allocate (dipole_coefficients(sphere_cluster%number_eqns, 2))
-            dipole_coefficients = (0.0_real64, 0.0_real64)
-            call distribute_electric_dipole(dipole_position, simulation_config%electric_dipole_moment, &
-                                            dipole_coefficients(:, 1:1), mpi_comm=mpicomm)
+         if (localized_source_incident) then
+            allocate (source_coefficients(sphere_cluster%number_eqns, 2))
+            source_coefficients = (0.0_real64, 0.0_real64)
+            if (dipole_incident) then
+               call distribute_electric_dipole(dipole_position, simulation_config%electric_dipole_moment, &
+                                               source_coefficients(:, 1:1), mpi_comm=mpicomm)
+            else
+               call distribute_magnetic_current_segments(magnetic_segments, &
+                                                         simulation_config%magnetic_current_quadrature_order, &
+                                                         source_coefficients(:, 1:1), mpi_comm=mpicomm)
+            end if
             call solve_fixed_orientation(alpha, simulation_result%incident_sin_beta, simulation_config%incident_direction, &
                                          simulation_config%solver%solution_epsilon, niter, &
                                          simulation_result%solution_coefficients, simulation_result%efficiency, &
@@ -613,8 +642,8 @@ contains
                                          solution_method=simulation_config%solver%solution_method(1:1), &
                                          initialize_solver=.true., &
                                          reciprocal_condition=simulation_result%reciprocal_condition, &
-                                         incident_coefficients=dipole_coefficients, number_rhs=1)
-            deallocate (dipole_coefficients)
+                                         incident_coefficients=source_coefficients, number_rhs=1)
+            deallocate (source_coefficients)
          else
             call solve_fixed_orientation(alpha, simulation_result%incident_sin_beta, simulation_config%incident_direction, &
                                          simulation_config%solver%solution_epsilon, niter, &
@@ -654,7 +683,7 @@ contains
 
          call total_efficiency_factors(sphere_cluster%number_spheres, simulation_result%efficiency_dimension, sphere_cluster%cross_section_radius, &
                               simulation_result%efficiency, simulation_result%volume_absorption, simulation_result%total_efficiency)
-         if (dipole_incident) then
+         if (localized_source_incident) then
             if (allocated(simulation_result%incident_coefficients)) deallocate (simulation_result%incident_coefficients)
             allocate (simulation_result%incident_coefficients( &
                       2 * sphere_cluster%t_matrix_order * (sphere_cluster%t_matrix_order + 2), 2))
@@ -663,18 +692,23 @@ contains
                                         simulation_result%solution_coefficients(:, 1:1), &
                                         simulation_result%incident_coefficients(:, 1:1), number_rhs=1, &
                                         origin_position=sphere_cluster%cluster_origin, merge_procs=.true., mpi_comm=mpicomm)
-            source_power = two_pi * electric_dipole_source_power(simulation_config%electric_dipole_moment)
-            simulation_result%dipole_scattered_power = &
+            if (dipole_incident) then
+               source_power = two_pi * electric_dipole_source_power(simulation_config%electric_dipole_moment)
+            else
+               source_power = two_pi * magnetic_current_source_power(magnetic_segments, real(layer_ref_index(0)))
+            end if
+            simulation_result%source_radiated_power = source_power
+            simulation_result%source_scattered_power = &
                two_pi * sum(abs(simulation_result%incident_coefficients(:, 1))**2) / source_power
             csca = pi * sphere_cluster%cross_section_radius**2 &
                    * simulation_result%total_efficiency(3, 1) / source_power
-            simulation_result%dipole_scattered_power_residual = &
-               abs(csca - simulation_result%dipole_scattered_power) &
-               / max(tiny(1.0_real64), abs(csca), abs(simulation_result%dipole_scattered_power))
-            simulation_result%dipole_absorbed_power = pi * sphere_cluster%cross_section_radius**2 &
+            simulation_result%source_scattered_power_residual = &
+               abs(csca - simulation_result%source_scattered_power) &
+               / max(tiny(1.0_real64), abs(csca), abs(simulation_result%source_scattered_power))
+            simulation_result%source_absorbed_power = pi * sphere_cluster%cross_section_radius**2 &
                                                       * simulation_result%total_efficiency(2, 1) / source_power
-            simulation_result%dipole_extracted_power = simulation_result%dipole_scattered_power &
-                                                       + simulation_result%dipole_absorbed_power
+            simulation_result%source_extracted_power = simulation_result%source_scattered_power &
+                                                       + simulation_result%source_absorbed_power
          else
 !            simulation_result%total_efficiency(3,:)=simulation_result%total_efficiency(1,:)-simulation_result%total_efficiency(2,:)
             csca = simulation_result%total_efficiency(3, 1) * pi * sphere_cluster%cross_section_radius**2
@@ -841,6 +875,13 @@ contains
                                        incident_model=simulation_config%near_field_calculation_model, output_unit=file_unit, &
                                        output_header=.true., mpi_comm=mpicomm, dipole_position=dipole_position, &
                                        dipole_moment=simulation_config%electric_dipole_moment)
+            elseif (magnetic_current_incident) then
+               call compute_near_field(simulation_result%solution_coefficients, alpha, &
+                                       simulation_result%incident_sin_beta, simulation_config%incident_direction, &
+                                       simulation_config%near_field_plane_vertices, celldim, &
+                                       incident_model=simulation_config%near_field_calculation_model, output_unit=file_unit, &
+                                       output_header=.true., mpi_comm=mpicomm, magnetic_segments=magnetic_segments, &
+                                       magnetic_quadrature_order=simulation_config%magnetic_current_quadrature_order)
             else
                call compute_near_field(simulation_result%solution_coefficients, alpha, &
                                        simulation_result%incident_sin_beta, simulation_config%incident_direction, &
@@ -902,6 +943,86 @@ contains
          end if
       end do
    end subroutine validate_electric_dipole
+
+   subroutine validate_magnetic_current_segments(segments)
+      type(magnetic_current_segment_t), intent(in) :: segments(:)
+      integer :: segment_index, sphere
+      real(real64) :: distance, length
+      character(len=256) :: message
+
+      if (number_plane_boundaries > 0 .or. simulation_config%reflection_model) then
+         call set_runtime_error('magnetic_current_segments excitation requires a homogeneous exterior without plane boundaries')
+         return
+      end if
+      if (periodic_lattice) then
+         call set_runtime_error('magnetic_current_segments excitation requires a finite, non-periodic cluster')
+         return
+      end if
+      if (simulation_config%random_orientation .or. simulation_config%configuration_average .or. &
+          simulation_config%incidence_average .or. simulation_config%effective_medium_simulation) then
+         call set_runtime_error('magnetic_current_segments does not support orientation, incidence, configuration, or effective-medium averaging')
+         return
+      end if
+      if (sphere_cluster%gaussian_beam_constant /= 0.0_real64) then
+         call set_runtime_error('magnetic_current_segments cannot be combined with gaussian_beam_constant')
+         return
+      end if
+      if (aimag(layer_ref_index(0)) /= 0.0_real64 .or. real(layer_ref_index(0)) <= 0.0_real64) then
+   call set_runtime_error('magnetic-current power normalization requires a lossless exterior medium with positive refractive index')
+         return
+      end if
+      if (simulation_config%magnetic_current_quadrature_order < 1 .or. &
+          simulation_config%magnetic_current_quadrature_order > 128) then
+         call set_runtime_error('magnetic_current_quadrature_order must be between 1 and 128')
+         return
+      end if
+      if (size(segments) == 0) then
+         call set_runtime_error('magnetic_current_segments excitation requires at least one segment')
+         return
+      end if
+
+      do segment_index = 1, size(segments)
+         if (.not. all(ieee_is_finite(segments(segment_index)%start_point)) .or. &
+             .not. all(ieee_is_finite(segments(segment_index)%end_point)) .or. &
+             .not. ieee_is_finite(real(segments(segment_index)%amplitude)) .or. &
+             .not. ieee_is_finite(aimag(segments(segment_index)%amplitude))) then
+            write (message, '(a,i0,a)') 'Magnetic-current segment ', segment_index, ' must contain finite values'
+            call set_runtime_error(trim(message))
+            return
+         end if
+         length = sqrt(sum((segments(segment_index)%end_point - segments(segment_index)%start_point)**2))
+         if (length <= 1.0e-12_real64) then
+            write (message, '(a,i0,a)') 'Magnetic-current segment ', segment_index, ' must have nonzero length'
+            call set_runtime_error(trim(message))
+            return
+         end if
+         do sphere = 1, sphere_cluster%number_spheres
+            distance = point_segment_distance(sphere_cluster%sphere_position(:, sphere), &
+                                              segments(segment_index)%start_point, &
+                                              segments(segment_index)%end_point)
+            if (distance <= sphere_cluster%sphere_radius(sphere) * (1.0_real64 + 1.0e-12_real64)) then
+               write (message, '(a,i0,a,i0)') 'Magnetic-current segment ', segment_index, &
+                  ' intersects sphere ', sphere
+               call set_runtime_error(trim(message))
+               return
+            end if
+         end do
+      end do
+
+      if (magnetic_current_source_power(segments, real(layer_ref_index(0))) <= tiny(1.0_real64)) then
+         call set_runtime_error('magnetic_current_segments must have nonzero net radiated power')
+      end if
+   end subroutine validate_magnetic_current_segments
+
+   pure real(real64) function point_segment_distance(point, start_point, end_point)
+      real(real64), intent(in) :: point(3), start_point(3), end_point(3)
+      real(real64) :: delta(3), projection
+
+      delta = end_point - start_point
+      projection = dot_product(point - start_point, delta) / max(tiny(1.0_real64), sum(delta**2))
+      projection = max(0.0_real64, min(1.0_real64, projection))
+      point_segment_distance = sqrt(sum((point - start_point - projection * delta)**2))
+   end function point_segment_distance
 
    subroutine gather_error_codes(mpicomm)
       implicit none

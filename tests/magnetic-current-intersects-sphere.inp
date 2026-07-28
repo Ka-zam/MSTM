@@ -1,0 +1,13 @@
+output_file
+unused.dat
+number_spheres
+1
+sphere_data
+0.d0,0.d0,0.d0,0.5d0,(1.5d0,0.d0)
+end_of_sphere_data
+excitation_type
+magnetic_current_segments
+magnetic_current_segments
+-1.d0,0.d0,0.d0,1.d0,0.d0,0.d0,(1.d0,0.d0)
+end_of_magnetic_current_segments
+end_of_options
