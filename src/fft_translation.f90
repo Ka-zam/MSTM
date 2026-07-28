@@ -1053,28 +1053,32 @@ contains
       allocate (spatial_input(mode_count, cell_count), frequency_input(mode_count, doubled_cell_count), &
                 frequency_output(mode_count, doubled_cell_count), spatial_output(mode_count, cell_count))
 
-      do input_mode = 1, mode_count
+      do concurrent(input_mode=1:mode_count)
          spatial_input(input_mode, :) = acoef(:, input_mode, pmode)
       end do
       frequency_input = 0.0_real64
       call transform_3d_fft(self, spatial_input, frequency_input, mode_count, self%cell_dim, doubled_dimensions, 1)
 
       frequency_output = 0.0_real64
-      do input_mode = 1, mode_count
-         do output_mode = 1, mode_count
-            if (tranop) then
+      if (tranop) then
+         do concurrent(output_mode=1:mode_count) local(input_mode)
+            do input_mode = 1, mode_count
                frequency_output(output_mode, :) = frequency_output(output_mode, :) + &
                                                   tranmat(:, input_mode, output_mode) * frequency_input(input_mode, :)
-            else
+            end do
+         end do
+      else
+         do concurrent(output_mode=1:mode_count) local(input_mode)
+            do input_mode = 1, mode_count
                frequency_output(output_mode, :) = frequency_output(output_mode, :) + &
                                                   tranmat(:, output_mode, input_mode) * frequency_input(input_mode, :)
-            end if
+            end do
          end do
-      end do
+      end if
 
       spatial_output = 0.0_real64
       call transform_3d_fft(self, spatial_output, frequency_output, mode_count, self%cell_dim, doubled_dimensions, -1)
-      do output_mode = 1, mode_count
+      do concurrent(output_mode=1:mode_count)
          gcoef(:, output_mode, pmode) = spatial_output(output_mode, :) / real(doubled_cell_count, real64)
       end do
    end subroutine fft_node_to_node_translation_batched

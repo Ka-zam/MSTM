@@ -17,6 +17,8 @@ option(MSTM_ENABLE_WARNINGS "Enable GNU Fortran diagnostics" ON)
 option(MSTM_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(MSTM_ENABLE_RUNTIME_CHECKS "Enable GNU Fortran runtime checks" OFF)
 option(MSTM_ENABLE_COVERAGE "Instrument GNU Fortran targets for gcov coverage" OFF)
+option(MSTM_ENABLE_NATIVE_ARCH "Generate code for the build machine's CPU" ON)
+option(MSTM_ENABLE_VECTORIZATION_REPORT "Report optimized and missed vectorization opportunities" OFF)
 set(MSTM_SERIAL_REFERENCE_EXECUTABLE "" CACHE FILEPATH
   "Serial MSTM executable used by MPI equivalence tests"
 )
@@ -31,6 +33,15 @@ endif()
 
 add_library(mstm_fortran_options INTERFACE)
 target_compile_options(mstm_fortran_options INTERFACE -std=f2023)
+if(MSTM_ENABLE_NATIVE_ARCH)
+  target_compile_options(mstm_fortran_options INTERFACE -march=native)
+endif()
+if(MSTM_ENABLE_VECTORIZATION_REPORT)
+  target_compile_options(mstm_fortran_options INTERFACE
+    -fopt-info-vec-optimized
+    -fopt-info-vec-missed
+  )
+endif()
 if(MSTM_ENABLE_WARNINGS)
   target_compile_options(mstm_fortran_options INTERFACE
     -Wall

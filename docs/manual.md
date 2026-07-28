@@ -41,6 +41,9 @@ The incident propagation direction uses polar angle $\beta$ and azimuth $\alpha$
 - an MPI implementation with a GNU Fortran wrapper for parallel builds
 
 The build enforces the published Fortran 2023 dialect (`-std=f2023`).
+It also enables native CPU instruction selection (`-march=native`) by default.
+Use `-DMSTM_ENABLE_NATIVE_ARCH=OFF` only when the resulting executable must be
+portable across different CPU models.
 
 ### 3.2 Serial build
 
@@ -48,6 +51,15 @@ The build enforces the published Fortran 2023 dialect (`-std=f2023`).
 cmake -S . -B build/serial -DCMAKE_BUILD_TYPE=Release
 cmake --build build/serial -j
 ctest --test-dir build/serial --output-on-failure
+```
+
+To print gfortran's optimized and missed SIMD decisions while compiling, use a
+separate Release build:
+
+```sh
+cmake -S . -B build/vector -DCMAKE_BUILD_TYPE=Release \
+  -DMSTM_ENABLE_VECTORIZATION_REPORT=ON
+cmake --build build/vector -j
 ```
 
 ### 3.3 MPI build

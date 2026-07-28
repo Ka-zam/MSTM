@@ -14,6 +14,10 @@ cmake --build build/serial -j
 ctest --test-dir build/serial --output-on-failure
 ```
 
+Builds use `-march=native` by default; pass `-DMSTM_ENABLE_NATIVE_ARCH=OFF` for
+a portable executable. Configure with
+`-DMSTM_ENABLE_VECTORIZATION_REPORT=ON` to obtain gfortran SIMD diagnostics.
+
 Build MPI mode with `-DMSTM_ENABLE_MPI=ON -DCMAKE_Fortran_COMPILER=mpifort`. To enable serial/2-/4-rank equivalence tests, also pass `-DMSTM_SERIAL_REFERENCE_EXECUTABLE="$PWD/build/serial/mstm"`. Run a case as `build/serial/mstm examples/mstm-2022b-fig1.inp`; paths written by the solver are relative to the working directory.
 
 For a diagnostic build, add `-DMSTM_ENABLE_RUNTIME_CHECKS=ON`. Warnings are enabled by default; CI also sets `-DMSTM_WARNINGS_AS_ERRORS=ON`.

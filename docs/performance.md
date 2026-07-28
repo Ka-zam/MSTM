@@ -2,6 +2,30 @@
 
 These measurements identify algorithmic bottlenecks; they are not universal benchmarks. They were collected with GNU Fortran 15.2, an optimized serial build, OpenBLAS 0.3.32, and `OPENBLAS_NUM_THREADS=1`.
 
+## Native vectorization
+
+Release builds enable `-march=native`. A gfortran vectorization report on an
+AMD Ryzen AI 9 HX 370 confirmed 512-bit SIMD in the principal Bessel,
+translation, and batched FFT array loops. The 200-sphere pairwise profile spent
+about 58% of sampled time in coefficient translation, 18% generating axial
+translation coefficients, and 11% in spherical Bessel functions. These kernels
+already contain vectorized inner operations; forcing their short recurrence and
+matrix loops would violate dependencies or add overhead.
+
+For the corresponding FFT case, batched node-to-node translation accounted for
+about 46% of sampled time, FFT-axis processing and GPFA kernels for 17%, and
+local coefficient translation for 14%. Expressing independent output-mode
+iterations with `do concurrent` reduced five measured runs from 0.86--0.87 s to
+0.80--0.84 s without changing numerical results.
+
+Wider SIMD is not automatically faster. On this machine, the same pairwise case
+ran in approximately 3.95--4.05 s with GCC's native 512-bit selection versus
+3.56--3.66 s in the portable build; preferring 256-bit vectors reduced the
+native result to 3.77--3.81 s. Treat native tuning as access to the host ISA,
+not a performance guarantee, and benchmark representative production inputs.
+Use `MSTM_ENABLE_NATIVE_ARCH=OFF` when portability or a measured portable build
+is preferable.
+
 | Spheres | Unknowns | Pairwise BiCG | FFT BiCG | Dense direct | Direct memory |
 |---:|---:|---:|---:|---:|---:|
 | 100 | 1,600 | 0.116 s | 0.051 s | 0.334 s | 91 MB |

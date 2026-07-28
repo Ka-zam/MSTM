@@ -10,10 +10,10 @@ program mie_test
    real(real64), parameter :: size_parameter = 1.0_real64
    real(real64), parameter :: reference_efficiency = 0.2150975960428854_real64
    real(real64), parameter :: pec_reference_efficiency = 2.0358642575812524_real64
-   complex(real64) :: coefficients(2, 2, maximum_order)
+   complex(real64) :: coefficients(2, 2, maximum_order), inverse_coefficients(2, 2, maximum_order)
    complex(real64) :: mode_coefficients(2, 2), psi(0:maximum_order), xi(0:maximum_order)
    complex(real64) :: medium_index(2), sphere_index(2)
-   complex(real64) :: expected_mode_coefficient(2), psip, xip
+   complex(real64) :: expected_mode_coefficient(2), identity_matrix(2, 2), psip, xip
    integer :: degree, order
    real(real64) :: absorption, extinction, scattering
    real(real64) :: coefficient_extinction, coefficient_scattering
@@ -59,9 +59,11 @@ program mie_test
                       'absorbing Mie sphere does not conserve energy')
 
    coefficients = cmplx(0.0_real64, 0.0_real64, kind=real64)
+   inverse_coefficients = cmplx(0.0_real64, 0.0_real64, kind=real64)
    call perfect_conductor_mie_coefficients(size_parameter, order, 1.0e-13_real64, &
                                            extinction, scattering, absorption, &
-                                           anp_mie=coefficients, ri_medium=medium_index)
+                                           anp_mie=coefficients, ri_medium=medium_index, &
+                                           anp_inv_mie=inverse_coefficients)
    call require_close(extinction, pec_reference_efficiency, 3.0e-12_real64, &
                       'PEC extinction differs from the analytical Mie series')
    call require_close(scattering, pec_reference_efficiency, 3.0e-12_real64, &
@@ -95,6 +97,15 @@ program mie_test
       call require_complex_close(psi(degree) + expected_mode_coefficient(2) * xi(degree), &
                                  cmplx(0.0_real64, 0.0_real64, kind=real64), 2.0e-14_real64, &
                                  'PEC TE coefficient violates the tangential electric boundary condition')
+      identity_matrix = matmul(coefficients(:, :, degree), inverse_coefficients(:, :, degree))
+      call require_complex_close(identity_matrix(1, 1), cmplx(1.0_real64, 0.0_real64, kind=real64), &
+                                 2.0e-14_real64, 'PEC coefficient inverse has an incorrect first diagonal')
+      call require_complex_close(identity_matrix(2, 2), cmplx(1.0_real64, 0.0_real64, kind=real64), &
+                                 2.0e-14_real64, 'PEC coefficient inverse has an incorrect second diagonal')
+      call require_complex_close(identity_matrix(1, 2), cmplx(0.0_real64, 0.0_real64, kind=real64), &
+                                 2.0e-14_real64, 'PEC coefficient inverse has a nonzero upper off-diagonal')
+      call require_complex_close(identity_matrix(2, 1), cmplx(0.0_real64, 0.0_real64, kind=real64), &
+                                 2.0e-14_real64, 'PEC coefficient inverse has a nonzero lower off-diagonal')
    end do
 
 contains
@@ -110,7 +121,8 @@ contains
          qext = qext - real(2 * degree + 1, real64) * &
                 real(mie_coefficients(1, 1, degree) + mie_coefficients(2, 2, degree), real64)
          qsca = qsca + real(2 * degree + 1, real64) * &
-                sum(abs(mie_coefficients(:, :, degree))**2)
+                sum(real(mie_coefficients(:, :, degree), real64)**2 + &
+                    aimag(mie_coefficients(:, :, degree))**2)
       end do
       qext = 2.0_real64 * qext / size_parameter**2
       qsca = 2.0_real64 * qsca / size_parameter**2

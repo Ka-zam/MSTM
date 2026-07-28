@@ -13,6 +13,12 @@ cmake -S . -B build/serial -DCMAKE_BUILD_TYPE=Release
 cmake --build build/serial -j
 ```
 
+Native CPU tuning (`-march=native`) is enabled by default. Set
+`-DMSTM_ENABLE_NATIVE_ARCH=OFF` when building a binary that must run on other
+CPU models. To inspect automatic SIMD decisions, configure a Release build with
+`-DMSTM_ENABLE_VECTORIZATION_REPORT=ON`; gfortran then reports both vectorized
+loops and missed opportunities during compilation.
+
 For MPI, enable the MPI backend and select an MPI GNU Fortran wrapper if CMake does not find it automatically:
 
 ```sh

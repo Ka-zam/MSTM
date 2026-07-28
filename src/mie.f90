@@ -181,18 +181,17 @@ contains
    pure subroutine perfect_conductor_mie_coefficients(x, nodr0, qeps, qext, qsca, qabs, &
                                                       anp_mie, ri_medium, anp_inv_mie)
       use bessel_functions, only: riccati_bessel, riccati_hankel
-      use wave_functions, only: invert_two_by_two_matrix
       implicit none(type, external)
       integer, intent(inout) :: nodr0
       real(real64), intent(in) :: qeps, x
       real(real64), intent(out) :: qabs, qext, qsca
       complex(real64), intent(in), optional :: ri_medium(2)
-      complex(real64), intent(out), optional :: anp_mie(2, 2, *), anp_inv_mie(2, 2, *)
+      complex(real64), intent(out), optional :: anp_mie(:, :, :), anp_inv_mie(:, :, :)
       integer :: degree, nstop
       real(real64) :: error, extinction_total, order_weight
       real(real64), allocatable :: order_extinction(:)
-      complex(real64) :: argument, inverse_matrix(2, 2), mie_matrix(2, 2), &
-                         mode_coefficient(2), psip, xip
+      complex(real64) :: argument, diagonal_coefficient, diagonal_inverse, &
+                         mode_coefficient(2), off_diagonal_coefficient, off_diagonal_inverse, psip, xip
       complex(real64), allocatable :: psi(:), xi(:)
 
       argument = cmplx(x, 0.0_real64, kind=real64)
@@ -219,22 +218,32 @@ contains
          ! Mode 1 is electric/TM and mode 2 is magnetic/TE.
          mode_coefficient(1) = -psip / xip
          mode_coefficient(2) = -psi(degree) / xi(degree)
-         mie_matrix(1, 1) = 0.5_real64 * (mode_coefficient(1) + mode_coefficient(2))
-         mie_matrix(1, 2) = 0.5_real64 * (mode_coefficient(1) - mode_coefficient(2))
-         mie_matrix(2, 1) = mie_matrix(1, 2)
-         mie_matrix(2, 2) = mie_matrix(1, 1)
+         diagonal_coefficient = 0.5_real64 * (mode_coefficient(1) + mode_coefficient(2))
+         off_diagonal_coefficient = 0.5_real64 * (mode_coefficient(1) - mode_coefficient(2))
 
-         if (present(anp_mie)) anp_mie(:, :, degree) = mie_matrix
+         if (present(anp_mie)) then
+            anp_mie(1, 1, degree) = diagonal_coefficient
+            anp_mie(1, 2, degree) = off_diagonal_coefficient
+            anp_mie(2, 1, degree) = off_diagonal_coefficient
+            anp_mie(2, 2, degree) = diagonal_coefficient
+         end if
          if (present(anp_inv_mie)) then
-            call invert_two_by_two_matrix(mie_matrix, inverse_matrix)
-            anp_inv_mie(:, :, degree) = inverse_matrix
+            diagonal_inverse = 0.5_real64 * (1.0_real64 / mode_coefficient(1) + &
+                                             1.0_real64 / mode_coefficient(2))
+            off_diagonal_inverse = 0.5_real64 * (1.0_real64 / mode_coefficient(1) - &
+                                                 1.0_real64 / mode_coefficient(2))
+            anp_inv_mie(1, 1, degree) = diagonal_inverse
+            anp_inv_mie(1, 2, degree) = off_diagonal_inverse
+            anp_inv_mie(2, 1, degree) = off_diagonal_inverse
+            anp_inv_mie(2, 2, degree) = diagonal_inverse
          end if
 
          order_weight = real(2 * degree + 1, real64)
          order_extinction(degree) = -order_weight * &
-                                    real(mie_matrix(1, 1) + mie_matrix(2, 2), real64)
+                                    real(mode_coefficient(1) + mode_coefficient(2), real64)
          qext = qext + order_extinction(degree)
-         qsca = qsca + order_weight * sum(abs(mie_matrix)**2)
+         qsca = qsca + order_weight * &
+                sum(real(mode_coefficient, real64)**2 + aimag(mode_coefficient)**2)
       end do
 
       if (qeps > 0.0_real64) then
