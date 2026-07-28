@@ -4,7 +4,6 @@ module input_parser
    use input_value_parsing
    use parallel_runtime, only: parallel_rank
    use runtime_support, only: open_output_file, runtime_failed, set_runtime_error
-   use sphere_data, only: sphere_record_is_pec, sphere_record_mentions_pec
    implicit none
 contains
 
@@ -69,6 +68,13 @@ contains
       elseif (varlabel .eq. 'sphere_data_input_file') then
          vartype = 'a'
          avarvalue => simulation_config%output%sphere_data_file
+         if (operate) then
+            simulation_config%embedded_sphere_data = .false.
+            simulation_config%number_sphere_data_records = 0
+            simulation_config%sphere_data_source = trim(sentvarvalue)
+            if (allocated(simulation_config%sphere_data_records)) &
+               deallocate (simulation_config%sphere_data_records, simulation_config%sphere_data_record_lines)
+         end if
          sphere_cluster%recalculate_surface_matrix = .true.
 
       elseif (varlabel .eq. 'max_iterations') then
@@ -602,11 +608,9 @@ contains
 
    subroutine parse_input_data(inputfiledata, read_status)
       implicit none
-      integer :: readok, n, spherenum, varstat, rank, stopit, istat, lines, temporary_unit
+      integer :: readok, n, record_line, spherenum, varstat, rank, stopit, istat
       integer, save :: inputline
       integer, optional :: read_status
-      real(real64) :: rtemp(4)
-      complex(real64) :: ctemp(4)
       character(len=256) :: parmid, parmval, varop, inputfiledata(*)
       data inputline/1/
 
@@ -620,7 +624,7 @@ contains
          if (trim(parmid) .eq. 'run_file') then
             parmval = inputfiledata(inputline)
             inputline = inputline + 1
-            if (trim(parmval) .ne. ' ') then
+            if (trim(parmval) .ne. ' ' .and. .not. simulation_config%validation_only) then
                if (rank .eq. 0) then
                   call open_output_file(trim(parmval), sphere_cluster%run_print_unit)
                   if (runtime_failed()) then
@@ -665,68 +669,33 @@ contains
             cycle
 
          elseif (trim(parmid) .eq. 'sphere_data') then
-            istat = 0
-            n = 1
-            if (rank .eq. 0) then
-               call open_output_file('temp_pos.dat', temporary_unit)
-               if (runtime_failed()) then
-                  stopit = 1
-                  exit
-               end if
-            end if
-            simulation_config%output%sphere_data_file = 'temp_pos.dat'
+            if (allocated(simulation_config%sphere_data_records)) &
+               deallocate (simulation_config%sphere_data_records, simulation_config%sphere_data_record_lines)
+            allocate (simulation_config%sphere_data_records(simulation_config%input_number_spheres), &
+                      simulation_config%sphere_data_record_lines(simulation_config%input_number_spheres))
+            simulation_config%sphere_data_records = ''
+            simulation_config%sphere_data_record_lines = 0
+            simulation_config%output%sphere_data_file = '<embedded sphere_data>'
+            simulation_config%sphere_data_source = simulation_config%input_file
+            simulation_config%embedded_sphere_data = .true.
+            n = 0
             do
                parmval = inputfiledata(inputline)
                if (trim(parmval) .eq. 'end_of_options') exit
+               record_line = inputline
                inputline = inputline + 1
                if (trim(parmval) .eq. 'end_of_sphere_data') exit
+               parmval = adjustl(parmval)
+               if (len_trim(parmval) == 0) cycle
                if (parmval(1:1) .eq. '!' .or. parmval(1:1) .eq. '%') cycle
-               if (n .gt. simulation_config%input_number_spheres) cycle
-               if (sphere_record_mentions_pec(parmval) .and. .not. sphere_record_is_pec(parmval)) then
-                  call set_runtime_error('PEC sphere records require x, y, z, radius, and PEC')
-                  stopit = 1
-                  exit
-               elseif (sphere_record_is_pec(parmval)) then
-                  lines = 5
-               else
-                  read (parmval, *, iostat=istat) rtemp(1:4)
-                  if (istat .ne. 0) then
-                     lines = 3
-                  else
-                     read (parmval, *, iostat=istat) rtemp(1:4), ctemp(1)
-                     if (istat .ne. 0) then
-                        lines = 4
-                     else
-                        read (parmval, *, iostat=istat) rtemp(1:4), ctemp(1), ctemp(2)
-                        if (istat .ne. 0) then
-                           lines = 5
-                        else
-                           lines = 6
-                        end if
-                     end if
-                  end if
-               end if
-               if (rank .eq. 0) then
-                  if (sphere_record_is_pec(parmval)) then
-                     write (temporary_unit, '(a)') trim(parmval)
-                  elseif (lines .eq. 3) then
-                     write (temporary_unit, '(2(e20.12,'',''),e20.12)') rtemp(1:3)
-                  elseif (lines .eq. 4) then
-                     write (temporary_unit, '(3(e20.12,'',''),e20.12)') rtemp(1:4)
-                  elseif (lines .eq. 5) then
-                     write (temporary_unit, '(4(e20.12,'',''),'' ('',e20.12,'','',e20.12,'') '')') rtemp(1:4), ctemp(1)
-                  else
-                     write (temporary_unit, &
-                            '(4(e20.12,'',''),'' ('',e20.12,'','',e20.12,''), ('',e20.12,'','',e20.12,'') '')') &
-                        rtemp(1:4), ctemp(1:2)
-                  end if
-               end if
                n = n + 1
+               if (n <= simulation_config%input_number_spheres) then
+                  simulation_config%sphere_data_records(n) = parmval
+                  simulation_config%sphere_data_record_lines(n) = record_line
+               end if
             end do
-            simulation_config%input_number_spheres = min(n, simulation_config%input_number_spheres)
-            if (rank .eq. 0) close (temporary_unit)
+            simulation_config%number_sphere_data_records = min(n, simulation_config%input_number_spheres)
             simulation_config%data_scaled = .false.
-            simulation_config%temporary_position_file = .true.
             sphere_cluster%recalculate_surface_matrix = .true.
             cycle
 

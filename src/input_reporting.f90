@@ -29,7 +29,7 @@ contains
    subroutine print_run_variables(iunit)
       implicit none
       logical :: pec_present
-      integer :: iunit, i, n, fft_cell_dimensions(3), fft_neighbor_count, fft_order
+      integer :: iunit, i, n, dielectric_count, pec_count, fft_cell_dimensions(3), fft_neighbor_count, fft_order
       real(real64) :: cb, r(2), t(2), a(2), tvol, svol, fft_volume_fraction, fft_cell_size
 
       write (iunit, '(''****************************************************'')')
@@ -85,11 +85,19 @@ contains
          end if
          write (iunit, '('' number diffusion time steps:'',i5)') simulation_config%random_configuration_time_steps
       else
-         write (iunit, '('' sphere data input file:'')')
-         write (iunit, '(a)') trim(simulation_config%output%sphere_data_file)
+         if (simulation_config%embedded_sphere_data) then
+            write (iunit, '('' sphere data embedded in input file:'')')
+            write (iunit, '(a)') trim(simulation_config%sphere_data_source)
+         else
+            write (iunit, '('' sphere data input file:'')')
+            write (iunit, '(a)') trim(simulation_config%output%sphere_data_file)
+         end if
       end if
       write (iunit, '('' number spheres'')')
       write (iunit, '(i7)') sphere_cluster%number_spheres
+      dielectric_count = count(sphere_cluster%material_model == material_dielectric)
+      pec_count = count(sphere_cluster%material_model == material_pec)
+      write (iunit, '(a,i0,a,i0)') ' material counts: dielectric=', dielectric_count, ', PEC=', pec_count
       write (iunit, '('' length, ref index scale factors'')')
       write (iunit, '(3es15.7)') simulation_config%length_scale_factor, simulation_config%ref_index_scale_factor
       write (iunit, '('' volume cluster radius, area mean sphere radius, circumscribing radius, cross section radius'')')
@@ -214,6 +222,39 @@ contains
       write (iunit, *) simulation_result%run_number
       flush (iunit)
    end subroutine print_run_variables
+
+   subroutine print_validation_summary(iunit)
+      integer, intent(in) :: iunit
+      integer :: dielectric_count, n, pec_count
+      character(len=10) :: material_name
+
+      dielectric_count = count(sphere_cluster%material_model == material_dielectric)
+      pec_count = count(sphere_cluster%material_model == material_pec)
+      write (iunit, '(a)') 'Input validation successful: '//trim(simulation_config%input_file)
+      write (iunit, '(a,i0)') 'Spheres: ', sphere_cluster%number_spheres
+      write (iunit, '(a,i0)') 'Dielectric spheres: ', dielectric_count
+      write (iunit, '(a,i0)') 'PEC spheres: ', pec_count
+      write (iunit, '(a,i0)') 'Host spheres: ', sphere_cluster%number_host_spheres
+      write (iunit, '(a,i0)') 'Maximum Mie order: ', sphere_cluster%max_mie_order
+      write (iunit, '(a,i0)') 'System equations: ', sphere_cluster%number_eqns
+      if (sphere_cluster%fft_translation_option) then
+         write (iunit, '(a)') 'Translation path: FFT accelerated'
+      else
+         write (iunit, '(a)') 'Translation path: pairwise'
+      end if
+      write (iunit, '(a)') 'Parsed sphere geometry:'
+      write (iunit, '(a)') ' sphere material     host  layer       radius            x            y            z  order'
+      do n = 1, sphere_cluster%number_spheres
+         if (sphere_cluster%is_pec(n)) then
+            material_name = 'PEC'
+         else
+            material_name = 'dielectric'
+         end if
+         write (iunit, '(i7,1x,a10,2i7,4es13.5,i7)') n, material_name, sphere_cluster%host_sphere(n), &
+            sphere_cluster%sphere_layer(n), sphere_cluster%sphere_radius(n), sphere_cluster%sphere_position(:, n), &
+            sphere_cluster%sphere_order(n)
+      end do
+   end subroutine print_validation_summary
 
    subroutine print_error_codes(outunit)
       implicit none

@@ -3,7 +3,7 @@ program mstm
    use input_execution, only: execute_simulation, run_configuration_average, run_incidence_average, &
                               run_random_orientation_configuration_average
    use input_parser, only: parse_input_data, process_input_variable
-   use input_reporting, only: output_header
+   use input_reporting, only: output_header, print_validation_summary
    use input_state, only: simulation_config, simulation_result
    use mstm_version_info, only: mstm_version
    use parallel_runtime, only: parallel_barrier, parallel_finalize, parallel_initialize, parallel_rank, parallel_size
@@ -11,7 +11,7 @@ program mstm
                               report_runtime_error, runtime_failed, set_runtime_error, &
                               synchronize_runtime_status
    implicit none
-   logical :: input_exists
+   logical :: input_exists, validation_only
    integer :: input_unit, looplevel, output_unit_number, rank, numprocs, &
               readstat(1), i, istat, numberinputlines, n
    character(len=256) :: inputfile, inputline, oldoutputfile
@@ -22,7 +22,8 @@ program mstm
    call clear_runtime_status()
    call parallel_rank(mpi_rank=rank)
    call parallel_size(mpi_size=numprocs)
-   call parse_command_line(rank, inputfile)
+   call parse_command_line(rank, inputfile, validation_only)
+   simulation_config%validation_only = validation_only
 
    inquire (file=trim(inputfile), exist=input_exists)
    if (.not. input_exists) then
@@ -85,12 +86,12 @@ program mstm
       end do
       call synchronize_runtime_status()
       if (runtime_failed()) exit simulation_loop
-      if (oldoutputfile .ne. simulation_config%output%output_file) then
+      if ((.not. validation_only) .and. oldoutputfile .ne. simulation_config%output%output_file) then
          simulation_config%first_run = .true.
          simulation_result%run_number = 0
          oldoutputfile = simulation_config%output%output_file
       end if
-      if (rank .eq. 0) then
+      if (rank .eq. 0 .and. .not. validation_only) then
          if (simulation_config%first_run) then
             call open_output_file(simulation_config%output%output_file, output_unit_number, append=simulation_config%output%append)
             if (.not. runtime_failed()) then
@@ -102,7 +103,12 @@ program mstm
       call synchronize_runtime_status()
       if (runtime_failed()) exit simulation_loop
 
-      if (simulation_config%number_nested_loops .eq. 0) then
+      if (validation_only) then
+         simulation_result%run_number = simulation_result%run_number + 1
+         call execute_simulation(print_output=.false., dry_run=.true.)
+         call synchronize_runtime_status()
+         if (.not. runtime_failed() .and. rank == 0) call print_validation_summary(output_unit)
+      elseif (simulation_config%number_nested_loops .eq. 0) then
          simulation_result%run_number = simulation_result%run_number + 1
          if (simulation_config%configuration_average) then
             if (simulation_config%random_orientation) then
@@ -123,10 +129,6 @@ program mstm
       if (runtime_failed()) exit simulation_loop
       simulation_config%number_nested_loops = 0
    end do simulation_loop
-!      if(simulation_config%temporary_position_file.and.rank.eq.0) then
-!         open(20,file='temp_pos.dat')
-!         close(20,status='delete')
-!      endif
    call parallel_barrier()
    call parallel_finalize()
    if (runtime_failed()) then
@@ -136,13 +138,15 @@ program mstm
 
 contains
 
-   subroutine parse_command_line(rank, input_file_name)
+   subroutine parse_command_line(rank, input_file_name, validation_mode)
       implicit none
       integer, intent(in) :: rank
       character(len=*), intent(out) :: input_file_name
+      logical, intent(out) :: validation_mode
       integer :: number_arguments
       character(len=256) :: argument, extra_argument
 
+      validation_mode = .false.
       number_arguments = command_argument_count()
       if (number_arguments .eq. 0) then
          if (rank .eq. 0) call print_help()
@@ -160,6 +164,18 @@ contains
          if (rank .eq. 0) write (output_unit, '(a)') 'MSTM '//mstm_version
          call parallel_finalize()
          stop 0, quiet = .true.
+      case ('--check', '--dry-run')
+         if (number_arguments /= 2) then
+            if (rank == 0) then
+               write (error_unit, '(a)') 'mstm: --check requires an input file'
+               write (error_unit, '(a)') 'Usage: mstm --check INPUT_FILE'
+            end if
+            call parallel_finalize()
+            stop 2, quiet = .true.
+         end if
+         call get_command_argument(2, input_file_name)
+         validation_mode = .true.
+         return
       case default
          if (argument(1:1) .eq. '-') then
             if (rank .eq. 0) then
@@ -173,12 +189,17 @@ contains
 
       if (number_arguments .gt. 1) then
          call get_command_argument(2, extra_argument)
-         if (rank .eq. 0) then
-            write (error_unit, '(a)') "mstm: unexpected argument '"//trim(extra_argument)//"'"
-            write (error_unit, '(a)') "Usage: mstm [INPUT_FILE]"
+         if (number_arguments == 2 .and. &
+             (trim(extra_argument) == '--check' .or. trim(extra_argument) == '--dry-run')) then
+            validation_mode = .true.
+         else
+            if (rank .eq. 0) then
+               write (error_unit, '(a)') "mstm: unexpected argument '"//trim(extra_argument)//"'"
+               write (error_unit, '(a)') 'Usage: mstm [--check] INPUT_FILE'
+            end if
+            call parallel_finalize()
+            stop 2, quiet = .true.
          end if
-         call parallel_finalize()
-         stop 2, quiet = .true.
       end if
 
       input_file_name = trim(argument)
@@ -192,6 +213,7 @@ contains
       write (output_unit, '(a)') ''
       write (output_unit, '(a)') 'Usage:'
       write (output_unit, '(a)') '  mstm [INPUT_FILE]'
+      write (output_unit, '(a)') '  mstm --check INPUT_FILE'
       write (output_unit, '(a)') '  mstm help | --help | -h'
       write (output_unit, '(a)') '  mstm version | --version | -V'
       write (output_unit, '(a)') ''
@@ -199,6 +221,8 @@ contains
       write (output_unit, '(a)') '  INPUT_FILE    Simulation input file.'
       write (output_unit, '(a)') ''
       write (output_unit, '(a)') 'Options:'
+      write (output_unit, '(a)') '      --check   Validate and summarize input without solving or writing files.'
+      write (output_unit, '(a)') '      --dry-run Alias for --check.'
       write (output_unit, '(a)') '  -h, --help    Show this help and exit.'
       write (output_unit, '(a)') '  -V, --version Show version information and exit.'
       write (output_unit, '(a)') ''

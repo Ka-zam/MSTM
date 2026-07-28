@@ -63,12 +63,13 @@ ctest --test-dir build/mpi --output-on-failure
 
 ```sh
 build/serial/mstm path/to/case.inp
+build/serial/mstm --check path/to/case.inp
 mpiexec -n 8 build/mpi/mstm path/to/case.inp
 build/serial/mstm --help
 build/serial/mstm --version
 ```
 
-With no argument, MSTM prints command-line usage. The aliases `help`, `--help`, and `-h` do the same. `version`, `--version`, and `-V` print the version generated from the CMake project metadata. Input paths may be absolute or relative to the working directory. Output paths in the input file are also resolved from that directory. Multiples of four MPI ranks are often most efficient for configuration averaging.
+With no argument, MSTM prints command-line usage. The aliases `help`, `--help`, and `-h` do the same. `version`, `--version`, and `-V` print the version generated from the CMake project metadata. `--check` (also `--dry-run`) parses and validates an input, builds its geometry and expansion orders, and prints a material/geometry summary without solving or creating output files. Input paths may be absolute or relative to the working directory. Output paths in the input file are also resolved from that directory. Multiples of four MPI ranks are often most efficient for configuration averaging.
 
 ## 4. Input format
 
@@ -127,6 +128,8 @@ sphere_data
 0.d0,0.d0,2.d0,1.d0,(1.5d0,0.d0)
 end_of_sphere_data
 ```
+
+Embedded records are retained in memory. They do not create a shared temporary position file, so independent MSTM processes can safely use embedded data in the same working directory.
 
 ## 5. Common calculation recipes
 
@@ -239,6 +242,21 @@ Up to three loop levels may be nested. The first declaration is outermost.
 ### 5.6 Accelerated translation
 
 For large systems with no plane boundaries or periodicity, set `fft_translation_option=t`. The convolution method can reduce the external-sphere interaction cost from approximately $N_S^2$ to $N_S\log N_S$. It works best for clusters with a reasonably uniform concentration. Compare an accelerated run with a conventional run when establishing tolerances.
+
+### 5.7 Perfect electric conductors
+
+Use `PEC` as the fifth sphere-record field for an exact solid perfect electric conductor:
+
+```text
+number_spheres
+2
+sphere_data
+-0.6d0,0.d0,0.d0,0.4d0,PEC
+ 0.6d0,0.d0,0.d0,0.4d0,(1.5d0,0.d0)
+end_of_sphere_data
+```
+
+See `examples/pec-sphere.inp` for an isolated conductor and `examples/pec-dielectric-cluster.inp` for a mixed cluster. Run either with `mstm --check` before a full calculation to review material classification and expansion sizes.
 
 ## 6. Input option reference
 

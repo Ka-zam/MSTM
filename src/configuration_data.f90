@@ -13,75 +13,22 @@ contains
 
    subroutine read_sphere_data_input_file(mpi_comm)
       implicit none
-      integer :: input_unit, mpicomm, rank, istat, n
+      integer :: n
       integer, optional :: mpi_comm
-      real(real64) :: rtemp(4)
-      complex(real64) :: ctemp(2)
-      character(len=32) :: material_name
-      character(len=256) :: parmval
 
-      if (present(mpi_comm)) then
-         mpicomm = mpi_comm
-      else
-         mpicomm = mpi_comm_world
-      end if
-      call parallel_rank(mpi_rank=rank, mpi_comm=mpicomm)
-
-      call open_input_file(simulation_config%output%sphere_data_file, input_unit)
+      if (.not. simulation_config%embedded_sphere_data) call load_external_sphere_data_records()
       if (runtime_failed()) return
+      if (simulation_config%number_sphere_data_records < sphere_cluster%number_spheres) then
+         call set_runtime_error("Sphere data source '"//trim(simulation_config%sphere_data_source)//"' contains "// &
+                                trim(integer_string(simulation_config%number_sphere_data_records))// &
+                                ' records; expected '//trim(integer_string(sphere_cluster%number_spheres)))
+         return
+      end if
+
       do n = 1, sphere_cluster%number_spheres
-         sphere_cluster%sphere_radius(n) = 1.d0
-         sphere_cluster%sphere_ref_index(1, n) = (1.d0, 0.d0)
-         sphere_cluster%sphere_ref_index(2, n) = (1.d0, 0.d0)
-         sphere_cluster%material_model(n) = material_dielectric
-         read (input_unit, '(a)', iostat=istat) parmval
-         if (istat .ne. 0) then
-            if (rank .eq. 0) then
-               write (sphere_cluster%run_print_unit, '('' insufficient data in input file: '', i4,'' lines, need '',i4)') &
-                  n, sphere_cluster%number_spheres
-            end if
-            call set_runtime_error('Insufficient data in sphere input file: '//trim(simulation_config%output%sphere_data_file))
-            close (input_unit)
-            return
-         end if
-         read (parmval, *, iostat=istat) sphere_cluster%sphere_position(:, n)
-         if (istat .ne. 0) then
-            if (rank .eq. 0) then
-               write (sphere_cluster%run_print_unit, '('' read error in sphere data input file'')')
-            end if
-            call set_runtime_error('Invalid data in sphere input file: '//trim(simulation_config%output%sphere_data_file))
-            close (input_unit)
-            return
-         end if
-         read (parmval, *, iostat=istat) rtemp(1:4)
-         if (istat .eq. 0) sphere_cluster%sphere_radius(n) = rtemp(4)
-         if (sphere_record_mentions_pec(parmval) .and. .not. sphere_record_is_pec(parmval)) then
-            call set_runtime_error('PEC sphere records require x, y, z, radius, and PEC')
-            close (input_unit)
-            return
-         end if
-         if (sphere_record_is_pec(parmval)) then
-            read (parmval, *, iostat=istat) rtemp(1:4), material_name
-            if (istat /= 0) then
-               call set_runtime_error('PEC sphere records require x, y, z, radius, and PEC')
-               close (input_unit)
-               return
-            end if
-            sphere_cluster%sphere_radius(n) = rtemp(4)
-            sphere_cluster%material_model(n) = material_pec
-            cycle
-         end if
-         read (parmval, *, iostat=istat) rtemp(1:4), ctemp(1)
-         if (istat .eq. 0) sphere_cluster%sphere_ref_index(1, n) = ctemp(1)
-         read (parmval, *, iostat=istat) rtemp(1:4), ctemp(1:2)
-         if (istat .eq. 0) then
-            sphere_cluster%sphere_ref_index(2, n) = ctemp(2)
-         else
-            sphere_cluster%sphere_ref_index(2, n) = sphere_cluster%sphere_ref_index(1, n)
-         end if
+         call parse_sphere_data_record(n)
+         if (runtime_failed()) return
       end do
-      sphere_cluster%number_spheres = min(n, sphere_cluster%number_spheres)
-      close (input_unit)
       do n = 1, sphere_cluster%number_spheres
          sphere_cluster%sphere_radius(n) = sphere_cluster%sphere_radius(n) * simulation_config%length_scale_factor
          sphere_cluster%sphere_position(:, n) = sphere_cluster%sphere_position(:, n) * simulation_config%length_scale_factor
@@ -90,6 +37,104 @@ contains
                                                     * simulation_config%ref_index_scale_factor
       end do
    end subroutine read_sphere_data_input_file
+
+   subroutine load_external_sphere_data_records()
+      integer :: input_unit, io_status, line_number, record_count
+      character(len=256) :: record
+
+      simulation_config%sphere_data_source = simulation_config%output%sphere_data_file
+      simulation_config%number_sphere_data_records = 0
+      if (allocated(simulation_config%sphere_data_records)) &
+         deallocate (simulation_config%sphere_data_records, simulation_config%sphere_data_record_lines)
+      allocate (simulation_config%sphere_data_records(sphere_cluster%number_spheres), &
+                simulation_config%sphere_data_record_lines(sphere_cluster%number_spheres))
+      simulation_config%sphere_data_records = ''
+      simulation_config%sphere_data_record_lines = 0
+
+      call open_input_file(simulation_config%output%sphere_data_file, input_unit)
+      if (runtime_failed()) return
+      line_number = 0
+      record_count = 0
+      do while (record_count < sphere_cluster%number_spheres)
+         read (input_unit, '(a)', iostat=io_status) record
+         if (io_status /= 0) exit
+         line_number = line_number + 1
+         record = adjustl(record)
+         if (len_trim(record) == 0) cycle
+         if (record(1:1) == '!' .or. record(1:1) == '%') cycle
+         record_count = record_count + 1
+         simulation_config%sphere_data_records(record_count) = record
+         simulation_config%sphere_data_record_lines(record_count) = line_number
+      end do
+      close (input_unit)
+      simulation_config%number_sphere_data_records = record_count
+   end subroutine load_external_sphere_data_records
+
+   subroutine parse_sphere_data_record(record_index)
+      integer, intent(in) :: record_index
+      integer :: io_status
+      real(real64) :: geometry(4)
+      complex(real64) :: refractive_index(2)
+      character(len=32) :: material_name
+      character(len=256) :: record
+
+      record = simulation_config%sphere_data_records(record_index)
+      sphere_cluster%sphere_radius(record_index) = 1.0_real64
+      sphere_cluster%sphere_ref_index(:, record_index) = (1.0_real64, 0.0_real64)
+      sphere_cluster%material_model(record_index) = material_dielectric
+
+      read (record, *, iostat=io_status) sphere_cluster%sphere_position(:, record_index)
+      if (io_status /= 0) then
+         call set_sphere_data_record_error(record_index, 'expected numeric x, y, and z coordinates')
+         return
+      end if
+
+      read (record, *, iostat=io_status) geometry
+      if (io_status == 0) sphere_cluster%sphere_radius(record_index) = geometry(4)
+      if (sphere_record_mentions_pec(record) .and. .not. sphere_record_is_pec(record)) then
+         call set_sphere_data_record_error(record_index, 'PEC sphere records require x, y, z, radius, and PEC')
+         return
+      end if
+      if (sphere_record_is_pec(record)) then
+         read (record, *, iostat=io_status) geometry, material_name
+         if (io_status /= 0) then
+            call set_sphere_data_record_error(record_index, 'PEC sphere records require x, y, z, radius, and PEC')
+            return
+         end if
+         sphere_cluster%sphere_radius(record_index) = geometry(4)
+         sphere_cluster%material_model(record_index) = material_pec
+         return
+      end if
+
+      read (record, *, iostat=io_status) geometry, refractive_index(1)
+      if (io_status == 0) sphere_cluster%sphere_ref_index(1, record_index) = refractive_index(1)
+      read (record, *, iostat=io_status) geometry, refractive_index
+      if (io_status == 0) then
+         sphere_cluster%sphere_ref_index(2, record_index) = refractive_index(2)
+      else
+         sphere_cluster%sphere_ref_index(2, record_index) = sphere_cluster%sphere_ref_index(1, record_index)
+      end if
+   end subroutine parse_sphere_data_record
+
+   subroutine set_sphere_data_record_error(record_index, detail)
+      integer, intent(in) :: record_index
+      character(len=*), intent(in) :: detail
+      character(len=512) :: message
+
+      message = 'Sphere record '//trim(integer_string(record_index))//" in '"// &
+                trim(simulation_config%sphere_data_source)//"'"
+      if (allocated(simulation_config%sphere_data_record_lines)) then
+         if (record_index <= size(simulation_config%sphere_data_record_lines)) &
+            message = trim(message)//' at line '// &
+                      trim(integer_string(simulation_config%sphere_data_record_lines(record_index)))
+      end if
+      message = trim(message)//': '//trim(detail)
+      if (allocated(simulation_config%sphere_data_records)) then
+         if (record_index <= size(simulation_config%sphere_data_records)) &
+            message = trim(message)//'. Offending record: '//trim(simulation_config%sphere_data_records(record_index))
+      end if
+      call set_runtime_error(trim(message))
+   end subroutine set_sphere_data_record_error
 
    subroutine generate_random_configuration(mpi_comm, skip_diffusion)
       implicit none
@@ -194,11 +239,11 @@ contains
       do i = 1, sphere_cluster%number_spheres
          if (.not. sphere_cluster%is_pec(i)) cycle
          if (sphere_cluster%host_sphere(i) /= 0) then
-            call set_runtime_error('PEC sphere '//integer_string(i)//' is nested; only top-level solid PEC spheres are supported')
+            call set_sphere_data_record_error(i, 'nested PEC sphere; only top-level solid PEC spheres are supported')
             return
          end if
          if (any(sphere_cluster%host_sphere == i)) then
-        call set_runtime_error('PEC sphere '//integer_string(i)//' contains another sphere; PEC hosts and cavities are unsupported')
+            call set_sphere_data_record_error(i, 'PEC sphere contains another sphere; PEC hosts and cavities are unsupported')
             return
          end if
       end do

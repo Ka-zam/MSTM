@@ -134,19 +134,19 @@ contains
                 simulation_result%sphere_index(sphere_cluster%number_spheres))
       sphere_cluster%material_model = material_dielectric
       if (simulation_config%random_configuration) then
-         if (simulation_config%output%print_timings .and. mstm_global_rank .eq. 0) then
+         if (printout .and. simulation_config%output%print_timings .and. mstm_global_rank .eq. 0) then
             write (sphere_cluster%run_print_unit, '('' generating random configuration:'')', advance='no')
             timet = parallel_wall_time()
          end if
          call generate_random_configuration(mpi_comm=mpicomm, skip_diffusion=dryrun)
          if (runtime_failed()) return
 !            call generate_random_configuration(mpi_comm=mpicomm)
-         if (simulation_config%output%print_timings .and. mstm_global_rank .eq. 0) then
+         if (printout .and. simulation_config%output%print_timings .and. mstm_global_rank .eq. 0) then
             write (sphere_cluster%run_print_unit, '('' completed, time:'',es12.5,'' s'')') parallel_wall_time() - timet
          end if
          if (rank .eq. 0) then
 !               if(simulation_config%output%print_random_configuration.and.(.not.simulation_config%configuration_average)) then
-            if (simulation_config%output%print_random_configuration .and. mstm_global_rank .eq. 0) then
+            if (printout .and. simulation_config%output%print_random_configuration .and. mstm_global_rank .eq. 0) then
                call open_output_file(trim(simulation_config%output%random_configuration_file), file_unit)
                if (runtime_failed()) return
                do i = 1, sphere_cluster%number_spheres
@@ -498,8 +498,9 @@ contains
       end if
 !call parallel_barrier()
       if (rank .eq. 0) time1 = parallel_wall_time()
+      if (rank == 0 .and. simulation_config%check_positions .and. &
+          (printout .or. simulation_config%validation_only)) call check_sphere_positions()
       if (rank .eq. 0 .and. printout) then
-         if (simulation_config%check_positions) call check_sphere_positions()
          call print_run_variables(sphere_cluster%run_print_unit)
          call open_output_file(simulation_config%output%output_file, file_unit, append=.true.)
          if (runtime_failed()) return

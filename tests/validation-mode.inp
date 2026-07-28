@@ -1,0 +1,15 @@
+! Validation mode must parse this input without creating any configured files.
+run_file
+validation-run.log
+output_file
+validation-output.dat
+number_spheres
+1
+sphere_data
+0.d0,0.d0,0.d0,1.d0,PEC
+end_of_sphere_data
+calculate_near_field
+t
+near_field_output_file
+validation-near-field.dat
+end_of_options

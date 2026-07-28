@@ -55,7 +55,8 @@ module input_state
       logical :: repeat_run = .false.
       logical :: first_run = .false.
       logical :: data_scaled = .false.
-      logical :: temporary_position_file = .false.
+      logical :: embedded_sphere_data = .false.
+      logical :: validation_only = .false.
       logical :: incident_beta_specified = .false.
       logical :: number_spheres_specified = .true.
       logical :: square_cell = .false.
@@ -101,6 +102,7 @@ module input_state
       integer :: shifted_sphere = 0
       integer :: number_excited_spheres = 1000000
       integer :: input_number_spheres = 0
+      integer :: number_sphere_data_records = 0
       integer :: random_configuration_host_model = 1
       integer :: random_configuration_time_steps = 0
       integer :: number_configuration_groups = 0
@@ -140,7 +142,10 @@ module input_state
       character(len=1) :: loop_variable_type(5) = ''
       character(len=256) :: loop_variable_label(5) = ''
       character(len=256) :: input_file = ''
+      character(len=256) :: sphere_data_source = ''
       logical, allocatable :: sphere_excitation_switch(:)
+      integer, allocatable :: sphere_data_record_lines(:)
+      character(len=256), allocatable :: sphere_data_records(:)
    end type simulation_config_t
 
    type, public :: simulation_result_t

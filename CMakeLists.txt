@@ -290,6 +290,32 @@ if(BUILD_TESTING)
   add_mstm_cli_test(cli_version --version)
   set_tests_properties(cli_version PROPERTIES PASS_REGULAR_EXPRESSION "MSTM ${PROJECT_VERSION}")
 
+  add_mstm_cli_test(cli_dry_run_alias --dry-run "${CMAKE_CURRENT_SOURCE_DIR}/tests/pec-sphere.inp")
+  set_tests_properties(cli_dry_run_alias PROPERTIES PASS_REGULAR_EXPRESSION "Input validation successful")
+  add_mstm_cli_test(pec_mixed_example_check --check "${CMAKE_CURRENT_SOURCE_DIR}/examples/pec-dielectric-cluster.inp")
+  set_tests_properties(pec_mixed_example_check PROPERTIES PASS_REGULAR_EXPRESSION "PEC spheres: 1")
+
+  set(validation_mode_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/validation_mode")
+  file(MAKE_DIRECTORY "${validation_mode_work_dir}")
+  set(validation_mode_mpi_arguments)
+  if(MSTM_ENABLE_MPI)
+    list(APPEND validation_mode_mpi_arguments
+      "-DMSTM_MPIEXEC=${MPIEXEC_EXECUTABLE}"
+      "-DMSTM_MPI_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+      "-DMSTM_MPI_RANKS=1"
+    )
+  endif()
+  add_test(
+    NAME cli_check_mode
+    COMMAND "${CMAKE_COMMAND}"
+      "-DMSTM_EXECUTABLE=$<TARGET_FILE:mstm>"
+      "-DMSTM_INPUT=${CMAKE_CURRENT_SOURCE_DIR}/tests/validation-mode.inp"
+      "-DMSTM_WORK_DIR=${validation_mode_work_dir}"
+      "-DMSTM_FORBIDDEN_OUTPUTS=validation-run.log,validation-output.dat,validation-near-field.dat"
+      ${validation_mode_mpi_arguments}
+      -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunValidationMode.cmake"
+  )
+
   function(add_mstm_failure_test test_name input_name expected_error)
     set(test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/${test_name}")
     file(MAKE_DIRECTORY "${test_work_dir}")
@@ -328,7 +354,7 @@ if(BUILD_TESTING)
   add_mstm_failure_test(
     malformed_pec_error
     malformed-pec.inp
-    "PEC sphere records require x, y, z, radius, and PEC"
+    "Sphere record 1 in '${CMAKE_CURRENT_SOURCE_DIR}/tests/malformed-pec.inp' at line 6: PEC sphere records require x, y, z, radius, and PEC. Offending record: 0.d0,0.d0,0.d0,PEC"
   )
 
   add_mstm_cli_test(pec_sphere_smoke "${CMAKE_CURRENT_SOURCE_DIR}/tests/pec-sphere.inp")

@@ -10,4 +10,6 @@ cd build/example
 
 `frac_agg.pos` and `random_in_cylinder_1000.pos` provide sphere positions for aggregate and FFT-acceleration examples. `plots mstm-2022b.nb` is the Mathematica notebook used to plot the paper results.
 
+`pec-sphere.inp` demonstrates the exact solid-PEC formulation. `pec-dielectric-cluster.inp` demonstrates a mixed PEC/lossless-dielectric cluster at oblique incidence. Validate either input without creating output files with `mstm --check INPUT_FILE`.
+
 `effective-medium-smoke.inp` is a deliberately small regression case for the effective-medium fitting workflow added in December 2023. CTest runs it alongside the Figure 1 smoke test.
