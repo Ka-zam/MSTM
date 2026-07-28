@@ -1,0 +1,8 @@
+output_file
+malformed-pec.dat
+number_spheres
+1
+sphere_data
+0.d0,0.d0,0.d0,PEC
+end_of_sphere_data
+end_of_options

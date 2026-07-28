@@ -118,6 +118,7 @@ contains
          deallocate (sphere_cluster%sphere_radius, &
                      sphere_cluster%sphere_position, &
                      sphere_cluster%sphere_ref_index, &
+                     sphere_cluster%material_model, &
                      sphere_cluster%host_sphere, &
                      sphere_cluster%number_field_expansions, &
                      simulation_config%sphere_excitation_switch, &
@@ -126,10 +127,12 @@ contains
       allocate (sphere_cluster%sphere_radius(sphere_cluster%number_spheres), &
                 sphere_cluster%sphere_position(3, sphere_cluster%number_spheres), &
                 sphere_cluster%sphere_ref_index(2, 0:sphere_cluster%number_spheres), &
+                sphere_cluster%material_model(sphere_cluster%number_spheres), &
                 sphere_cluster%host_sphere(sphere_cluster%number_spheres), &
                 sphere_cluster%number_field_expansions(sphere_cluster%number_spheres), &
                 simulation_config%sphere_excitation_switch(sphere_cluster%number_spheres), &
                 simulation_result%sphere_index(sphere_cluster%number_spheres))
+      sphere_cluster%material_model = material_dielectric
       if (simulation_config%random_configuration) then
          if (simulation_config%output%print_timings .and. mstm_global_rank .eq. 0) then
             write (sphere_cluster%run_print_unit, '('' generating random configuration:'')', advance='no')
@@ -245,7 +248,10 @@ contains
          flush (6)
       end if
       call sphere_cluster%initialize_layers()
+      call validate_material_configuration()
+      if (runtime_failed()) return
       call calculate_mie_coefficients(simulation_config%solver%mie_epsilon)
+      if (runtime_failed()) return
       call initialize_numerical_tables(sphere_cluster%max_mie_order)
       if (light_up) then
          write (*, '('' s4 '',i3)') mstm_global_rank

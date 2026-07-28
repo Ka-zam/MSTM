@@ -4,6 +4,7 @@ module input_parser
    use input_value_parsing
    use parallel_runtime, only: parallel_rank
    use runtime_support, only: open_output_file, runtime_failed, set_runtime_error
+   use sphere_data, only: sphere_record_is_pec, sphere_record_mentions_pec
    implicit none
 contains
 
@@ -681,24 +682,34 @@ contains
                if (trim(parmval) .eq. 'end_of_sphere_data') exit
                if (parmval(1:1) .eq. '!' .or. parmval(1:1) .eq. '%') cycle
                if (n .gt. simulation_config%input_number_spheres) cycle
-               read (parmval, *, iostat=istat) rtemp(1:4)
-               if (istat .ne. 0) then
-                  lines = 3
+               if (sphere_record_mentions_pec(parmval) .and. .not. sphere_record_is_pec(parmval)) then
+                  call set_runtime_error('PEC sphere records require x, y, z, radius, and PEC')
+                  stopit = 1
+                  exit
+               elseif (sphere_record_is_pec(parmval)) then
+                  lines = 5
                else
-                  read (parmval, *, iostat=istat) rtemp(1:4), ctemp(1)
+                  read (parmval, *, iostat=istat) rtemp(1:4)
                   if (istat .ne. 0) then
-                     lines = 4
+                     lines = 3
                   else
-                     read (parmval, *, iostat=istat) rtemp(1:4), ctemp(1), ctemp(2)
+                     read (parmval, *, iostat=istat) rtemp(1:4), ctemp(1)
                      if (istat .ne. 0) then
-                        lines = 5
+                        lines = 4
                      else
-                        lines = 6
+                        read (parmval, *, iostat=istat) rtemp(1:4), ctemp(1), ctemp(2)
+                        if (istat .ne. 0) then
+                           lines = 5
+                        else
+                           lines = 6
+                        end if
                      end if
                   end if
                end if
                if (rank .eq. 0) then
-                  if (lines .eq. 3) then
+                  if (sphere_record_is_pec(parmval)) then
+                     write (temporary_unit, '(a)') trim(parmval)
+                  elseif (lines .eq. 3) then
                      write (temporary_unit, '(2(e20.12,'',''),e20.12)') rtemp(1:3)
                   elseif (lines .eq. 4) then
                      write (temporary_unit, '(3(e20.12,'',''),e20.12)') rtemp(1:4)

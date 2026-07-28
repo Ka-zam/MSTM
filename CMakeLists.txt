@@ -320,6 +320,19 @@ if(BUILD_TESTING)
     solver-nonconvergence.inp
     "Fixed-orientation solver failed: iteration limit reached"
   )
+  add_mstm_failure_test(
+    nested_pec_error
+    nested-pec.inp
+    "only top-level solid PEC spheres are supported"
+  )
+  add_mstm_failure_test(
+    malformed_pec_error
+    malformed-pec.inp
+    "PEC sphere records require x, y, z, radius, and PEC"
+  )
+
+  add_mstm_cli_test(pec_sphere_smoke "${CMAKE_CURRENT_SOURCE_DIR}/tests/pec-sphere.inp")
+  set_tests_properties(pec_sphere_smoke PROPERTIES PASS_REGULAR_EXPRESSION "PEC")
 
   function(add_mstm_regression_test test_name input_path expected_outputs regression_case)
     set(test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/tests/${test_name}")
@@ -423,6 +436,18 @@ if(BUILD_TESTING)
     "${CMAKE_CURRENT_SOURCE_DIR}/tests/state-lifecycle.inp"
     state-lifecycle.dat
     state_lifecycle
+  )
+  add_mstm_regression_test(
+    pec_sphere_regression
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/pec-sphere.inp"
+    "pec-sphere.dat,pec-near-field.dat"
+    pec_sphere
+  )
+  add_mstm_regression_test(
+    pec_mixed_invariants
+    "${CMAKE_CURRENT_SOURCE_DIR}/tests/pec-mixed-invariants.inp"
+    pec-mixed-invariants.dat
+    pec_mixed_invariants
   )
 
   if(MSTM_ENABLE_MPI)

@@ -3,6 +3,13 @@ module sphere_data
    use numerical_tables
    use surface
    use periodic_lattice_operations
+   implicit none(type, external)
+
+   integer, parameter, public :: material_dielectric = 0
+   integer, parameter, public :: material_pec = 1
+   public :: sphere_record_is_pec, sphere_record_mentions_pec
+   private :: lowercase
+
    type sphere_index_list
       integer, allocatable :: indices(:)
    end type sphere_index_list
@@ -27,6 +34,7 @@ module sphere_data
       integer :: t_matrix_order = 0
       integer :: max_sphere_depth = 0
       integer, allocatable :: host_sphere(:), sphere_order(:), sphere_block(:), sphere_offset(:)
+      integer, allocatable :: material_model(:)
       integer, allocatable :: translation_order(:), number_field_expansions(:), mie_offset(:), &
                               mie_block_offset(:), sphere_layer(:), sphere_depth(:)
       type(sphere_index_list), allocatable :: sphere_links(:, :)
@@ -51,11 +59,66 @@ module sphere_data
    contains
       procedure, public :: initialize_layers => initialize_sphere_layers
       procedure, public :: find_hosts => find_host_spheres
+      procedure, public :: is_pec => sphere_is_pec
    end type sphere_cluster_t
 
    type(sphere_cluster_t), target, public :: sphere_cluster
 
 contains
+
+   logical function sphere_record_is_pec(record)
+      character(len=*), intent(in) :: record
+      character(len=32) :: material_name
+      integer :: io_status
+      real(real64) :: geometry(4)
+
+      read (record, *, iostat=io_status) geometry, material_name
+      sphere_record_is_pec = io_status == 0 .and. lowercase(trim(material_name)) == 'pec'
+   end function sphere_record_is_pec
+
+   pure logical function sphere_record_mentions_pec(record)
+      character(len=*), intent(in) :: record
+      character(len=len(record)) :: lower_record
+      integer :: i, record_length
+      logical :: left_delimiter, right_delimiter
+
+      lower_record = lowercase(record)
+      record_length = len_trim(lower_record)
+      sphere_record_mentions_pec = .false.
+      do i = 1, record_length - 2
+         if (lower_record(i:i + 2) /= 'pec') cycle
+         left_delimiter = i == 1
+         if (.not. left_delimiter) left_delimiter = index(' ,'//achar(9), lower_record(i - 1:i - 1)) > 0
+         right_delimiter = i + 2 == record_length
+         if (.not. right_delimiter) right_delimiter = index(' ,!'//achar(9), lower_record(i + 3:i + 3)) > 0
+         if (left_delimiter .and. right_delimiter) then
+            sphere_record_mentions_pec = .true.
+            return
+         end if
+      end do
+   end function sphere_record_mentions_pec
+
+   pure function lowercase(value) result(lower_value)
+      character(len=*), intent(in) :: value
+      character(len=len(value)) :: lower_value
+      integer :: character_code, i
+
+      lower_value = value
+      do i = 1, len(value)
+         character_code = iachar(value(i:i))
+         if (character_code >= iachar('A') .and. character_code <= iachar('Z')) &
+            lower_value(i:i) = achar(character_code + iachar('a') - iachar('A'))
+      end do
+   end function lowercase
+
+   pure logical function sphere_is_pec(self, sphere_index)
+      class(sphere_cluster_t), intent(in) :: self
+      integer, intent(in) :: sphere_index
+
+      sphere_is_pec = allocated(self%material_model) .and. sphere_index >= 1
+      if (sphere_is_pec) sphere_is_pec = sphere_index <= size(self%material_model)
+      if (sphere_is_pec) sphere_is_pec = self%material_model(sphere_index) == material_pec
+   end function sphere_is_pec
 
    subroutine initialize_sphere_layers(self)
       implicit none(type, external)

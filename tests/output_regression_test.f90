@@ -38,6 +38,10 @@ program output_regression_test
       call check_near_field_modes(trim(work_directory), failures)
    case ('state_lifecycle')
       call check_state_lifecycle(trim(work_directory), failures)
+   case ('pec_sphere')
+      call check_pec_sphere(trim(work_directory), failures)
+   case ('pec_mixed_invariants')
+      call check_pec_mixed_invariants(trim(work_directory), failures)
    case ('parallel_solver_equivalence')
       call get_command_argument(3, comparison_directory_1)
       call get_command_argument(4, comparison_directory_2)
@@ -392,6 +396,72 @@ contains
                            efficiency(component, 1), failure_count)
       end do
    end subroutine check_state_lifecycle
+
+   subroutine check_pec_sphere(directory, failure_count)
+      character(len=*), intent(in) :: directory
+      integer, intent(inout) :: failure_count
+      character(len=2048) :: line
+      integer :: io_status, unit
+      real(real64) :: efficiency(9), near_field_row(27)
+
+      call open_regression_file(directory//'/pec-sphere.dat', unit)
+      call find_line(unit, 'total extinction, absorption, scattering efficiencies', .true.)
+      read (unit, *) efficiency
+      close (unit)
+
+      call require_finite('PEC sphere efficiencies', efficiency, failure_count)
+      call assert_close('PEC sphere analytical extinction', efficiency(1), &
+                        2.0358642575812524_real64, failure_count)
+      call assert_close('PEC sphere zero absorption', efficiency(2), 0.0_real64, failure_count)
+      call assert_close('PEC sphere energy balance', efficiency(3), efficiency(1), failure_count)
+
+      call open_regression_file(directory//'/pec-near-field.dat', unit)
+      call skip_lines(unit, 8)
+      do
+         read (unit, '(a)', iostat=io_status) line
+         if (io_status /= 0) exit
+         read (line, *, iostat=io_status) near_field_row
+         if (io_status /= 0) then
+            write (error_unit, '(a)') 'Could not parse PEC near-field row'
+            failure_count = failure_count + 1
+            cycle
+         end if
+         call require_finite('PEC internal near field', near_field_row, failure_count)
+         call assert_close('PEC internal electric and magnetic fields', &
+                           maxval(abs(near_field_row(4:27))), 0.0_real64, failure_count)
+      end do
+      close (unit)
+   end subroutine check_pec_sphere
+
+   subroutine check_pec_mixed_invariants(directory, failure_count)
+      character(len=*), intent(in) :: directory
+      integer, intent(inout) :: failure_count
+      integer :: component, run, unit
+      real(real64) :: efficiency(9, 4)
+
+      call open_regression_file(directory//'/pec-mixed-invariants.dat', unit)
+      do run = 1, 4
+         call find_line(unit, 'total extinction, absorption, scattering efficiencies', .true.)
+         read (unit, *) efficiency(:, run)
+      end do
+      close (unit)
+
+      call require_finite('Mixed PEC/dielectric efficiencies', reshape(efficiency, [size(efficiency)]), failure_count)
+      do run = 1, 4
+         call assert_close('Mixed PEC/dielectric zero absorption', efficiency(2, run), &
+                           0.0_real64, failure_count)
+         call assert_close('Mixed PEC/dielectric energy balance', efficiency(3, run), &
+                           efficiency(1, run), failure_count)
+      end do
+      do component = 1, 9
+         call assert_close('Mixed PEC translated invariant', efficiency(component, 2), &
+                           efficiency(component, 1), failure_count)
+         call assert_close('Mixed PEC rotated invariant', efficiency(component, 3), &
+                           efficiency(component, 1), failure_count)
+         call assert_close('Mixed PEC FFT/pairwise equivalence', efficiency(component, 4), &
+                           efficiency(component, 1), failure_count)
+      end do
+   end subroutine check_pec_mixed_invariants
 
    subroutine check_parallel_equivalence(serial_directory, two_rank_directory, four_rank_directory, &
                                          output_name, number_runs, failure_count)

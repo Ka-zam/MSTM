@@ -1,0 +1,54 @@
+! Mixed PEC/dielectric reference cluster at oblique incidence.
+output_file
+pec-mixed-invariants.dat
+number_spheres
+2
+sphere_data
+-0.65d0, 0.15d0,-0.25d0,0.45d0,PEC
+ 0.55d0,-0.10d0, 0.35d0,0.35d0,(1.70d0,0.d0)
+end_of_sphere_data
+incident_beta_deg
+43.d0
+incident_alpha_deg
+17.d0
+solution_epsilon
+1.d-9
+fft_translation_option
+f
+calculate_scattering_matrix
+f
+calculate_up_down_scattering
+f
+print_sphere_data
+f
+print_timings
+t
+! Translate every sphere by (1.30,-0.70,0.90).
+new_run
+sphere_data
+0.65d0,-0.55d0,0.65d0,0.45d0,PEC
+1.85d0,-0.80d0,1.25d0,0.35d0,(1.70d0,0.d0)
+end_of_sphere_data
+! Rotate the reference cluster and incidence by 90 degrees about z.
+new_run
+sphere_data
+-0.15d0,-0.65d0,-0.25d0,0.45d0,PEC
+ 0.10d0, 0.55d0, 0.35d0,0.35d0,(1.70d0,0.d0)
+end_of_sphere_data
+incident_alpha_deg
+107.d0
+! Exercise the accelerated translation path on the reference cluster.
+new_run
+sphere_data
+-0.65d0, 0.15d0,-0.25d0,0.45d0,PEC
+ 0.55d0,-0.10d0, 0.35d0,0.35d0,(1.70d0,0.d0)
+end_of_sphere_data
+incident_alpha_deg
+17.d0
+fft_translation_option
+t
+min_fft_nsphere
+1
+node_order
+3
+end_of_options

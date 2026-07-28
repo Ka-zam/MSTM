@@ -28,6 +28,7 @@ contains
 
    subroutine print_run_variables(iunit)
       implicit none
+      logical :: pec_present
       integer :: iunit, i, n, fft_cell_dimensions(3), fft_neighbor_count, fft_order
       real(real64) :: cb, r(2), t(2), a(2), tvol, svol, fft_volume_fraction, fft_cell_size
 
@@ -95,14 +96,31 @@ contains
       write (iunit, '(4es15.7)') sphere_cluster%vol_radius, sphere_cluster%area_mean_radius, sphere_cluster%circumscribing_radius, sphere_cluster%cross_section_radius
       if (simulation_config%output%print_sphere_data) then
          write (iunit, '('' sphere properties and associations'')')
-         if (sphere_cluster%any_optically_active) then
+         pec_present = any(sphere_cluster%material_model == material_pec)
+         if (pec_present .and. sphere_cluster%any_optically_active) then
+            write (iunit, '(''   sphere    host   layer radius     x       y       z      material'', &
+              &''       ref indx(L)             ref_indx(R)'')')
+         elseif (pec_present) then
+            write (iunit, '(''   sphere    host   layer radius     x       y       z      material/ref index'')')
+         elseif (sphere_cluster%any_optically_active) then
             write (iunit, '(''   sphere    host   layer radius     x       y       z    '', &
               &''     ref indx(L)             ref_indx(R)'')')
          else
             write (iunit, '(''   sphere    host   layer radius     x       y       z           ref indx'')')
          end if
          do n = 1, sphere_cluster%number_spheres
-            if (sphere_cluster%any_optically_active) then
+            if (sphere_cluster%is_pec(n)) then
+               write (iunit, '(3i8,4f8.3,2x,a)') n, sphere_cluster%host_sphere(n), sphere_cluster%sphere_layer(n), &
+                  sphere_cluster%sphere_radius(n), sphere_cluster%sphere_position(:, n), 'PEC'
+            elseif (pec_present .and. sphere_cluster%any_optically_active) then
+               write (iunit, '(3i8,4f8.3,2x,a12,4es12.4)') n, sphere_cluster%host_sphere(n), &
+                  sphere_cluster%sphere_layer(n), sphere_cluster%sphere_radius(n), sphere_cluster%sphere_position(:, n), &
+                  'dielectric', sphere_cluster%sphere_ref_index(1:2, n)
+            elseif (pec_present) then
+               write (iunit, '(3i8,4f8.3,2x,a12,2es12.4)') n, sphere_cluster%host_sphere(n), &
+                  sphere_cluster%sphere_layer(n), sphere_cluster%sphere_radius(n), sphere_cluster%sphere_position(:, n), &
+                  'dielectric', sphere_cluster%sphere_ref_index(1, n)
+            elseif (sphere_cluster%any_optically_active) then
                write (iunit, '(3i8,4f8.3,4es12.4)') n, sphere_cluster%host_sphere(n), sphere_cluster%sphere_layer(n), sphere_cluster%sphere_radius(n), &
                   sphere_cluster%sphere_position(:, n), sphere_cluster%sphere_ref_index(1:2, n)
             else

@@ -3,9 +3,12 @@ module configuration_data
    use input_state
    use parallel_runtime, only: mpi_comm_world, mstm_global_rank, parallel_barrier, parallel_broadcast, parallel_rank
    use runtime_support, only: open_input_file, runtime_failed, set_runtime_error, synchronize_runtime_status
+   use sphere_data, only: material_dielectric, material_pec, sphere_cluster, sphere_record_is_pec, &
+                          sphere_record_mentions_pec
    implicit none
    private
-   public :: check_sphere_positions, generate_random_configuration, read_sphere_data_input_file
+   public :: check_sphere_positions, generate_random_configuration, read_sphere_data_input_file, &
+             validate_material_configuration
 contains
 
    subroutine read_sphere_data_input_file(mpi_comm)
@@ -14,6 +17,7 @@ contains
       integer, optional :: mpi_comm
       real(real64) :: rtemp(4)
       complex(real64) :: ctemp(2)
+      character(len=32) :: material_name
       character(len=256) :: parmval
 
       if (present(mpi_comm)) then
@@ -28,7 +32,8 @@ contains
       do n = 1, sphere_cluster%number_spheres
          sphere_cluster%sphere_radius(n) = 1.d0
          sphere_cluster%sphere_ref_index(1, n) = (1.d0, 0.d0)
-         sphere_cluster%sphere_ref_index(2, n) = (0.d0, 0.d0)
+         sphere_cluster%sphere_ref_index(2, n) = (1.d0, 0.d0)
+         sphere_cluster%material_model(n) = material_dielectric
          read (input_unit, '(a)', iostat=istat) parmval
          if (istat .ne. 0) then
             if (rank .eq. 0) then
@@ -50,6 +55,22 @@ contains
          end if
          read (parmval, *, iostat=istat) rtemp(1:4)
          if (istat .eq. 0) sphere_cluster%sphere_radius(n) = rtemp(4)
+         if (sphere_record_mentions_pec(parmval) .and. .not. sphere_record_is_pec(parmval)) then
+            call set_runtime_error('PEC sphere records require x, y, z, radius, and PEC')
+            close (input_unit)
+            return
+         end if
+         if (sphere_record_is_pec(parmval)) then
+            read (parmval, *, iostat=istat) rtemp(1:4), material_name
+            if (istat /= 0) then
+               call set_runtime_error('PEC sphere records require x, y, z, radius, and PEC')
+               close (input_unit)
+               return
+            end if
+            sphere_cluster%sphere_radius(n) = rtemp(4)
+            sphere_cluster%material_model(n) = material_pec
+            cycle
+         end if
          read (parmval, *, iostat=istat) rtemp(1:4), ctemp(1)
          if (istat .eq. 0) sphere_cluster%sphere_ref_index(1, n) = ctemp(1)
          read (parmval, *, iostat=istat) rtemp(1:4), ctemp(1:2)
@@ -64,7 +85,9 @@ contains
       do n = 1, sphere_cluster%number_spheres
          sphere_cluster%sphere_radius(n) = sphere_cluster%sphere_radius(n) * simulation_config%length_scale_factor
          sphere_cluster%sphere_position(:, n) = sphere_cluster%sphere_position(:, n) * simulation_config%length_scale_factor
-         sphere_cluster%sphere_ref_index(:, n) = sphere_cluster%sphere_ref_index(:, n) * simulation_config%ref_index_scale_factor
+         if (.not. sphere_cluster%is_pec(n)) &
+            sphere_cluster%sphere_ref_index(:, n) = sphere_cluster%sphere_ref_index(:, n) &
+                                                    * simulation_config%ref_index_scale_factor
       end do
    end subroutine read_sphere_data_input_file
 
@@ -142,6 +165,7 @@ contains
       sphere_cluster%sphere_radius(1:nsphere) = sphere_cluster%sphere_radius(1:nsphere) * simulation_config%length_scale_factor
  sphere_cluster%sphere_position(:, 1:nsphere) = sphere_cluster%sphere_position(:, 1:nsphere) * simulation_config%length_scale_factor
       do i = 1, nsphere
+         sphere_cluster%material_model(i) = material_dielectric
          sphere_cluster%sphere_ref_index(:, i) = simulation_config%ref_index_scale_factor &
                                                  * simulation_config%component_ref_index(simulation_result%sphere_index(i))
       end do
@@ -159,9 +183,33 @@ contains
             end if
          end if
          sphere_cluster%sphere_position(:, sphere_cluster%number_spheres) = 0.d0
+         sphere_cluster%material_model(sphere_cluster%number_spheres) = material_dielectric
          sphere_cluster%sphere_ref_index(:, sphere_cluster%number_spheres) = simulation_config%host_sphere_ref_index
       end if
    end subroutine generate_random_configuration
+
+   subroutine validate_material_configuration()
+      integer :: i
+
+      do i = 1, sphere_cluster%number_spheres
+         if (.not. sphere_cluster%is_pec(i)) cycle
+         if (sphere_cluster%host_sphere(i) /= 0) then
+            call set_runtime_error('PEC sphere '//integer_string(i)//' is nested; only top-level solid PEC spheres are supported')
+            return
+         end if
+         if (any(sphere_cluster%host_sphere == i)) then
+        call set_runtime_error('PEC sphere '//integer_string(i)//' contains another sphere; PEC hosts and cavities are unsupported')
+            return
+         end if
+      end do
+   end subroutine validate_material_configuration
+
+   function integer_string(value) result(text)
+      integer, intent(in) :: value
+      character(len=32) :: text
+
+      write (text, '(i0)') value
+   end function integer_string
 
    subroutine check_sphere_positions()
       implicit none

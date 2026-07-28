@@ -96,7 +96,7 @@ end_of_options
 
 ### 4.1 Sphere data
 
-`sphere_data_input_file` supplies at least `number_spheres` records. A record has 3–6 fields separated by whitespace, tabs, or commas:
+`sphere_data_input_file` supplies at least `number_spheres` records. A penetrable-sphere record has 3–6 fields separated by whitespace, tabs, or commas:
 
 ```text
 x  y  z  [radius]  [(isotropic_index)]  [(right_index)]
@@ -108,6 +108,14 @@ x  y  z  [radius]  [(isotropic_index)]  [(right_index)]
 - Six fields give left and right indices for optically active material.
 
 Positions and explicit radii are multiplied by `length_scale_factor`. Indices are multiplied by `ref_index_scale_factor`.
+
+A solid perfect electric conductor uses an explicit material name instead of a refractive index:
+
+```text
+x  y  z  radius  PEC
+```
+
+`PEC` is case-insensitive and is not affected by `ref_index_scale_factor`. PEC spheres may be mixed with penetrable spheres, but must be top-level solid spheres in an isotropic exterior medium. PEC hosts, shells, cavities, and PEC spheres nested inside another sphere are rejected because they require a different interface formulation.
 
 Data can instead be embedded in the input:
 
@@ -408,7 +416,7 @@ R_A=\left(\frac{1}{N_{S,\mathrm{ext}}}\sum_{i\in\mathrm{ext}}a_i^2\right)^{1/2}.
 
 The cross-section radius $a_{cs}$ defines efficiencies through $C=\pi a_{cs}^2Q$. Dimensional cross sections are obtained by dividing dimensionless values by $(2\pi/\lambda_0)^2$. For plane-wave or random-orientation calculations, $a_{cs}=R_V$. For Gaussian incidence, $a_{cs}=1/(\sqrt2 C_B)$. For periodic lattices, $\pi a_{cs}^2=W_xW_y$.
 
-When sphere data is printed, `absorption` measures all absorption inside a surface. `volume absorption` subtracts absorption in nested spheres and therefore represents only the material immediately inside that surface.
+When sphere data is printed, `absorption` measures all absorption inside a surface. `volume absorption` subtracts absorption in nested spheres and therefore represents only the material immediately inside that surface. An ideal PEC has exactly zero material absorption. For near-field grids, fields inside a PEC are reported as zero; points exactly on its surface use the interior convention because the tangential fields are discontinuous there.
 
 Simple systems report extinction, absorption, and scattering efficiencies for unpolarized, parallel, and perpendicular incidence. Layered systems additionally separate forward and backward terms. Periodic systems report reflection, absorption, and transmission, which should sum to unity within numerical error.
 

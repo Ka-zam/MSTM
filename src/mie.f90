@@ -12,6 +12,7 @@ contains
 !  february 2013: tmatrix file option.
 !
    subroutine calculate_mie_coefficients(qeps)
+      use runtime_support, only: set_runtime_error
       use sphere_data
       implicit none
       integer :: i, nodrn, nsphere, ntermstot, nblktot, nterms, &
@@ -39,9 +40,18 @@ contains
 !
       do i = 1, sphere_cluster%number_spheres
          call exterior_refractive_index(i, rihost)
-         call optically_active_mie_coefficients(sphere_cluster%sphere_radius(i), sphere_cluster%sphere_ref_index(:, i), &
-                                                nodrn, qeps, qext, qsca, qabs, &
-                                                ri_medium=rihost)
+         if (sphere_cluster%is_pec(i)) then
+            if (rihost(1) /= rihost(2)) then
+               call set_runtime_error('PEC sphere requires an isotropic exterior medium')
+               return
+            end if
+            call perfect_conductor_mie_coefficients(sphere_cluster%sphere_radius(i), nodrn, qeps, &
+                                                    qext, qsca, qabs, ri_medium=rihost)
+         else
+            call optically_active_mie_coefficients(sphere_cluster%sphere_radius(i), sphere_cluster%sphere_ref_index(:, i), &
+                                                   nodrn, qeps, qext, qsca, qabs, &
+                                                   ri_medium=rihost)
+         end if
          sphere_cluster%sphere_order(i) = nodrn
       end do
       do i = 1, sphere_cluster%number_spheres
@@ -58,7 +68,8 @@ contains
       sphere_cluster%any_optically_active = .false.
       do i = 1, sphere_cluster%number_spheres
          call exterior_refractive_index(i, rihost)
-         if (sphere_cluster%sphere_ref_index(1, i) .eq. sphere_cluster%sphere_ref_index(2, i)) then
+         if (sphere_cluster%is_pec(i) .or. &
+             sphere_cluster%sphere_ref_index(1, i) .eq. sphere_cluster%sphere_ref_index(2, i)) then
             sphere_cluster%optically_active(i) = .false.
          else
             sphere_cluster%optically_active(i) = .true.
@@ -66,9 +77,14 @@ contains
          end if
          nodrn = sphere_cluster%sphere_order(i)
          sphere_cluster%sphere_block(i) = 2 * nodrn * (nodrn + 2)
-         call optically_active_mie_coefficients(sphere_cluster%sphere_radius(i), sphere_cluster%sphere_ref_index(:, i), &
-                                                nodrn, 0.d0, qext, qsca, qabs, &
-                                                ri_medium=rihost)
+         if (sphere_cluster%is_pec(i)) then
+            call perfect_conductor_mie_coefficients(sphere_cluster%sphere_radius(i), nodrn, 0.d0, &
+                                                    qext, qsca, qabs, ri_medium=rihost)
+         else
+            call optically_active_mie_coefficients(sphere_cluster%sphere_radius(i), sphere_cluster%sphere_ref_index(:, i), &
+                                                   nodrn, 0.d0, qext, qsca, qabs, &
+                                                   ri_medium=rihost)
+         end if
          nterms = 4 * nodrn
          sphere_cluster%mie_offset(i) = ntermstot
          ntermstot = ntermstot + nterms
@@ -103,11 +119,23 @@ contains
          call exterior_refractive_index(i, rihost)
          allocate (anp(2, 2, nodrn), cnp(2, 2, nodrn), unp(2, 2, nodrn), &
                    vnp(2, 2, nodrn), dnp(2, 2, nodrn), anpinv(2, 2, nodrn))
-         call optically_active_mie_coefficients(sphere_cluster%sphere_radius(i), sphere_cluster%sphere_ref_index(:, i), &
-                                                nodrn, 0.d0, qext, qsca, qabs, &
-                                                anp_mie=anp, cnp_mie=cnp, dnp_mie=dnp, &
-                                                unp_mie=unp, vnp_mie=vnp, anp_inv_mie=anpinv, &
-                                                ri_medium=rihost)
+         anp = 0.d0
+         cnp = 0.d0
+         unp = 0.d0
+         vnp = 0.d0
+         dnp = 0.d0
+         anpinv = 0.d0
+         if (sphere_cluster%is_pec(i)) then
+            call perfect_conductor_mie_coefficients(sphere_cluster%sphere_radius(i), nodrn, 0.d0, &
+                                                    qext, qsca, qabs, anp_mie=anp, &
+                                                    ri_medium=rihost, anp_inv_mie=anpinv)
+         else
+            call optically_active_mie_coefficients(sphere_cluster%sphere_radius(i), sphere_cluster%sphere_ref_index(:, i), &
+                                                   nodrn, 0.d0, qext, qsca, qabs, &
+                                                   anp_mie=anp, cnp_mie=cnp, dnp_mie=dnp, &
+                                                   unp_mie=unp, vnp_mie=vnp, anp_inv_mie=anpinv, &
+                                                   ri_medium=rihost)
+         end if
          nterms = 4 * nodrn
          n1 = sphere_cluster%mie_offset(i) + 1
          n2 = sphere_cluster%mie_offset(i) + nterms
@@ -145,6 +173,85 @@ contains
       am(2, 1) = (a(1, 1) + a(1, 2) - a(2, 1) - a(2, 2)) / 2.
       am(2, 2) = (a(1, 1) - a(1, 2) - a(2, 1) + a(2, 2)) / 2.
    end subroutine left_right_to_mode_matrix
+
+!  Exact external Mie coefficients for a solid perfect electric conductor.
+!  The surrounding medium must be isotropic; PEC spheres have no internal
+!  regular-field coefficients.
+!
+   pure subroutine perfect_conductor_mie_coefficients(x, nodr0, qeps, qext, qsca, qabs, &
+                                                      anp_mie, ri_medium, anp_inv_mie)
+      use bessel_functions, only: riccati_bessel, riccati_hankel
+      use wave_functions, only: invert_two_by_two_matrix
+      implicit none(type, external)
+      integer, intent(inout) :: nodr0
+      real(real64), intent(in) :: qeps, x
+      real(real64), intent(out) :: qabs, qext, qsca
+      complex(real64), intent(in), optional :: ri_medium(2)
+      complex(real64), intent(out), optional :: anp_mie(2, 2, *), anp_inv_mie(2, 2, *)
+      integer :: degree, nstop
+      real(real64) :: error, extinction_total, order_weight
+      real(real64), allocatable :: order_extinction(:)
+      complex(real64) :: argument, inverse_matrix(2, 2), mie_matrix(2, 2), &
+                         mode_coefficient(2), psip, xip
+      complex(real64), allocatable :: psi(:), xi(:)
+
+      argument = cmplx(x, 0.0_real64, kind=real64)
+      if (present(ri_medium)) argument = x * ri_medium(1)
+      if (qeps > 0.0_real64) then
+         nstop = nint(abs(argument) + 4.0_real64 * abs(argument)**(1.0_real64 / 3.0_real64)) + 5
+      elseif (qeps < 0.0_real64) then
+         nstop = ceiling(-qeps)
+         nodr0 = nstop
+      else
+         nstop = nodr0
+      end if
+
+      allocate (psi(0:nstop), xi(0:nstop), order_extinction(nstop))
+      call riccati_bessel(nstop, argument, psi)
+      call riccati_hankel(nstop, argument, xi)
+
+      qext = 0.0_real64
+      qsca = 0.0_real64
+      do degree = 1, nstop
+         psip = psi(degree - 1) - real(degree, real64) * psi(degree) / argument
+         xip = xi(degree - 1) - real(degree, real64) * xi(degree) / argument
+
+         ! Mode 1 is electric/TM and mode 2 is magnetic/TE.
+         mode_coefficient(1) = -psip / xip
+         mode_coefficient(2) = -psi(degree) / xi(degree)
+         mie_matrix(1, 1) = 0.5_real64 * (mode_coefficient(1) + mode_coefficient(2))
+         mie_matrix(1, 2) = 0.5_real64 * (mode_coefficient(1) - mode_coefficient(2))
+         mie_matrix(2, 1) = mie_matrix(1, 2)
+         mie_matrix(2, 2) = mie_matrix(1, 1)
+
+         if (present(anp_mie)) anp_mie(:, :, degree) = mie_matrix
+         if (present(anp_inv_mie)) then
+            call invert_two_by_two_matrix(mie_matrix, inverse_matrix)
+            anp_inv_mie(:, :, degree) = inverse_matrix
+         end if
+
+         order_weight = real(2 * degree + 1, real64)
+         order_extinction(degree) = -order_weight * &
+                                    real(mie_matrix(1, 1) + mie_matrix(2, 2), real64)
+         qext = qext + order_extinction(degree)
+         qsca = qsca + order_weight * sum(abs(mie_matrix)**2)
+      end do
+
+      if (qeps > 0.0_real64) then
+         extinction_total = qext
+         qext = 0.0_real64
+         do degree = 1, nstop
+            qext = qext + order_extinction(degree)
+            error = abs(1.0_real64 - qext / extinction_total)
+            if (error < qeps .or. degree == nstop) exit
+         end do
+         nodr0 = degree
+      end if
+
+      qext = 2.0_real64 * qext / x**2
+      qsca = 2.0_real64 * qsca / x**2
+      qabs = 0.0_real64
+   end subroutine perfect_conductor_mie_coefficients
 !
 ! optically active lorenz/mie coefficients
 ! original 30 March 2011

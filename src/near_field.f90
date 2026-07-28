@@ -123,7 +123,9 @@ contains
          allocate (vector(nblk, 2, 2))
          allocate (internal_field_vector(i)%vector(nblk, 2, 2))
          do p = 1, 2
-            if (sphere_cluster%number_field_expansions(i) .eq. 1) then
+            if (sphere_cluster%is_pec(i)) then
+               vector(1:nblk, 1:2, p) = 0.0_real64
+            elseif (sphere_cluster%number_field_expansions(i) .eq. 1) then
                call apply_single_sphere_mie_coefficients(i, sphere_cluster%sphere_order(i), &
                     amnp(sphere_cluster%sphere_offset(i) + 1:sphere_cluster%sphere_offset(i) + sphere_cluster%sphere_block(i), p), &
                                                          vector(1:nblk, 1:2, p), 'c')
@@ -191,29 +193,34 @@ contains
 !write(*,'(3i5,3es12.4)') ix,iz,host,rpos
 !flush(6)
 !endif
-               if ((.not. periodic_lattice) .and. fast_near_field) then
-!                  if(host.eq.0.and.(.not.periodic_lattice).and.(number_plane_boundaries.eq.0)) then
-                  call calculate_source_field_fast(rpos, amnp, cellinfo, evec, hvec)
+               if (host /= 0 .and. sphere_cluster%is_pec(host)) then
+                  evec = 0.0_real64
+                  hvec = 0.0_real64
                else
-                  call calculate_source_field(rpos, amnp, host, layer, evec, hvec)
-               end if
+                  if ((.not. periodic_lattice) .and. fast_near_field) then
+!                     if(host.eq.0.and.(.not.periodic_lattice).and.(number_plane_boundaries.eq.0)) then
+                     call calculate_source_field_fast(rpos, amnp, cellinfo, evec, hvec)
+                  else
+                     call calculate_source_field(rpos, amnp, host, layer, evec, hvec)
+                  end if
 !write(*,*) 'nf 2'
 !flush(6)
-               if (host .eq. 0 .and. (number_plane_boundaries .gt. 0 .or. periodic_lattice)) then
-                  call calculate_surface_field(rpos, amnp, cellinfo, evec1, hvec1)
-                  evec(:, :) = evec(:, :) + evec1(:, :)
-                  hvec(:, :) = hvec(:, :) + hvec1(:, :)
-               end if
+                  if (host .eq. 0 .and. (number_plane_boundaries .gt. 0 .or. periodic_lattice)) then
+                     call calculate_surface_field(rpos, amnp, cellinfo, evec1, hvec1)
+                     evec(:, :) = evec(:, :) + evec1(:, :)
+                     hvec(:, :) = hvec(:, :) + hvec1(:, :)
+                  end if
 !write(*,*) 'nf 3'
 !flush(6)
-               if (incmodel .ne. 2 .and. host .eq. 0) then
-                  call calculate_incident_field(rpos, layer, alpha, sinc, dir, cellinfo, evec1, hvec1)
-                  evec(:, :) = evec(:, :) + evec1(:, :)
-                  hvec(:, :) = hvec(:, :) + hvec1(:, :)
-               elseif (incmodel .eq. 2 .and. host .ne. 0) then
-                  call calculate_incident_field(rpos, layer, alpha, sinc, dir, cellinfo, evec1, hvec1)
-                  evec(:, :) = evec(:, :) - evec1(:, :)
-                  hvec(:, :) = hvec(:, :) - hvec1(:, :)
+                  if (incmodel .ne. 2 .and. host .eq. 0) then
+                     call calculate_incident_field(rpos, layer, alpha, sinc, dir, cellinfo, evec1, hvec1)
+                     evec(:, :) = evec(:, :) + evec1(:, :)
+                     hvec(:, :) = hvec(:, :) + hvec1(:, :)
+                  elseif (incmodel .eq. 2 .and. host .ne. 0) then
+                     call calculate_incident_field(rpos, layer, alpha, sinc, dir, cellinfo, evec1, hvec1)
+                     evec(:, :) = evec(:, :) - evec1(:, :)
+                     hvec(:, :) = hvec(:, :) - hvec1(:, :)
+                  end if
                end if
                earray(:, :, ix, iy) = evec
                harray(:, :, ix, iy) = hvec

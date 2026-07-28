@@ -208,6 +208,7 @@ contains
          end do
          call sphere_efficiency_factors(ri0, nodr, npol, sphere_cluster%sphere_radius(i), amnpi, fmnpi, gmnpi, &
                                         qe, qs, qa)
+         if (sphere_cluster%is_pec(i)) qa = 0.0_real64
          qeffi(1, :) = qe(:)
          qeffi(3, :) = qs(:)
          qeffi(2, :) = qa(:)
